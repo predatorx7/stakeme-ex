@@ -219,6 +219,9 @@ SMX_DOMAIN=$dom
 PORT=4020
 POSTGRES_PASSWORD=$pw
 DB_URI=postgres://postgres:$pw@postgres:5432/postgres
+CHAIN_NULLIFIER_SALT=prod-2026-11-07b
+ATS_MODE=live
+DIVIDEND_HBAR_PER_USDC=0.0001
 EOP
   printf '%s' "$pw" > "$tmp/pgpass"
 
