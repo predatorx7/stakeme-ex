@@ -1,0 +1,92 @@
+/* ticker: quote strip under the header. Markup in TickerStrip.tsx. */
+
+.smx-ticker {
+	--ticker-speed: 40s;
+	display: flex;
+	overflow: hidden;
+	height: 28px;
+	align-items: center;
+	border-block: 1px solid var(--rc-color-border-subtle);
+	font-family: var(--rc-font-family-mono);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.smx-ticker__list {
+	display: flex;
+	flex: none;
+	min-width: 100%;
+	align-items: center;
+	justify-content: space-around;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	animation: smx-ticker-scroll var(--ticker-speed) linear infinite;
+}
+
+.smx-ticker:hover .smx-ticker__list,
+.smx-ticker:focus-within .smx-ticker__list {
+	animation-play-state: paused;
+}
+
+.smx-ticker__list > li {
+	list-style: none;
+}
+
+.smx-ticker__list > li::marker {
+	content: none;
+}
+
+.smx-ticker a {
+	display: flex;
+	gap: 0.5em;
+	padding: 4px 14px;
+	color: var(--rc-color-text-tertiary);
+	text-decoration: none;
+	border-radius: 4px;
+}
+
+.smx-ticker a:hover {
+	background: var(--rc-color-border-subtle);
+}
+
+.smx-ticker a:focus-visible {
+	outline: 2px solid var(--rc-color-action-primary);
+	outline-offset: -2px;
+}
+
+.smx-ticker__sym {
+	color: var(--rc-color-text-primary);
+	font-weight: 600;
+}
+
+.smx-ticker a[data-dir='up'] {
+	color: var(--rc-color-status-success);
+}
+
+.smx-ticker a[data-dir='down'] {
+	color: var(--rc-color-status-danger);
+}
+
+@keyframes smx-ticker-scroll {
+	to {
+		transform: translateX(-100%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.smx-ticker {
+		overflow-x: auto;
+	}
+
+	.smx-ticker__list {
+		animation: none;
+		justify-content: flex-start;
+	}
+
+	/* The marquee copy is only for the loop. */
+	.smx-ticker__list[aria-hidden] {
+		display: none;
+	}
+}

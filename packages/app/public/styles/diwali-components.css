@@ -140,37 +140,6 @@ table.rc-table tbody tr:hover,
 	);
 }
 
-/* Oracle feed: a small dot leads each event. */
-.smx-event {
-	position: relative;
-}
-
-.smx-event::before {
-	background: var(--smx-dw-gold, #e8b44c);
-	block-size: 5px;
-	border-radius: 50%;
-	content: '';
-	inline-size: 5px;
-	inset-block-start: 50%;
-	inset-inline-start: 4px;
-	margin-block-start: -2.5px;
-	pointer-events: none;
-	position: absolute;
-}
-
-@media (max-width: 35rem) {
-	.smx-event::before {
-		inset-block-start: 1.1rem;
-		margin-block-start: 0;
-	}
-}
-
-.smx-event[data-kind='PROOF_REJECTED']::before,
-.smx-event[data-kind='DEFAULTED']::before {
-	background: var(--rc-color-status-danger);
-	box-shadow: none;
-}
-
 /* Charts: marigold line, soft gold area. */
 .rc-chart-frame:not([data-tone]) .rc-area-chart__line,
 .rc-area-chart__line {
