@@ -29,6 +29,59 @@ reviewed the results.
 | Reclaim MCP server | Reclaim | Used by the agent to build and test the mock-bank provider (capture, replay, run proof, publish) |
 | Chrome DevTools MCP server | Google | Used by the agent for browser checks of the UI |
 
+## What the team did
+
+This list is derived from the team's verbatim prompts in
+[`prompts/session-user-prompts.md`](prompts/session-user-prompts.md) (79
+prompts). AI agents wrote most of the code; the items below are what the humans
+decided, directed, set up, and checked.
+
+- **Product concept and playbook.** Wrote the SMX idea (the liquid income share
+  agreement, creator IPOs, dividends from verified income) and the master
+  playbook with user journeys, sponsor roles, and a three-agent build plan.
+  Prompt 1 pastes it in full. Also set the working rules: a `CONTEXT.md`
+  hand-off log, docs in `docs/`, a local Docker Compose setup on a custom
+  Postgres port, generators over hand-written code, tests only for core logic,
+  and commits without agent authorship.
+- **Scope decisions.** Cut the project to exactly three sponsors (Hedera, World
+  ID, 0G), moved all integrations behind an adapter pattern, and dropped
+  Chainlink, Arkiv, and Arc. Prompts 4 and 5 give the instructions.
+- **Reclaim provider through the Reclaim MCP.** Asked the agent to bootstrap the
+  project from the Reclaim Builder conventions, and had it build and test the
+  mock-bank provider through the Reclaim MCP server.
+- **Design direction and feedback.** Asked for a warm lantern and string-lights
+  theme, then corrected the agents: keep the original background, use no
+  festival words in the UI or source, remove the blinking indicator in the top
+  bar, and run "reduce the slop" passes on the UI, UX, and presentation. Asked
+  for a wallet and profile menu, Gravatar-style avatars generated from a hash of
+  the user, more example users and creators, and links from dashboard widgets to
+  full paginated pages.
+- **Product and behavior feedback from testing.** Ran the app locally and
+  reported bugs and questions: the Sybil simulation showing "verified", the
+  local wallet being created when WalletConnect is closed, which wallet is used,
+  whether tokens can be traded elsewhere, and what is still mocked. Decided
+  what to switch to testnet and what to label as simulated.
+- **Account and infrastructure work done by hand.** Signed in to the World ID
+  Developer Portal; solved the Hedera and 0G faucet captchas and funded the
+  testnet accounts; asked the 0G team for 0G Private Computer credits and
+  confirmed they arrived; created the WalletConnect project and added the
+  deployment domains to its allowlist; added the DNS records in Cloudflare for
+  `stakeme.magnificlabs.org`; set up a Google Cloud billing account and set a
+  spending limit for the agents. Secrets went into the gitignored `.env` by
+  hand.
+- **Reviewing and steering every result.** Asked what was left and what was
+  blocking at each step, redirected agents when output missed the goal (for
+  example "previous original background was much better"), told them to fix a
+  stuck deployment, and passed on judge feedback about last year's projects so
+  the pitch and docs described the project honestly.
+
+Honest summary: AI agents wrote most of the code, tests, and docs. The team
+directed the work through the prompts above, made the product and scope
+decisions, did the account and infrastructure steps that agents cannot do, and
+verified results (see below). The prompt log shows direction and feedback, not
+the agents' replies; the agents' output is the code and docs in this
+repository.
+
 ## What humans did
 
 - Set the product direction: the liquid income share agreement (L-ISA) idea,
@@ -78,11 +131,13 @@ AI output can contain errors. Where a check did not run live, the docs say so.
 | Agent rules | [`../AGENTS.md`](../AGENTS.md), `packages/app/AGENTS.md`, `packages/client/AGENTS.md`, `packages/contracts/AGENTS.md` | Rules the agents follow in this repository. |
 | Pitch playbook | [`pitch.md`](pitch.md) | Product and demo plan. |
 | Other planning docs | [`architecture-adapters.md`](architecture-adapters.md), [`backend.md`](backend.md), [`contracts.md`](contracts.md), [`frontend-hooks.md`](frontend-hooks.md), [`diwali-theme.md`](diwali-theme.md), [`integrations/`](integrations/README.md) | Design notes written by agents |
-| Key human prompts and decisions | [`prompts/`](prompts/README.md) | Written records, reconstructed from the repository |
+| All human prompts, verbatim | [`prompts/session-user-prompts.md`](prompts/session-user-prompts.md) | Every message the team sent to the AI agent, exported from the Claude Code session log |
+| Key decisions, summarized | [`prompts/`](prompts/README.md) | Short summaries of the main decisions, reconstructed from the repository |
 
-Note on prompts: the chat transcripts are not stored in the repository. The
-files in `docs/prompts/` are summaries reconstructed from the repository, and
-only the text in quotation marks is quoted from a repo file.
+Note on prompts: `session-user-prompts.md` is the verbatim export (79 prompts,
+with email addresses, keys, and one transaction hash redacted). The other files
+in `docs/prompts/` are summaries reconstructed from the repository, and only
+the text in quotation marks in them is quoted from a repo file.
 
 ## Version control
 
