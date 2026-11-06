@@ -232,14 +232,59 @@ sequenceDiagram
 Holders are addressed by EVM alias (`0.0.<40 hex>`), which creates the account
 on first receipt for HBAR.
 
-### Demo wallet and HashPack
+## WalletConnect
 
-The browser module signs with a throwaway ECDSA key in `localStorage`. Fund its
-EVM address from the faucet once; the module finds the account id from the
-mirror node. HashPack through `@hashgraph/hedera-wallet-connect` isn't wired:
-the 2.1.3 package pins `@hiero-ledger/sdk` to `2.79.0` (SMX uses 2.90), needs a
-WalletConnect project id, and adds Reown dependencies. See
-[Frontend hooks](../frontend-hooks.md#hedera-dividend-payment-hedera-payts).
+The browser signs with the user's own wallet when the page has a
+`WALLETCONNECT_PROJECT_ID` (public; create it at
+[dashboard.walletconnect.com](https://dashboard.walletconnect.com) and allow
+your origin). WalletConnect is one of three choices, in the connect dialog and
+in the Hedera signer dialog: WalletConnect, a generated key, or an imported
+key. A generated or imported key can be exported (reveal and copy). Nothing is
+created unless the user picks it.
+
+| Use | Package | Notes |
+| --- | --- | --- |
+| EVM sign-in (SIWE) on Hedera testnet EVM (chain 296) | `@reown/appkit-universal-connector` 1.8.24 | The WalletConnect App SDK path for plain JavaScript: QR, deep links, session restore. Wrapped as an EIP-1193 provider for viem. 1inch Wallet is featured first (id found through the explorer API). |
+| Native dividend payment (`hedera:testnet`) | `@hashgraph/hedera-wallet-connect` 2.1.3 (`DAppConnector`) | HashPack, Kabila and other Hedera wallets. The wallet signs the x402 `TransferTransaction` (`hedera_signTransaction`); the server adds the operator signature and submits. 1inch doesn't support Hedera native. |
+
+Both load in their own Vite chunks, only when used. See
+[Frontend hooks](../frontend-hooks.md#wallet-and-sign-in-walletts).
+
+The sign-in and payment SDKs use different WalletConnect storage prefixes
+(`smx-evm` and the default). The Hedera `DAppConnector` throws on a stored
+session that has no `hedera` namespace, so they must not share sessions.
+
+### SDK version alignment
+
+`@hashgraph/hedera-wallet-connect` 2.1.3 (the latest stable) declares
+`@hiero-ledger/sdk` `2.79.0` as an exact peer dependency, and `ethers`
+`^6.13.5`. SMX uses `@hiero-ledger/sdk` 2.90.1 and `ethers` 6.13.1 (pinned by
+the 0G storage SDK). The root `package.json` resolves this with npm
+`overrides`:
+
+```json
+"overrides": {
+  "@hiero-ledger/sdk": "^2.90.1",
+  "@hashgraph/hedera-wallet-connect": { "ethers": "^6.13.1" },
+  "@types/node": "$@types/node"
+}
+```
+
+The browser chunk therefore uses the same Hiero SDK as the server. The wallet
+package only calls stable `Transaction` APIs, and signing worked at the type
+and bundle level; a live HashPack signature is not verified. The `@types/node`
+override keeps one `@types/node` (24) so `tsc` resolves Node types in
+`packages/app`. The app imports the package's `dist/lib/dapp` and
+`dist/lib/shared` entry points directly, because the package root also pulls in
+AppKit, ethers and walletkit.
+
+### Fee payer and wallet signing
+
+The x402 transaction's fee payer is the SMX operator, not the signing account.
+A wallet that refuses to sign a transaction whose payer is another account
+would fail with its own error; the user can then pay with a generated or
+imported key. The server needs no change: it derives the payer from the signed
+transfers (`assertTransfersMatch`) and checks the fee payer is the operator.
 
 ## Demo fallback
 

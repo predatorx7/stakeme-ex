@@ -139,6 +139,7 @@ demo mode.
 | World ID | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION`, `WORLD_ENV` (`staging` for the Simulator) |
 | 0G | `ZG_PRIVATE_KEY`, `ZG_RPC_URL`, `ZG_INDEXER_URL`, `ZG_PROVIDER_ADDRESS`, `ZG_LEDGER_DEPOSIT` |
 | Reclaim | `RECLAIM_ORG_SECRET`, `RECLAIM_PROVIDER_ID` |
+| WalletConnect | `WALLETCONNECT_PROJECT_ID` (public; from [dashboard.walletconnect.com](https://dashboard.walletconnect.com), allow your origin) |
 
 The guides in [docs/integrations](docs/integrations/README.md) list every
 variable and how to get it. Deploy the contracts with

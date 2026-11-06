@@ -4,7 +4,9 @@ import {
 	APP_NAME,
 	assetUrl,
 	BASE_PATH,
+	canonicalOrigin,
 	IS_DEV,
+	WALLETCONNECT_PROJECT_ID,
 } from '../consts.ts'
 import { clientAssets } from '../utils/client-assets.ts'
 import { jsonForScript } from '../utils/escape.ts'
@@ -160,6 +162,18 @@ export function Layout(props: LayoutProps) {
 					<link
 						rel='stylesheet'
 						href={cssPath} />
+					{
+						// Public value read by client/walletconnect.ts. Not a secret.
+						!!WALLETCONNECT_PROJECT_ID && (
+							<meta
+								name='smx-walletconnect-project-id'
+								content={WALLETCONNECT_PROJECT_ID}
+								data-name={APP_NAME}
+								data-description={APP_DESCRIPTION}
+								data-url={canonicalOrigin()}
+								data-icon={`${canonicalOrigin()}${assetUrl('icon.svg')}`} />
+						)
+					}
 					{
 						(seo.jsonLd || []).map((payload) => (
 							<script type='application/ld+json'>

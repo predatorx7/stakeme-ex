@@ -1,10 +1,12 @@
 /// <reference lib="dom" />
 import { showToast } from '@reclaimprotocol/design/behaviors'
+import { CANCELLED } from './walletconnect.ts'
 
 /** Shows a danger toast for any thrown value. */
 export function toastError(err: unknown) {
 	const message = err instanceof Error ? err.message : String(err)
-	showToast(message, { tone: 'danger' })
+	// A closed pairing modal is the user's choice, not a failure.
+	showToast(message, message === CANCELLED ? {} : { tone: 'danger' })
 }
 
 /**

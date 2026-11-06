@@ -4,6 +4,7 @@ import { shortHex } from '../utils/money.ts'
 import { Avatar } from './Avatar.tsx'
 import { Icon, type IconName } from './Icon.tsx'
 import { navLink } from './nav-swap.ts'
+import { KeyExportDialog, WalletConnectDialog } from './WalletDialogs.tsx'
 
 /** The primary tab a page belongs to, set through `Layout`'s `nav` prop. */
 export type NavKey = 'exchange' | 'hub' | 'launch'
@@ -119,25 +120,47 @@ export function Header({ viewer, nav }: HeaderProps) {
 					</a>
 					{
 						viewer ? (
-							<span
-								class='rc-person'
-								title={viewer.email}>
-								<Avatar
-									fallbackFor={viewer.name}
-									size='sm' />
+							<>
 								<span
-									class='smx-mono'
-									data-wallet-address
-									title={viewer.walletAddress ?? undefined}>
-									{
-										escapeHtml(
-											viewer.walletAddress
-												? shortHex(viewer.walletAddress)
-												: viewer.name,
-										)
-									}
+									class='rc-person'
+									title={viewer.email}>
+									<Avatar
+										fallbackFor={viewer.name}
+										size='sm' />
+									<span
+										class='smx-mono'
+										data-wallet-address
+										title={viewer.walletAddress ?? undefined}>
+										{
+											escapeHtml(
+												viewer.walletAddress
+													? shortHex(viewer.walletAddress)
+													: viewer.name,
+											)
+										}
+									</span>
+									{/* Painted by client/wallet.ts from the sign-in. */}
+									<span
+										class='rc-pill'
+										data-wallet-kind
+										hidden />
 								</span>
-							</span>
+								<button
+									type='button'
+									class='rc-button'
+									data-size='sm'
+									data-key-export='evm'
+									hidden>
+									Export key
+								</button>
+								<button
+									type='button'
+									class='rc-button'
+									data-size='sm'
+									data-wallet-signout>
+									Sign out
+								</button>
+							</>
 						) : (
 							<button
 								type='button'
@@ -149,6 +172,8 @@ export function Header({ viewer, nav }: HeaderProps) {
 					}
 				</div>
 			</header>
+			{!viewer && <WalletConnectDialog />}
+			<KeyExportDialog />
 			<nav
 				class='rc-bottom-tabs'
 				aria-label='Primary mobile'>

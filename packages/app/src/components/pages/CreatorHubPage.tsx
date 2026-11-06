@@ -18,6 +18,7 @@ import { PageHeader } from '../PageHeader.tsx'
 import { LinearProgress } from '../Progress.tsx'
 import { SectionCard } from '../SectionCard.tsx'
 import { HashRef, TxLink } from '../TxLink.tsx'
+import { HederaSignerDialog } from '../WalletDialogs.tsx'
 
 const FN_LABEL = {
 	createISA: 'Create L-ISA',
@@ -208,6 +209,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 												</button>
 												<output data-hedera-pay-status />
 											</div>
+											<HederaSignerDialog />
 											{
 												DEMO_MODE && (
 													<HxForm

@@ -7,6 +7,7 @@ import 'htmx-ext-response-targets'
 // event (fed by pgmb) instead of tight polling.
 import 'htmx-ext-sse'
 import './behaviors.ts'
+import './key-export.ts'
 import './wallet.ts'
 import './world-id.ts'
 import './reclaim.ts'

@@ -42,5 +42,12 @@
 		"eslint": "^10.14.0",
 		"openapi-typescript": "^7.13.0",
 		"typescript": "^5.9.3"
+	},
+	"overrides": {
+		"@hiero-ledger/sdk": "^2.90.1",
+		"@hashgraph/hedera-wallet-connect": {
+			"ethers": "^6.13.1"
+		},
+		"@types/node": "$@types/node"
 	}
 }

@@ -2,7 +2,7 @@
 
 Data-attribute contract between the server-rendered markup and the browser
 modules in `packages/app/src/client/` (`wallet.ts`, `world-id.ts`,
-`reclaim.ts`, `hedera-pay.ts`). All listeners are delegated on `document`, so the markup works
+`reclaim.ts`, `hedera-pay.ts`, `key-export.ts`). All listeners are delegated on `document`, so the markup works
 for fragments that htmx swaps in later. Every hook degrades to a plain page
 when JavaScript is off.
 
@@ -31,18 +31,100 @@ sequenceDiagram
 
 ## Wallet and sign-in (`wallet.ts`)
 
+Connecting opens `#wallet-dialog` (the `WalletConnectDialog` component, which
+the header renders for anonymous visitors) with these choices, in this order:
+
+1. **Connect with WalletConnect** (recommended): QR code and mobile deep
+   links. Shown only when the page has a project id. 1inch Wallet is listed
+   first.
+2. **Generate a new wallet**: creates a local key kept only in this browser. If
+   a key is already saved, the option reads "Use the wallet saved in this
+   browser" and never overwrites it.
+3. **Import a key**: reveals a form to paste a private key.
+4. **Browser extension**: only when `window.ethereum` exists.
+
+Nothing is created implicitly. Closing the dialog, closing the WalletConnect
+modal or a wallet rejecting the request ends the attempt: no key is generated,
+nothing is stored and no SIWE request is sent. A local key exists only after
+the user picks "Generate a new wallet" or "Import a key".
+
 | Attribute | On | Meaning |
 | --- | --- | --- |
-| `data-wallet-connect` | `<button>` | Click connects `window.ethereum` (EIP-1193), signs a SIWE message, posts it to Better Auth, then reloads. Without `window.ethereum` it falls back to the demo burner wallet. |
-| `data-wallet-burner` | `<button>` | Same flow, but always uses the burner wallet (a throwaway key kept in `localStorage` key `smx.burnerKey`). Label it "Use demo wallet". |
-| `data-wallet-redirect="/path"` | the button | Optional. Go here after sign-in instead of reloading. |
-| `data-siwe-domain="host"` | the button | Optional. Overrides the SIWE domain (default `location.host`). It must equal `siweDomain()` on the server. |
+| `data-wallet-connect` | `<button>` | Click opens the connect dialog, then signs a SIWE message with the chosen wallet, posts it to Better Auth and reloads. |
+| `data-wallet-option="walletconnect\|burner\|import\|injected"` | dialog buttons | The choices above. `burner` is "generate". |
+| `form[data-wallet-import]` | dialog | Pasted key. A bad key shows an error toast and keeps the dialog open. |
+| `data-wallet-burner` | `<button>` | Skips the dialog and signs with the local key (generating one if none is saved). Label it "Use local wallet". |
+| `data-wallet-redirect="/path"` | the connect button | Optional. Go here after sign-in instead of reloading. |
+| `data-siwe-domain="host"` | the connect button | Optional. Overrides the SIWE domain (default `location.host`). It must equal `siweDomain()` on the server. |
+| `data-wallet-signout` | `<button>` | Ends the Better Auth session, the WalletConnect sessions (EVM and Hedera) and the stored address, then goes to `/`. The local key stays so you can use or export it again. |
 | `data-wallet-address` | any element | Text is filled with the short address (`0x1234…abcd`) only when empty. The full address goes in `title`. |
+| `data-wallet-kind` | any element, `hidden` | Filled with the wallet label ("1inch Wallet", "Local wallet", "Imported key", "MetaMask") and unhidden. |
+| `data-key-export="evm"` | `<button>`, `hidden` | Unhidden for a local wallet. Opens the export dialog (see below). |
 
-Better Auth calls made: `POST /auth/siwe/nonce` (empty body), then
-`POST /auth/siwe/verify` with `{ message, signature }`. The session is a
-cookie. `window.smxWallet.connect({ burner? })` returns
-`{ address, chainId, sign, burner }` for other scripts.
+WalletConnect configuration comes from
+`<meta name="smx-walletconnect-project-id" content="..." data-name
+data-description data-url data-icon>` in the page head (`Layout.tsx`). The
+server renders it only when `WALLETCONNECT_PROJECT_ID` is set. The value is
+public. `data-url` comes from `CANONICAL_ORIGIN`, so the WalletConnect
+dashboard must allow that origin.
+
+Better Auth calls made: `POST /auth/siwe/nonce` (empty body),
+`POST /auth/siwe/verify` with `{ message, signature }`, and
+`POST /auth/sign-out`. The session is a cookie.
+`window.smxWallet.connect({ kind })` returns
+`{ address, chainId, sign, burner, kind, label }` for other scripts. It needs an
+explicit `kind` and never falls back to a local key.
+
+```mermaid
+sequenceDiagram
+	participant U as "User"
+	participant W as "wallet.ts"
+	participant C as "WalletConnect chunk"
+	participant S as "SMX server"
+	U->>W: "Click Connect wallet"
+	W-->>U: "Dialog: WalletConnect, generate, import"
+	alt "WalletConnect"
+		W->>C: "Lazy import, UniversalConnector.connect()"
+		C-->>U: "QR code and deep links (1inch Wallet first)"
+		alt "User closes the modal or the wallet rejects"
+			C-->>W: "Rejects: Connection cancelled"
+			W-->>U: "Status toast, nothing stored, no request sent"
+		else "Wallet approves"
+			C-->>W: "EIP-1193 provider (viem custom)"
+		end
+	else "Generate or import"
+		W->>W: "Create or validate the key, store it in localStorage"
+	end
+	W->>S: "POST /auth/siwe/nonce"
+	S-->>W: "nonce"
+	W->>W: "Sign the SIWE message"
+	W->>S: "POST /auth/siwe/verify"
+	S-->>W: "Session cookie"
+```
+
+### EVM chain and SDK
+
+The EVM chain is Hedera testnet (chain 296, `https://testnet.hashio.io/api`).
+WalletConnect uses `@reown/appkit-universal-connector` (`UniversalConnector`),
+the vanilla JavaScript path in the WalletConnect App SDK docs, wrapped as an
+EIP-1193 provider for viem's `custom()`. It keeps its sessions under the
+storage prefix `smx-evm`. 1inch Wallet's WalletConnect id is looked up with
+the WalletConnect explorer API (`search=1inch`) at connect time, so the id
+isn't hard-coded; if the lookup fails the wallet list just isn't reordered.
+
+## Export a local key (`key-export.ts`)
+
+`#key-export-dialog` (the `KeyExportDialog` component) shows a locally stored
+private key after an explicit "Reveal key" click, with a warning and a Copy
+button. The key is added to the DOM on reveal and removed when the dialog
+closes.
+
+| Attribute | On | Meaning |
+| --- | --- | --- |
+| `data-key-export="evm"` | `<button>` | Opens the dialog for the sign-in key (`localStorage` `smx.burnerKey`). |
+| `data-key-export="hedera"` | `<button>` | Opens the dialog for the Hedera payment key (`smx.hedera.burner`). Closes the signer dialog first: dialogs are never stacked. |
+| `[data-key-reveal]` | dialog | Shows the key. |
+| `[data-key-value]` | dialog | Receives the key. The Copy button reads its text. |
 
 ## World ID (`world-id.ts`)
 
@@ -157,7 +239,8 @@ sequenceDiagram
 	B->>S: "POST payment-request"
 	S-->>B: "accepts[] (one per holder), mode, feePayer"
 	alt "mode is live"
-		B->>B: "Load Hiero SDK chunk, sign one transfer with the burner key"
+		B->>U: "Signer dialog: WalletConnect, generate, import"
+		B->>B: "Load Hiero SDK chunk, sign one transfer (wallet or local key)"
 		B->>S: "POST payment { paymentPayload.payload.transaction }"
 		S->>H: "Verify, add fee payer signature, execute"
 		H-->>S: "SUCCESS"
@@ -167,20 +250,37 @@ sequenceDiagram
 	S-->>B: "Dividend PAID with receipts"
 ```
 
-Signer behavior:
+Signer choice (live mode only): the module opens `#hedera-signer-dialog` (the
+`HederaSignerDialog` component, rendered next to the Pay button) with the same
+three choices as sign-in. Nothing is created implicitly: closing the dialog or
+the WalletConnect modal cancels the payment with no side effects.
 
-- **Live mode:** the module creates a throwaway ECDSA key in `localStorage`
-  (`smx.hedera.burner`) and looks up its account id on the mirror node by EVM
-  alias (cached as `smx.hedera.account`). If the account doesn't exist, the
-  status says to fund the printed address from the Hedera faucet. The server
-  pays network fees (fee payer), so the wallet needs only the dividend amount.
+| Attribute | On | Meaning |
+| --- | --- | --- |
+| `data-hedera-option="walletconnect\|burner\|import"` | dialog buttons | The choices. `burner` is "generate" (or "use the saved key"). |
+| `form[data-hedera-import]` | dialog | Pasted ECDSA private key (raw or DER hex), validated with the Hiero SDK. |
+| `data-key-export="hedera"` | dialog button | Export the saved key. |
+
+- **WalletConnect:** the user's Hedera wallet (HashPack, Kabila and others)
+  signs through `@hashgraph/hedera-wallet-connect`'s `DAppConnector` on
+  `hedera:testnet`, so the payer is the connected Hedera account. 1inch Wallet
+  doesn't support Hedera native, so the modal lists Hedera wallets. The server
+  works out the payer from the signed transfers, so the payload shape is
+  unchanged. Needs a project id; otherwise the option is hidden. Sessions use
+  the default WalletConnect storage prefix; `smx.hedera.walletconnect` marks
+  that a session exists so sign-out can end it.
+- **Generated or imported key:** an ECDSA key in `localStorage`
+  (`smx.hedera.burner`). The module looks up its account id on the mirror node
+  by EVM alias (cached as `smx.hedera.account`). If the account doesn't exist,
+  the status says to fund the printed address from the Hedera faucet. The server
+  pays network fees (fee payer), so the account needs only the dividend amount.
 - **Simulated mode:** the server has no `HEDERA_OPERATOR_*`. Nothing is
   signed and the receipts are `sim:` hashes.
-- **HashPack:** not wired. `@hashgraph/hedera-wallet-connect` 2.1.3 pins
-  `@hiero-ledger/sdk` to 2.79.0 and needs a WalletConnect project id.
 
-The Hiero SDK loads lazily in its own chunk (about 1.9 MB, 310 KB gzipped), so
-pages without the button never download it.
+The Hiero SDK (about 1.9 MB, 310 KB gzipped) and the Hedera WalletConnect
+chunk (about 1.3 MB, 195 KB gzipped) load lazily, so pages without the button
+never download them. The EVM WalletConnect chunks (about 1.1 MB, 315 KB
+gzipped) load only when the user picks WalletConnect.
 
 ## Notes for the UI
 

@@ -79,6 +79,15 @@ export const WORLD_ACTION = process.env.WORLD_ACTION || 'smx-launch-ipo'
 export const WORLD_ENV: 'staging' | 'production' =
 	process.env.WORLD_ENV === 'production' ? 'production' : 'staging'
 
+/**
+ * WalletConnect (Reown) project id from https://dashboard.reown.com. PUBLIC:
+ * the browser needs it (rendered as a `smx-walletconnect-project-id` meta).
+ * Unset hides WalletConnect: sign-in uses an injected wallet or the demo
+ * burner, and Hedera dividends sign with the demo burner key.
+ */
+export const WALLETCONNECT_PROJECT_ID =
+	process.env.WALLETCONNECT_PROJECT_ID?.trim() || ''
+
 /** Reclaim zkTLS via `@reclaimprotocol/client`. Secrets stay on the server. */
 export const RECLAIM_ORG_SECRET = process.env.RECLAIM_ORG_SECRET || ''
 export const RECLAIM_PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID || ''
