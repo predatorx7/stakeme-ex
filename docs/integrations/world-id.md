@@ -153,6 +153,18 @@ export async function verifyHuman(appId: string, rpId: string, action: string, w
 If you hit a type error on the preset (the 3.0 compatible preset is
 `orbLegacy`), swap `proofOfHuman` for `orbLegacy`. Both take `{ signal }`.
 
+## Cancel, decline and timeout
+
+`src/client/world-id.ts` handles every `IDKitCompletionResult` with
+`success: false` (codes from `IDKitErrorCodes`): `cancelled`, `user_rejected`,
+`verification_rejected`, `timeout` (120 s), `credential_unavailable`,
+`connection_failed`, `rp_signature_expired` and others. Each shows a status
+message, clears `worldIdProof`, keeps submit disabled, clears the QR and leaves
+Verify usable for a retry. Clicking Verify again while waiting aborts the poll
+(`cancelled`). Errors thrown before polling (for example the RP signature call)
+get the same treatment. See [the debrief](../world-id-debrief.md) for the trust
+moment, the full path table and what we do not meet (World ID Agent Pass).
+
 ## Simulator and staging setup
 
 1. Open the [Developer Portal](https://developer.world.org) and create an app.

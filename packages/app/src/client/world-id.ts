@@ -58,13 +58,60 @@ document.addEventListener('click', (event) => {
 		return
 	}
 
+	// A second click while waiting cancels the pending request.
+	const pending = pendingRequests.get(trigger)
+	if(pending) {
+		pending.abort()
+		return
+	}
+
+	const controller = new AbortController()
+	pendingRequests.set(trigger, controller)
 	trigger.setAttribute('aria-busy', 'true')
-	void runIdKit(trigger)
-		.catch(toastError)
-		.finally(() => trigger.removeAttribute('aria-busy'))
+	void runIdKit(trigger, controller.signal)
+		.catch((err) => {
+			// Config or network failure before/while polling. Keep submit off.
+			lockSubmit(trigger)
+			setStatus(
+				trigger,
+				`World ID could not start: ${(err as Error).message}. Try again.`,
+				'danger',
+			)
+			toastError(err)
+		})
+		.finally(() => {
+			pendingRequests.delete(trigger)
+			trigger.removeAttribute('aria-busy')
+			clearQr(trigger)
+		})
 })
 
-async function runIdKit(trigger: HTMLElement) {
+const pendingRequests = new WeakMap<HTMLElement, AbortController>()
+
+/**
+ * Messages for IDKit failure codes (`IDKitErrorCodes` in
+ * `@worldcoin/idkit-core`; the enum values are these strings). Anything else
+ * falls back to the raw code. Every one of them leaves submit disabled.
+ */
+const RETRY = 'Press Verify with World ID to retry.'
+const ERROR_MESSAGES: Record<string, string> = {
+	cancelled: `Verification cancelled. ${RETRY}`,
+	user_rejected: `You declined the request in World App. ${RETRY}`,
+	verification_rejected: `World App rejected the verification. ${RETRY}`,
+	timeout: `Timed out waiting for World App (2 minutes). ${RETRY}`,
+	credential_unavailable:
+		'This World ID has no proof-of-human credential, so it cannot launch.',
+	max_verifications_reached:
+		'This World ID already used its verifications for this action.',
+	nullifier_replayed: 'This World ID proof was already used.',
+	connection_failed: `Could not reach World App. ${RETRY}`,
+	rp_signature_expired: `The request expired. ${RETRY}`,
+	invalid_rp_signature:
+		'World ID rejected the server signature (RP misconfigured).',
+}
+
+async function runIdKit(trigger: HTMLElement, abortSignal: AbortSignal) {
+	lockSubmit(trigger)
 	const rpUrl = trigger.dataset.rpUrl || DEFAULT_RP_URL
 	// The server signs the RP context; the signing key never reaches here.
 	const { json: rp } = await postJson(rpUrl)
@@ -100,9 +147,19 @@ async function runIdKit(trigger: HTMLElement) {
 	}
 
 	setStatus(trigger, 'Waiting for World App...')
-	const completion = await request.pollUntilCompletion({ timeout: 120_000 })
+	const completion = await request.pollUntilCompletion({
+		timeout: 120_000,
+		signal: abortSignal,
+	})
 	if(!completion.success) {
-		throw new Error(`World ID failed: ${String(completion.error)}`)
+		// Cancelled, declined in World App, timed out, credential missing...
+		const code = String(completion.error)
+		setStatus(
+			trigger,
+			ERROR_MESSAGES[code] || `World ID failed (${code}). ${RETRY}`,
+			code === 'cancelled' ? undefined : 'danger',
+		)
+		return
 	}
 
 	await deliver(trigger, completion.result, 'Verified')
@@ -150,6 +207,31 @@ async function deliver(from: HTMLElement, proof: unknown, label: string) {
 	form.dispatchEvent(
 		new CustomEvent('smx:world-id', { bubbles: true, detail: proof }),
 	)
+}
+
+/** Disables submit and clears any previous proof (so a retry starts clean). */
+function lockSubmit(from: Element) {
+	const form = formOf(from)
+	const input = form
+		?.querySelector<HTMLInputElement>('input[name=worldIdProof]')
+	if(input) {
+		input.value = ''
+	}
+
+	for(
+		const submit of form?.querySelectorAll<HTMLButtonElement>(
+			'[data-world-id-submit], button[type=submit]',
+		) || []
+	) {
+		submit.disabled = true
+	}
+}
+
+function clearQr(from: Element) {
+	const qr = formOf(from)?.querySelector<HTMLElement>('[data-world-id-qr]')
+	if(qr) {
+		qr.replaceChildren()
+	}
 }
 
 /** Fixture matching the server's `demoWorldIdProof`. */
