@@ -1,6 +1,11 @@
-/** Explorer page for a 0G Storage root hash on the Galileo testnet. */
+/**
+ * Lookup for a 0G Storage root hash on the Galileo testnet. The storagescan
+ * site has no page keyed by root hash (only `/submission/<sequence>` and
+ * `/address/<addr>`), so this links the storage indexer's file info JSON,
+ * which confirms the root, its size and whether it is finalized.
+ */
 export function storageScanUrl(ref: string) {
-	return `https://storagescan-galileo.0g.ai/tool/file?root=${
+	return `https://indexer-storage-testnet-turbo.0g.ai/file/info/${
 		encodeURIComponent(ref)
 	}`
 }

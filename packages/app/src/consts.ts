@@ -185,7 +185,7 @@ export const ZG_ROUTER_BASE_URL =
 	process.env.ZG_ROUTER_BASE_URL || 'https://router-api.0g.ai/v1'
 /** Preference list: the next model is tried only after an unbilled overload. */
 export const ZG_ROUTER_MODEL =
-	process.env.ZG_ROUTER_MODEL || 'glm-5.3,0GM-1.0-35B-A3B'
+	process.env.ZG_ROUTER_MODEL || '0GM-1.0-35B-A3B,glm-5.3'
 /**
  * `standard` | `verified` | `private`; empty omits the X-0G-Provider-Trust-Mode
  * header. Default `private`: only TeeML providers (the model runs in the TEE).

@@ -4,10 +4,13 @@ import { shortHex } from '../utils/money.ts'
 import { CopyButton } from './CopyButton.tsx'
 import { StorageRef } from './TxLink.tsx'
 
+const ROUTING_TIP = 'Routed to a TEE provider by 0G; no attestation returned'
+
 /**
- * Who audited an income proof, so the 0G step is never silent: the 0G Private
- * Computer model, request id (short, with copy), the TEE status and the
- * 0G Storage log; a plain label for the offline rules-engine fallback; and
+ * Who audited an income proof, so the 0G step is never silent: the 0G
+ * Private Computer model, request id and provider address (short, with
+ * copy), the auditor's one-line reasoning, the TEE status and the 0G
+ * Storage log; a plain label for the offline rules-engine fallback; and
  * "0G audit unavailable, retry" while 0G could not audit the proof.
  */
 export function ProofAudit({ proof: p }: { proof: IncomeProof }) {
@@ -63,11 +66,28 @@ export function ProofAudit({ proof: p }: { proof: IncomeProof }) {
 							<code
 								class='smx-mono'
 								title={p.requestId}>
-								{escapeText(`req ${shortHex(p.requestId, 8, 4)}`)}
+								{escapeText(`req ${shortHex(p.requestId, 13, 5)}`)}
 							</code>
 							<CopyButton
 								text={p.requestId}
 								aria-label='Copy 0G request id' />
+						</span>
+					</>
+				)
+			}
+			{
+				via0g && !!p.providerAddress && (
+					<>
+						{' '}
+						<span class='smx-ref'>
+							<code
+								class='smx-mono'
+								title={`Provider ${p.providerAddress}`}>
+								{escapeText(`provider ${shortHex(p.providerAddress, 6, 4)}`)}
+							</code>
+							<CopyButton
+								text={p.providerAddress}
+								aria-label='Copy 0G provider address' />
 						</span>
 					</>
 				)
@@ -91,8 +111,8 @@ export function ProofAudit({ proof: p }: { proof: IncomeProof }) {
 						<span
 							class='rc-pill'
 							data-tone='sandbox'
-							title='Routed only to TEE providers (trust mode private)'>
-							Private TEE provider
+							title={ROUTING_TIP}>
+							Private routing (TEE provider)
 						</span>
 					</>
 				)
@@ -108,6 +128,21 @@ export function ProofAudit({ proof: p }: { proof: IncomeProof }) {
 					</>
 				)
 			}
+			{
+				via0g && !!p.reasoning && (
+					<div
+						class='smx-mono'
+						title={p.reasoning}>
+						{escapeText(`Auditor: ${oneLine(p.reasoning)}`)}
+					</div>
+				)
+			}
 		</>
 	)
+}
+
+/** The auditor's reasoning as a single line, cut at 160 characters. */
+function oneLine(text: string) {
+	const line = text.replace(/\s+/g, ' ').trim()
+	return line.length > 160 ? `${line.slice(0, 159)}…` : line
 }

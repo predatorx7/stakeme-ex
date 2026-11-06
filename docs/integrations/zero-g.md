@@ -59,7 +59,7 @@ ethers objects around.
 
 | `ZG_ROUTER_API_KEY` | Yes | 0G Router `sk-...` key. Set it to run the audit verdict through the Router. |
 | `ZG_ROUTER_MGMT_KEY` | Yes | 0G Router `mk-...` management key (`account:read`) for the credit-balance readout. |
-| `ZG_ROUTER_MODEL` | No | Default `glm-5.3` (a `private` TEE model). |
+| `ZG_ROUTER_MODEL` | No | Default `0GM-1.0-35B-A3B,glm-5.3` (a preference list; both are `private` TEE models, the 0G-native model first). |
 | `ZG_ROUTER_TRUST_MODE` | No | `standard`, `verified` or `private`, sent as `X-0G-Provider-Trust-Mode`. Default `private`; set it empty to omit the header. |
 | `ZG_ALLOW_RULES_FALLBACK` | No | `1` lets the SQL rules engine audit when 0G is unreachable (offline dev only). Default off: the proof stays PENDING. |
 | `ZG_ROUTER_BASE_URL` | No | Default `https://router-api.0g.ai/v1`. |
@@ -145,7 +145,7 @@ Bearer sk-...`) and parses it with `parseAuditResponse` (it also drops a leaked
 false` and `X-0G-Provider-Trust-Mode: private` (`ZG_ROUTER_TRUST_MODE`). One
 request, 20 s timeout, no retries (a retry could be billed twice).
 
-**Model.** Default `glm-5.3`. On 2026-11-06 `GET /v1/providers` lists `glm-5.3`
+**Model.** Default `0GM-1.0-35B-A3B,glm-5.3`: the 0G-native model is tried first, and `glm-5.3` only after an unbilled overload (`429`, `502`, `503`). On 2026-11-06 `GET /v1/providers` lists `glm-5.3`
 and `0GM-1.0-35B-A3B` as `private` (TeeML) providers; `glm-5.2` is served only
 by `standard` third-party channels (Aliyun, Baidu, Tencent), which a `private`
 or `verified` request rejects.
@@ -156,8 +156,8 @@ and `provider_identity`. `tee_verified` is documented as present only when
 `verify_tee` is set. In two live calls on 2026-11-06 (`glm-5.2` standard and
 `glm-5.3` private) the field was absent even with `verify_tee: true`, so the
 audit records `teeVerified: null` and the UI shows "TEE verified" only when it
-is `true`. For a `private` request the UI shows "Private TEE provider" instead,
-which is the Router's routing guarantee, not a signature check. There is no
+is `true`. For a `private` request the UI shows "Private routing (TEE provider)" instead
+(tooltip: "Routed to a TEE provider by 0G; no attestation returned"), which is the Router's routing guarantee, not a signature check. There is no
 `ZG-Res-Key` header on Router responses, so the SDK's independent
 `processResponse` check cannot run against them.
 
@@ -222,7 +222,7 @@ In SMX the upload runs in the background: the request commits a
 0.0012 0G on Galileo. Uploads are skipped below `ZG_STORAGE_MIN_BALANCE`, retry
 up to 3 times, and are deduplicated on the document's content hash.
 
-Link the log in the UI: `https://storagescan-galileo.0g.ai` plus the root hash.
+Link the log in the UI: storagescan has no page keyed by root hash (only `/submission/<sequence>` and `/address/<addr>`; checked 2026-11-07), so the link is `https://indexer-storage-testnet-turbo.0g.ai/file/info/<root>`, which returns the root, size and `finalized` flag as JSON.
 The upload transaction appears on `https://chainscan-galileo.0g.ai/tx/<tx>`.
 
 Notes on the storage API: older docs return `[tx, err]` tuples. The call shape
