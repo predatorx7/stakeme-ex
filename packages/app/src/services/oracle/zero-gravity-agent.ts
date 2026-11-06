@@ -12,7 +12,12 @@ import type {
 	ReclaimSessionInput,
 } from '../../integrations/types.ts'
 import { field } from '../../integrations/util.ts'
-import { RULES_MODEL, runAuditVerdict } from '../../integrations/zero-g.ts'
+import {
+	type AuditDeps,
+	ROUTER_PROVIDER,
+	RULES_MODEL,
+	runAuditVerdict,
+} from '../../integrations/zero-g.ts'
 import { prepareStorage } from '../storage/storage-document.ts'
 import type { IOracle, OracleProofPayload } from './oracle.ts'
 
@@ -30,6 +35,12 @@ export type OracleAudit = IncomeAudit & { logDocument: object }
 export class ZeroGravityAgent implements IOracle {
 
 	readonly name = '0g-agent'
+
+	private readonly deps: AuditDeps
+
+	constructor(deps: AuditDeps = {}) {
+		this.deps = deps
+	}
 
 	createProofRequest(input: ReclaimSessionInput) {
 		return createReclaimSession(input)
@@ -63,17 +74,20 @@ export class ZeroGravityAgent implements IOracle {
 
 	/** Audits verified income and prepares the log (local `logRef`). */
 	async audit(input: IncomeAuditInput): Promise<OracleAudit> {
-		const { verdict, model, provider, teeVerified } =
-			await runAuditVerdict(input)
+		const { verdict, model, provider, teeVerified, routerTrace } =
+			await runAuditVerdict(input, this.deps)
 		const { document, localRef } = prepareStorage({
 			kind: 'AUDIT_LOG',
 			key: `audit/${input.ticker}/${input.period}/${input.income.proofId}`,
 			data: {
 				version: 1,
-				engine: model === RULES_MODEL ? 'rules' : '0g-compute',
+				engine: model === RULES_MODEL
+					? 'rules'
+					: provider === ROUTER_PROVIDER ? '0g-router' : '0g-compute',
 				model,
 				provider,
 				teeVerified,
+				routerTrace: routerTrace ?? null,
 				ticker: input.ticker,
 				period: input.period,
 				termsHash: input.termsHash,

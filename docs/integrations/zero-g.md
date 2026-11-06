@@ -55,6 +55,11 @@ ethers objects around.
 | `ZG_PROVIDER_ADDRESS` | No | Compute provider address (from `listService`). |
 | `ZG_LEDGER_DEPOSIT` | No | 0G to deposit into the compute ledger, for example `3`. |
 
+| `ZG_ROUTER_API_KEY` | Yes | 0G Router `sk-...` key. Set it to run the audit verdict through the Router. |
+| `ZG_ROUTER_MODEL` | No | Default `glm-5.2` (the model the Router docs list). |
+| `ZG_ROUTER_TRUST_MODE` | No | `verified` or `private`, sent as `X-0G-Provider-Trust-Mode`. Default: header omitted (the Router docs we read do not document it). |
+| `ZG_ROUTER_BASE_URL` | No | Default `https://router-api.0g.ai/v1`. |
+
 Unset `ZG_PRIVATE_KEY` means the SQL rules engine runs (see [Demo fallback](#demo-fallback)).
 
 ## Compute: run the audit prompt
@@ -125,6 +130,22 @@ The docs also describe an OpenAI-compatible proxy: get a key with
 `0g-compute-cli inference get-secret --provider <address>`, then call
 `${service.url}/v1/proxy` with the `openai` package. That's simpler for
 scripts but needs the CLI step.
+
+## Router mode (audit verdict)
+
+With `ZG_ROUTER_API_KEY` set, `runAuditVerdict` sends the same strict-JSON
+audit prompt to `POST {base}/chat/completions` (OpenAI-compatible, `Authorization:
+Bearer sk-...`, temperature 0, `chat_template_kwargs.enable_thinking=false`)
+and parses it with `parseAuditResponse`. One request, 20 s timeout, no
+retries (a retry could be billed twice). Any error (including `402`
+`payment_error` / `insufficient_balance`, `429`, `5xx`, bad JSON) falls back
+exactly as before: Galileo Compute when `ZG_COMPUTE_ENABLED=1`, else the rules
+engine. The audit log records `engine: "0g-router"`, `provider: "0g-router"`,
+the model, `teeVerified` and `routerTrace` (`requestId`, serving `provider`
+address, `teeVerified`, `trustMode`) from the response's `x_0g_trace`.
+`tee_verified` is only returned when the request sets `verify_tee`, which we
+do not send yet, so it is `null`. Status: tested with a mocked fetch only; no
+live Router key yet.
 
 ## Storage: upload the audit log
 

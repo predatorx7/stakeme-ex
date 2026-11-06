@@ -4,6 +4,10 @@ import {
 	ZG_LEDGER_DEPOSIT,
 	ZG_PRIVATE_KEY,
 	ZG_PROVIDER_ADDRESS,
+	ZG_ROUTER_API_KEY,
+	ZG_ROUTER_BASE_URL,
+	ZG_ROUTER_MODEL,
+	ZG_ROUTER_TRUST_MODE,
 	ZG_RPC_URL,
 } from '../consts.ts'
 import { LOGGER } from '../logger.ts'
@@ -12,6 +16,31 @@ import { canonicalJson, field } from './util.ts'
 
 const RULES_MODEL = 'rules-engine'
 const COMPUTE_TIMEOUT_MS = 90_000
+const ROUTER_TIMEOUT_MS = 20_000
+const ROUTER_PROVIDER = '0g-router'
+
+export type RouterOptions = {
+	apiKey: string
+	baseUrl: string
+	model: string
+	/** `verified`, `private`, or empty to omit the header. */
+	trustMode: string
+}
+
+export type AuditDeps = {
+	/** Injectable for tests; defaults to global fetch. */
+	fetch?: typeof fetch
+	/** Overrides the `ZG_ROUTER_*` env config. */
+	router?: Partial<RouterOptions>
+}
+
+/** Verification data the Router returns (`x_0g_trace`), logged verbatim. */
+export type RouterTrace = {
+	requestId: string | null
+	provider: string | null
+	teeVerified: boolean | null
+	trustMode: string | null
+}
 
 export type AuditVerdict = Pick<
 	IncomeAudit,
@@ -121,12 +150,35 @@ export function isZeroGConfigured() {
  * or a missing key falls back to the deterministic rules engine, so the audit
  * never blocks. The caller writes the audit log to storage.
  */
-export async function runAuditVerdict(input: IncomeAuditInput): Promise<{
+export async function runAuditVerdict(
+	input: IncomeAuditInput,
+	deps: AuditDeps = {},
+): Promise<{
 	verdict: AuditVerdict
 	model: string
 	provider: string | null
 	teeVerified: boolean | null
+	routerTrace?: RouterTrace
 }> {
+	const router: RouterOptions = {
+		apiKey: ZG_ROUTER_API_KEY,
+		baseUrl: ZG_ROUTER_BASE_URL,
+		model: ZG_ROUTER_MODEL,
+		trustMode: ZG_ROUTER_TRUST_MODE,
+		...deps.router,
+	}
+	if(router.apiKey) {
+		try {
+			return await runRouter(input, router, deps.fetch ?? fetch)
+		} catch(err) {
+			// Never retry: a retry could be charged twice.
+			LOGGER.error(
+				{ err: String(err) },
+				'0G Router failed: falling back',
+			)
+		}
+	}
+
 	if(isZeroGConfigured() && ZG_COMPUTE_ENABLED) {
 		try {
 			return await runCompute(input)
@@ -148,7 +200,74 @@ export async function runAuditVerdict(input: IncomeAuditInput): Promise<{
 	}
 }
 
-export { RULES_MODEL }
+export { RULES_MODEL, ROUTER_PROVIDER }
+
+/**
+ * One OpenAI-compatible chat completion on the 0G Router. Throws on any
+ * non-2xx (402 `insufficient_balance` included), timeout or bad verdict; the
+ * caller falls back. Exactly one request is sent.
+ */
+async function runRouter(
+	input: IncomeAuditInput,
+	router: RouterOptions,
+	doFetch: typeof fetch,
+) {
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+		'Authorization': `Bearer ${router.apiKey}`,
+	}
+	if(router.trustMode) {
+		headers['X-0G-Provider-Trust-Mode'] = router.trustMode
+	}
+
+	const res = await doFetch(`${router.baseUrl}/chat/completions`, {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({
+			model: router.model,
+			messages: buildAuditPrompt(input),
+			temperature: 0,
+			// GLM-5 reasons by default; we want the JSON answer only.
+			chat_template_kwargs: { enable_thinking: false },
+		}),
+		signal: AbortSignal.timeout(ROUTER_TIMEOUT_MS),
+	})
+	if(!res.ok) {
+		const body: unknown = await res.json().catch(() => null)
+		const code = field(field(body, 'error'), 'code')
+		throw new Error(
+			`0G Router HTTP ${res.status}`
+			+ (typeof code === 'string' ? ` ${code}` : ''),
+		)
+	}
+
+	const data: unknown = await res.json()
+	const content = field(
+		field(field(field(data, 'choices'), '0'), 'message'),
+		'content',
+	)
+	if(typeof content !== 'string') {
+		throw new Error('0G Router returned no message')
+	}
+
+	const verdict = parseAuditResponse(content, input)
+	const trace = field(data, 'x_0g_trace')
+	const str = (v: unknown) => typeof v === 'string' ? v : null
+	const teeVerified = field(trace, 'tee_verified')
+	const modelUsed = field(data, 'model')
+	return {
+		verdict,
+		model: str(modelUsed) || router.model,
+		provider: ROUTER_PROVIDER,
+		teeVerified: typeof teeVerified === 'boolean' ? teeVerified : null,
+		routerTrace: {
+			requestId: str(field(trace, 'request_id')),
+			provider: str(field(trace, 'provider')),
+			teeVerified: typeof teeVerified === 'boolean' ? teeVerified : null,
+			trustMode: router.trustMode || null,
+		},
+	}
+}
 
 async function runCompute(input: IncomeAuditInput) {
 	const { ethers } = await import('ethers')
