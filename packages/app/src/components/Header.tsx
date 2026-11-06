@@ -116,6 +116,7 @@ export function Header({ viewer, nav }: HeaderProps) {
 						class='rc-button'
 						data-variant='primary'
 						data-hide-compact
+						data-dw-sparkle
 						{...linkProps(NAV_ITEMS[2])}>
 						Launch your IPO
 					</a>
@@ -191,7 +192,7 @@ function ProfileMenu({ viewer }: { viewer: Viewer }) {
 			</button>
 			<div
 				id='profile-menu'
-				class='rc-profile-menu'
+				class='rc-profile-menu smx-dw-hairline'
 				role='menu'
 				popover>
 				<div class='rc-profile-menu__identity'>
