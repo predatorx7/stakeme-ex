@@ -216,6 +216,7 @@ The developer built SMX alone with Claude Code, an AI coding agent that the deve
 ## Team
 
 Solo builder: Mushaheed Syed ([@_predatorx7](https://x.com/_predatorx7) on X,
+[@mushaheedx](https://t.me/mushaheedx) on Telegram,
 [predatorx7](https://github.com/predatorx7) on GitHub).
 
 ## Status

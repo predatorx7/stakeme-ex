@@ -49,7 +49,7 @@ and the 0G submission list.
 | Demo video | "Must be between 2 and 4 minutes", at least 720p, not sped up, not phone-recorded, no AI voiceover, at most 4 bullets per slide | Not met | No video exists. 0G asks for "under 3 mins"; record one 2:30 to 3:00 video that also satisfies the 5-minute Hedera limit. |
 | Live demo link | 0G: "Demo video (under 3 mins) and a live demo link" | Not met | App runs on `localhost:4020`. The Reclaim mock bank uses a temporary cloudflared tunnel (see `CONTEXT.md`, Workstream 8). Deploy the app and the mock bank to a stable host. |
 | Contract addresses | 0G: "Contract deployment addresses" | Met | `packages/contracts/deployments/hedera-testnet.json`: `LiquidISAFactory` `0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`, `MockUSDC` `0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`, `LiquidISA` implementation `0xb2a511d967202950e3b259c7420de1a7729a2f15`, `CreatorShareToken` implementation `0x8e483e26b05ee86f414a4f502457ee8fa3f05071`. Add HashScan links to the README. |
-| Team names and contact | 0G: "Team member names and contact info (Telegram and X)" | Partly | Solo builder Mushaheed Syed; X [@_predatorx7](https://x.com/_predatorx7), listed in the README. No Telegram handle provided yet; add it to the submission form. |
+| Team names and contact | 0G: "Team member names and contact info (Telegram and X)" | Met | Solo builder Mushaheed Syed; X [@_predatorx7](https://x.com/_predatorx7), Telegram [@mushaheedx](https://t.me/mushaheedx), both listed in the README. |
 | Open-source license | Public repo with a license (0G and Hedera require a public repo) | Met | MIT `LICENSE` at the repo root, `"license": "MIT"` in every `package.json`, and a License line in the README. |
 | Partner prize selection | "Select up to 3 Partner Prizes" | Met | Choose Hedera, World, 0G. |
 | AI-use disclosure | "Document where and how AI tools were used"; "include all spec files, prompts, and planning artifacts in your submission repository" | Not met | `docs/product-spec.md` and `AGENTS.md` exist, but there is no disclosure section. Add an "AI use" section to `README.md` and commit the planning artifacts. |
@@ -174,7 +174,7 @@ Actions, by impact:
    the Hub in frame so the balance visibly goes down.
 3. Done: the rules-engine fallback is off by default and labelled in the UI when
    enabled.
-4. Add the live demo link and the Telegram handle (X is @_predatorx7).
+4. Add the live demo link.
 
 ### Track: Physical AI ($5,000)
 
@@ -205,5 +205,5 @@ Ordered by impact on qualification.
    HashScan (Hedera qualification).
 4. Write the World integration debrief and trust-moment explanation, and record
    the cancel path (World qualification).
-5. Add the AI-use disclosure, the Telegram handle, and commit history hygiene
+5. Add the AI-use disclosure and commit history hygiene
    (general eligibility).
