@@ -14,6 +14,10 @@
  */
 import { Pool } from 'pg'
 import { PORT } from '../src/consts.ts'
+import {
+	demoWorldIdNullifier,
+	demoWorldIdProof
+} from '../src/integrations/world-id.ts'
 import { LOGGER } from '../src/logger.ts'
 import {
 	auditIncomeProof,
@@ -46,7 +50,10 @@ const CREATORS = [
 		name: 'Mushaheed',
 		headline: 'Software developer building open-source dev tools.',
 		wallet: '0xa000000000000000000000000000000000000001',
-		nullifier: '710000000000000000000001',
+		// The launch page's "Simulate Sybil" fixture maps to this World ID, so
+		// it reads as a second IPO by the same human (409). Read-only: nothing
+		// is blacklisted; only liquidation bans a nullifier.
+		nullifier: demoWorldIdNullifier(demoWorldIdProof('sybil', '')),
 		raise: '20000',
 		stake: '2000',
 	},

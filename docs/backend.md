@@ -110,6 +110,7 @@ written earlier in the same statement.
 | `GetCreatorHub` | `GET /hub` | session | The viewer's dashboard. |
 | `GetLaunch` | `GET /launch` | session | Form state and World ID config. |
 | `CreateRpSignature` | `POST /api/rp-signature` | session | Signs the World ID 4.0 request on the server (signal = session wallet). |
+| `CheckWorldId` | `POST /api/world-id/check` | session | Verifies a World ID proof and rejects a used (409) or blacklisted (403) nullifier, so the launch form stops a Sybil before submit. Read-only: it never blacklists. The demo "Simulate Sybil" fixture maps to MUSH's nullifier, so it always returns 409. |
 | `LaunchIpo` | `POST /creators` | session | Verifies World ID, writes the terms to 0G Storage, calls `launch_ipo`. |
 | `Invest` | `POST /creators/{ticker}/investments` | session | `record_investment`. |
 | `Trade` | `POST /creators/{ticker}/trades` | session | `amm_swap`. |

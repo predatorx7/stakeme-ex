@@ -73,6 +73,7 @@ Render this inside the launch `<form>`. In demo mode leave `data-app-id` empty. 
 | `data-world-id` | `<button type=button>` | Click starts the IDKit flow. |
 | `data-app-id` | the same button | `app_...` id. Empty or missing means demo mode: the click reveals `[data-world-id-demo]`. Render `WORLD_APP_ID` here only when `isWorldIdConfigured()` is true. |
 | `data-rp-url` | the same button | Route that returns `createWorldIdRequest(sessionWallet)` as JSON. Default `/api/rp-signature` (POST, no body). |
+| `data-check-url` | the same button | Route that verifies the proof and rejects a used (409) or blacklisted (403) nullifier before submit is enabled. Default `/api/world-id/check`. On rejection, `[data-world-id-status]` shows the reason with `data-tone="danger"` and submit stays disabled. |
 | `data-signal` | the same button | Fallback signal if the route omits `signal`. The route's `signal` wins. |
 | `data-action` | the same button | Action in simulated fixtures. Default `smx-launch-ipo`. |
 | `input[name=worldIdProof]` | in the form | Receives `JSON.stringify(IDKitResult)` (or the fixture). |

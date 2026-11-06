@@ -535,6 +535,40 @@ paths:
           $ref: '#/components/responses/ProblemResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
+  /api/world-id/check:
+    post:
+      summary: Check a World ID proof before launch
+      operationId: CheckWorldId
+      tags:
+        - Creators
+      description: >-
+        Verifies the World ID proof (signal is the SIWE session's wallet) and
+        checks that its nullifier hasn't launched an IPO and isn't blacklisted.
+        Call it as soon as IDKit returns, so a Sybil or banned human is stopped
+        before the form is submitted. `LaunchIpo` runs the same checks again.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckWorldIdRequest'
+      responses:
+        '200':
+          description: The proof is valid and this human can launch an IPO.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorldIdCheck'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /events:
     get:
       summary: Stream oracle events
@@ -1378,6 +1412,25 @@ components:
           description: Raw IDKit result from the browser; verified server-side.
           maxProperties: 50
           additionalProperties: true
+    CheckWorldIdRequest:
+      type: object
+      required: [worldIdProof]
+      properties:
+        worldIdProof:
+          type: object
+          description: Raw IDKit result from the browser; verified server-side.
+          maxProperties: 50
+          additionalProperties: true
+    WorldIdCheck:
+      type: object
+      required: [launchable, simulated]
+      properties:
+        launchable:
+          type: boolean
+          description: Always true; a used or banned nullifier returns 409 or 403.
+        simulated:
+          type: boolean
+          description: True when the proof came from the demo simulator.
     InvestRequest:
       type: object
       required: [usdcAmount]

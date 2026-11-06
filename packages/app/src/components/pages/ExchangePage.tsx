@@ -45,11 +45,7 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 				hx-swap='outerHTML'>
 				<PageHeader
 					eyebrow='Exchange'
-					title='StakeMe Exchange (SMX)'
-					lede={
-						'The liquid stock market for human potential. Back a creator, '
-						+ 'earn dividends from their income, or trade the token.'
-					} />
+					title='StakeMe Exchange (SMX)' />
 				<div class='rc-kpi-grid'>
 					<Kpi
 						label='Total raised'

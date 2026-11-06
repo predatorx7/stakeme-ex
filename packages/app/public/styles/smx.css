@@ -416,6 +416,15 @@
 	margin: 0;
 }
 
+/* Set by client/world-id.ts after the server checks the nullifier. */
+.smx-world [data-world-id-status][data-tone='success'] {
+	color: var(--rc-color-status-success);
+}
+
+.smx-world [data-world-id-status][data-tone='danger'] {
+	color: var(--rc-color-status-danger);
+}
+
 [data-hedera-pay-status]:empty {
 	display: none;
 }

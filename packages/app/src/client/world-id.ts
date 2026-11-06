@@ -9,6 +9,9 @@ import { pick, postJson, renderLinkAndQr, toastError } from './web3-util.ts'
  *       data-rp-url            POST route returning the RP signature
  *                              (default `/api/rp-signature`).
  *       data-signal            wallet the proof binds to (server-rendered).
+ *       data-check-url         POST route that verifies the proof and rejects
+ *                              a used or banned nullifier
+ *                              (default `/api/world-id/check`).
  *   form input[name=worldIdProof]  receives the JSON result.
  *   form [data-world-id-submit]    (else the submit button) gets enabled.
  *   [data-world-id-qr]         optional: connect link + QR is rendered here.
@@ -20,6 +23,7 @@ import { pick, postJson, renderLinkAndQr, toastError } from './web3-util.ts'
  */
 
 const DEFAULT_RP_URL = '/api/rp-signature'
+const DEFAULT_CHECK_URL = '/api/world-id/check'
 const DEFAULT_ACTION = 'smx-launch-ipo'
 
 document.addEventListener('click', (event) => {
@@ -30,7 +34,9 @@ document.addEventListener('click', (event) => {
 		const kind = sim.dataset.worldIdSim === 'sybil' ? 'sybil' : 'success'
 		const trigger = sim.closest('form')
 			?.querySelector<HTMLElement>('[data-world-id]')
-		deliver(sim, demoProof(kind, trigger?.dataset.action), 'Simulated')
+		sim.setAttribute('aria-busy', 'true')
+		void deliver(sim, demoProof(kind, trigger?.dataset.action), 'Simulated')
+			.finally(() => sim.removeAttribute('aria-busy'))
 		return
 	}
 
@@ -99,11 +105,15 @@ async function runIdKit(trigger: HTMLElement) {
 		throw new Error(`World ID failed: ${String(completion.error)}`)
 	}
 
-	deliver(trigger, completion.result, 'Verified')
+	await deliver(trigger, completion.result, 'Verified')
 }
 
-/** Writes the proof into the form's hidden input and enables submit. */
-function deliver(from: HTMLElement, proof: unknown, label: string) {
+/**
+ * Asks the server to verify the proof and check its nullifier, then writes the
+ * proof into the form's hidden input and enables submit. A Sybil (nullifier
+ * already used) or a banned human keeps submit disabled and sees why.
+ */
+async function deliver(from: HTMLElement, proof: unknown, label: string) {
 	const form = formOf(from)
 	const input = form
 		?.querySelector<HTMLInputElement>('input[name=worldIdProof]')
@@ -111,14 +121,32 @@ function deliver(from: HTMLElement, proof: unknown, label: string) {
 		throw new Error('World ID form is missing input[name=worldIdProof]')
 	}
 
-	input.value = JSON.stringify(proof)
-	for(const submit of form.querySelectorAll<HTMLButtonElement>(
+	const submits = form.querySelectorAll<HTMLButtonElement>(
 		'[data-world-id-submit], button[type=submit]',
-	)) {
+	)
+	input.value = ''
+	for(const submit of submits) {
+		submit.disabled = true
+	}
+
+	setStatus(from, 'Checking World ID...')
+	const trigger = form.querySelector<HTMLElement>('[data-world-id]')
+	try {
+		await postJson(
+			trigger?.dataset.checkUrl || DEFAULT_CHECK_URL,
+			{ worldIdProof: proof },
+		)
+	} catch(err) {
+		setStatus(from, `Rejected: ${(err as Error).message}`, 'danger')
+		return
+	}
+
+	input.value = JSON.stringify(proof)
+	for(const submit of submits) {
 		submit.disabled = false
 	}
 
-	setStatus(from, `${label} as a unique human.`)
+	setStatus(from, `${label} as a unique human.`, 'success')
 	form.dispatchEvent(
 		new CustomEvent('smx:world-id', { bubbles: true, detail: proof }),
 	)
@@ -143,10 +171,21 @@ function formOf(el: Element) {
 	return el.closest('form')
 }
 
-function setStatus(from: Element, text: string) {
+function setStatus(
+	from: Element,
+	text: string,
+	tone?: 'success' | 'danger',
+) {
 	const status = formOf(from)
 		?.querySelector<HTMLElement>('[data-world-id-status]')
-	if(status) {
-		status.textContent = text
+	if(!status) {
+		return
+	}
+
+	status.textContent = text
+	if(tone) {
+		status.dataset.tone = tone
+	} else {
+		delete status.dataset.tone
 	}
 }
