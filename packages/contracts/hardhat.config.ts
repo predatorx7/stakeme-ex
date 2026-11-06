@@ -18,6 +18,12 @@ export default defineConfig({
 			production: compiler,
 		},
 	},
+	// Hedera testnet verification: HashScan reads Sourcify. The old
+	// server-verify.hashscan.io host 308-redirects to this server. Run
+	// `npm run verify:hedera` (scripts/verify-hedera.ts) to verify.
+	verify: {
+		sourcify: { enabled: true, apiUrl: 'https://sourcify.dev/server' },
+	},
 	networks: {
 		hardhatMainnet: {
 			type: 'edr-simulated',

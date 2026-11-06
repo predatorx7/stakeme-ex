@@ -196,6 +196,39 @@ apart), retries nonce errors with a locally tracked nonce, and waits for the
 mirror node to know a new ISA before `createISA` returns. It also sets every
 call's gas limit to `estimateGas` plus 20%.
 
+## Verification
+
+All four Hedera testnet contracts are verified on Sourcify with an exact match
+(runtime and creation), which HashScan reads (verified 2026-11-06):
+
+| Contract | Address | Status |
+| --- | --- | --- |
+| MockUSDC | [`0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`](https://hashscan.io/testnet/contract/0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f) | exact match |
+| LiquidISA (implementation) | [`0x2c77936419a72ea377245906451bf2b38277e64c`](https://hashscan.io/testnet/contract/0x2c77936419a72ea377245906451bf2b38277e64c) | exact match |
+| CreatorShareToken (implementation) | [`0xc65877c78151038b5cbf35d8a0d078510e1df0c9`](https://hashscan.io/testnet/contract/0xc65877c78151038b5cbf35d8a0d078510e1df0c9) | exact match |
+| LiquidISAFactory | [`0x9698e237201c88be262523ef4917b144e857ca73`](https://hashscan.io/testnet/contract/0x9698e237201c88be262523ef4917b144e857ca73) | exact match |
+
+Clones (for example ISA `0x041d7ecc12172a2c1bbf5cdf6daf48fd31be9d43`) are
+45-byte EIP-1167 proxies. Sourcify cannot match a proxy to source, so a clone
+shows no source of its own; it delegates to the verified `LiquidISA`
+implementation above (and each token clone to the verified `CreatorShareToken`).
+
+```bash
+npm run verify:hedera -w packages/contracts
+```
+
+The script posts the solc standard-json input from `artifacts/build-info` (the
+exact viaIR build that produced each artifact, no recompile) to Sourcify chain
+296, then prints HashScan links. It needs no keys and is safe to rerun. Notes:
+
+- HashScan's old verifier host `server-verify.hashscan.io` now 308-redirects to
+  `https://sourcify.dev/server`, which lists Hedera testnet as supported. The
+  Hardhat config sets `verify.sourcify.apiUrl` to that server.
+- `MockUSDC` comes from the older build-info (`solc-0_8_28-4131...`); the other
+  three come from the clone build (`solc-0_8_28-92e3...`). Both match the
+  on-chain runtime bytecode. If you recompile with different settings or edit
+  sources, the artifacts will no longer match what was deployed.
+
 ## Use from the app
 
 ```ts

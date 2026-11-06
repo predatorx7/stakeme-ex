@@ -17,6 +17,7 @@
 		"node": "hardhat node",
 		"deploy:local": "hardhat ignition deploy ignition/modules/Deploy.ts",
 		"deploy:hedera": "hardhat compile && node scripts/deploy-hedera.ts",
+		"verify:hedera": "node scripts/verify-hedera.ts",
 		"deploy:sepolia": "hardhat ignition deploy ignition/modules/Deploy.ts --network sepolia",
 		"deploy:0g": "hardhat ignition deploy ignition/modules/Deploy.ts --network ogGalileo"
 	},
