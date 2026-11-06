@@ -106,6 +106,11 @@ export const CHAIN_ID = +(process.env.CHAIN_ID || 0)
 	|| (CHAIN_RPC_URL ? 296 : 0)
 /** Secret: oracle + relayer key (signs every job on testnet). */
 export const ORACLE_PRIVATE_KEY = process.env.ORACLE_PRIVATE_KEY || ''
+/**
+ * Deployment scope for the onchain World ID nullifier hash, so environments
+ * sharing one factory do not collide on `NullifierUsed`. Empty = plain hash.
+ */
+export const CHAIN_NULLIFIER_SALT = process.env.CHAIN_NULLIFIER_SALT || ''
 export const FACTORY_ADDRESS = process.env.FACTORY_ADDRESS || ''
 export const USDC_ADDRESS = process.env.USDC_ADDRESS || ''
 
@@ -200,3 +205,11 @@ export const ZG_ROUTER_MGMT_KEY = process.env.ZG_ROUTER_MGMT_KEY || ''
  */
 export const ZG_ALLOW_RULES_FALLBACK =
 	process.env.ZG_ALLOW_RULES_FALLBACK === '1'
+
+/**
+ * Secret for the demo-only admin routes (`POST /api/trigger-default`, sent as
+ * `X-Admin-Key`). Read per call; unset disables those routes. Secret.
+ */
+export const smxAdminKey = () => process.env.SMX_ADMIN_KEY || ''
+/** Max demo (`demo: true`) income proofs per creator per hour (0G credit). */
+export const DEMO_PROOFS_PER_HOUR = 3

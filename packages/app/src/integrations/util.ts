@@ -41,6 +41,22 @@ export function nullifierHash(nullifier: string): `0x${string}` {
 	return keccakUtf8(nullifier)
 }
 
+/**
+ * Nullifier hash as registered onchain in the factory. The factory enforces
+ * one registration per nullifier, and several environments (local seeds,
+ * production) share one factory with the same World ID nullifiers. A non-empty
+ * `salt` (CHAIN_NULLIFIER_SALT) scopes the onchain hash to a deployment:
+ * keccak256(salt ‖ nullifier). Offchain Sybil checks in Postgres are
+ * unaffected.
+ * Without a salt this is the plain {@link nullifierHash}.
+ */
+export function onchainNullifierHash(
+	nullifier: string,
+	salt = '',
+): `0x${string}` {
+	return salt ? keccakUtf8(salt + nullifier) : nullifierHash(nullifier)
+}
+
 /** Reads a plain-object field without casts. */
 export function field(obj: unknown, key: string): unknown {
 	return obj && typeof obj === 'object'

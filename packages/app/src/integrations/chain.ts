@@ -23,6 +23,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 import {
 	CHAIN_ID,
+	CHAIN_NULLIFIER_SALT,
 	CHAIN_RPC_URL,
 	FACTORY_ADDRESS,
 	ORACLE_PRIVATE_KEY,
@@ -30,7 +31,7 @@ import {
 import { LOGGER } from '../logger.ts'
 import { mintCreatorEquityToken, simulateEquityToken } from './hedera-ats.ts'
 import type { ChainJob, ChainJobResult } from './types.ts'
-import { keccakUtf8, nullifierHash } from './util.ts'
+import { keccakUtf8, onchainNullifierHash } from './util.ts'
 
 const USDC_DECIMALS = 6
 const DEFAULT_TRANCHES = [2000, 4000, 4000]
@@ -196,7 +197,10 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 		case 'createISA': {
 			const nullHash = typeof args.worldIdNullifierHash === 'string'
 				? args.worldIdNullifierHash as Hex
-				: nullifierHash(str(args.worldIdNullifier, 'worldIdNullifier'))
+				: onchainNullifierHash(
+					str(args.worldIdNullifier, 'worldIdNullifier'),
+					CHAIN_NULLIFIER_SALT,
+				)
 			const given = Array.isArray(args.trancheBps) ? args.trancheBps : []
 			const trancheBps = given.length ? given.map(Number) : DEFAULT_TRANCHES
 			const { hash, receipt } = await send({
