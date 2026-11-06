@@ -46,9 +46,9 @@ flowchart LR
 3. Proof: in month 3 Ravi proves a $5,000 bank deposit with a Reclaim zkTLS
    proof. The demo uses the mock bank.
 4. Audit: the 0G agent checks the proof against the L-ISA terms and computes a
-   $250 dividend. It runs on 0G Private Computer through the 0G Router; a
-   deposit dated outside the reporting period is denied by a pre-check
-   without a 0G call. The decision log goes to 0G Storage.
+   $250 dividend. It runs on 0G Private Computer through the 0G Router. A
+   pre-check denies a deposit dated outside the reporting period without a 0G
+   call. The decision log goes to 0G Storage.
 5. Payout: the agent unlocks tranche 1 ($4,000). Ravi signs one x402-style
    Hedera transfer in his own wallet that pays the $250 dividend to every
    `$RAVI` holder. It settles live on Hedera.
@@ -65,8 +65,8 @@ flowchart LR
    the Hedera escrow (safe stop) and a 14-day grace period starts. A late
    approved proof unfreezes it.
 3. Liquidation: $8,000 escrow refunded to the current token holders, $500
-   stake slashed to them, World ID nullifier blacklisted. Referral to a debt collector is off-chain
-   and narrative only.
+   stake slashed to them, World ID nullifier blacklisted. Referral to a debt
+   collector is off-chain and narrative only.
 
 ## Three-minute stage pitch
 
@@ -78,13 +78,13 @@ flowchart LR
    x402-style dividend payout.
 4. **2:00–2:30 Scam protection.** Missed proof → escrow freeze → refund,
    slash, blacklist.
-5. **2:30–3:00 Close.** Hold or trade `$MUSH` in the onchain pool. Scan the QR code. 5% of any
-   prize streams to holders.
+5. **2:30–3:00 Close.** Hold or trade `$MUSH` in the onchain pool. Scan the QR
+   code. 5% of any prize streams to holders.
 
 ## Demo setup with no spend
 
 1. Reclaim: the `/mock-bank` page with six selectable income scenarios
-   ($5,000 salary by default); a provider on the Reclaim developer free plan. The provider
+   ($5,000 salary by default); a provider on the Reclaim developer free plan that
    points at the production host.
 2. World ID: the Simulator in the Developer Portal (staging app).
 3. Hedera: testnet faucet (10 HBAR per day without sign-in). Each IPO costs

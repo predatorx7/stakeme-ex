@@ -4,9 +4,12 @@ Verified against npm, the Asset Tokenization Studio (ATS) packages, and
 docs.hedera.com on 2026-11-06.
 
 **Status:** implemented with SIMULATED fallbacks. The x402 paywall settled live
-on testnet (see below). The ATS equity mint ran live on Hedera testnet on 2026-11-07 (see below); the default mode stays simulated (`ATS_MODE=simulated`). The dividend x402 settlement is unit-tested for its pure logic.
+on testnet. The ATS equity mint ran live on Hedera testnet on 2026-11-07 (see
+[Live result on testnet](#live-result-on-testnet)); the default mode stays
+simulated (`ATS_MODE=simulated`). The dividend x402 settlement is unit-tested
+for its pure logic.
 
-SMX uses three Hedera features, all with native Hedera transactions:
+SMX uses three Hedera features, all through native Hedera transactions:
 
 | Feature | What it does | Code |
 | --- | --- | --- |

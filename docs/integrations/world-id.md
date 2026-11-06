@@ -179,8 +179,8 @@ If you hit a type error on the preset (the 3.0 compatible preset is
 message, clears `worldIdProof`, keeps submit disabled, clears the QR and leaves
 Verify usable for a retry. Clicking Verify again while waiting aborts the poll
 (`cancelled`). Errors thrown before polling (for example the RP signature call)
-get the same treatment. See [the debrief](../world-id-debrief.md) for the trust
-moment, the full path table and what we do not meet (World ID Agent Pass).
+get the same treatment. [The debrief](../world-id-debrief.md) has the trust
+moment, the full path table, and what SMX doesn't meet (World ID Agent Pass).
 
 ## Simulator and staging setup
 
@@ -196,10 +196,12 @@ moment, the full path table and what we do not meet (World ID Agent Pass).
 
 ## Demo fallback
 
-If World ID is not configured (`WORLD_APP_ID` or the RP keys unset), skip IDKit and the Developer
-Portal call. The server accepts a fixture result and derives a deterministic
-fake nullifier: `keccak256(wallet + ':' + action)`. When real World ID is configured, the simulate buttons are never rendered and fixture proofs are rejected, even with `DEMO_MODE=1`. Show a "Demo mode" badge
-in the UI. To demo the blacklist, use two wallets that map to the same fake
+If World ID is not configured (`WORLD_APP_ID` or the RP keys unset), skip IDKit
+and the Developer Portal call. The server accepts a fixture result and derives
+a deterministic fake nullifier: `keccak256(wallet + ':' + action)`. When real
+World ID is configured, the UI never renders the simulate buttons and the
+server rejects fixture proofs, even with `DEMO_MODE=1`. Show a "Demo mode"
+badge in the UI. To demo the blacklist, use two wallets that map to the same fake
 nullifier by posting the same `demoNullifier` field (accepted only when
 `DEMO_MODE=1`).
 
@@ -222,7 +224,7 @@ nullifier by posting the same `demoNullifier` field (accepted only when
 - The `signal_hash` for a request with no signal is `0x0`.
 - The `/creators` mutation must read the wallet from the session. Otherwise an
   attacker can pick the signal they like.
-- Ask the World booth (from the pitch playbook) whether you can query contract
+- Ask the World booth (see the pitch playbook) whether you can query contract
   state before the modal opens to block blacklisted nullifiers. Until then,
   the check runs after verification.
 

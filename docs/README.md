@@ -1,7 +1,7 @@
 # Documentation
 
 Start with [`../CONTEXT.md`](../CONTEXT.md) for current status, decisions, and
-what's left. SMX targets exactly three sponsors: Hedera, World ID, and 0G.
+what's left. SMX targets three sponsors: Hedera, World ID, and 0G.
 Reclaim supplies the zkTLS bank proof that the 0G agent audits. The app is
 Express and htmx, not Next.js.
 
@@ -11,7 +11,6 @@ Express and htmx, not Next.js.
 | --- | --- |
 | [product-spec.md](product-spec.md) | What SMX does: domain model, state machines, SQL business logic, routes, proof and liquidation flows. |
 | [pitch.md](pitch.md) | Pitch, user journeys, three-minute stage script, demo setup, what is simulated, booth questions. |
-
 | [ai-usage.md](ai-usage.md) | Disclosure of where and how AI tools were used, and where the specs, prompts, and planning artifacts live. |
 | [prize-checklist.md](prize-checklist.md) | Per-sponsor prize requirements and the status of each. |
 | [demo-video.md](demo-video.md) | Script and plan for the demo video. |
