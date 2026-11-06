@@ -23,6 +23,11 @@ export function buildTermsPayload(terms: LisaTerms) {
 		target_raise: microNumber(terms.targetRaise),
 		stake_amount: microNumber(terms.stakeAmount),
 		tranche_schedule: terms.trancheBps.map((bps) => bps / 100),
+		// Only present for creators who chose a cadence, so older documents
+		// keep their hash.
+		...(terms.proofCadenceDays
+			? { proof_cadence_days: terms.proofCadenceDays }
+			: {}),
 		world_id_nullifier_hash: nullifierHash(terms.worldIdNullifier),
 		version: TERMS_VERSION,
 	}

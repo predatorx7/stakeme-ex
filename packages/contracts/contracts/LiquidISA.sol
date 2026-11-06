@@ -6,6 +6,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {CreatorShareToken} from "./CreatorShareToken.sol";
+import {CreatorPool} from "./CreatorPool.sol";
+
+interface IMintableUSDC {
+	function mint(address to, uint256 amount) external;
+}
 
 interface IISAFactory {
 	function blacklistFromISA(bytes32 nullifierHash) external;
@@ -23,6 +28,8 @@ contract LiquidISA is ReentrancyGuard, Initializable {
 	uint256 public constant BPS = 10_000;
 	/// @dev 1 USDC (6 decimals) mints 1 share token (18 decimals).
 	uint256 public constant SCALE = 1e12;
+	/// @dev Pool seed: 10% of target, at least 100 USDC.
+	uint256 public constant MIN_POOL_SEED = 100e6;
 
 	struct Params {
 		address usdc;
@@ -38,6 +45,8 @@ contract LiquidISA is ReentrancyGuard, Initializable {
 
 	IERC20 public usdc;
 	CreatorShareToken public token;
+	/// @notice AMM pool, seeded when the raise closes.
+	CreatorPool public pool;
 	address public factory;
 	address public creator;
 	address public oracle;
@@ -106,7 +115,7 @@ contract LiquidISA is ReentrancyGuard, Initializable {
 		_disableInitializers();
 	}
 
-	function initialize(Params calldata p, address token_) external initializer {
+	function initialize(Params calldata p, address token_, address pool_) external initializer {
 		uint256 sum;
 		for (uint256 i; i < p.trancheBps.length; i++) sum += p.trancheBps[i];
 		if (p.trancheBps.length == 0 || sum != BPS) revert InvalidTranches();
@@ -123,6 +132,7 @@ contract LiquidISA is ReentrancyGuard, Initializable {
 		termMonths = p.termMonths;
 		trancheBps = p.trancheBps;
 		token = CreatorShareToken(token_);
+		pool = CreatorPool(pool_);
 	}
 
 	/// @notice Oracle records the ATS (ERC-1400 style) equity token minted for this ISA.
@@ -147,6 +157,18 @@ contract LiquidISA is ReentrancyGuard, Initializable {
 		if (!frozen) revert NotFrozen();
 		frozen = false;
 		emit EscrowUnfrozen(msg.sender);
+	}
+
+	/// @notice Pool trading is allowed once the raise closed, unless defaulted or frozen.
+	/// Selling after the term ends stays allowed.
+	function tradingOpen() external view returns (bool) {
+		return raiseClosed && !defaulted && !frozen;
+	}
+
+	/// @notice USDC seeded into the pool: 10% of the target, min 100 USDC.
+	function poolSeedUsdc() public view returns (uint256) {
+		uint256 seed = totalRaise / 10;
+		return seed < MIN_POOL_SEED ? MIN_POOL_SEED : seed;
 	}
 
 	function trancheCount() external view returns (uint256) {
@@ -231,7 +253,7 @@ contract LiquidISA is ReentrancyGuard, Initializable {
 		escrowBalance = 0;
 		stakeReclaimed = true;
 
-		if (token.totalSupply() == 0) {
+		if (token.circulatingSupply() == 0) {
 			// Nobody to refund: the creator keeps the stake.
 			if (slashed > 0) usdc.safeTransfer(creator, slashed);
 			slashed = 0;
@@ -258,8 +280,21 @@ contract LiquidISA is ReentrancyGuard, Initializable {
 		raiseClosed = true;
 		termEnd = block.timestamp + uint256(termMonths) * 30 days;
 		emit RaiseClosed(raised);
+		_seedPool();
 		// While frozen, tranche 0 waits for the oracle's unlockNextTranche.
 		if (!frozen) _releaseTranche();
+	}
+
+	/// @dev Protocol-provided demo liquidity: MockUSDC is minted to the pool and
+	/// share tokens are minted at the IPO price (1 USDC), so
+	/// totalSupply = raised + pool seed. Pool tokens are excluded from dividends/refunds.
+	function _seedPool() internal {
+		uint256 usdcSeed = poolSeedUsdc();
+		uint256 tokenSeed = usdcSeed * SCALE;
+		token.setExcluded(address(pool));
+		IMintableUSDC(address(usdc)).mint(address(pool), usdcSeed);
+		token.mint(address(pool), tokenSeed);
+		pool.seed(usdcSeed, tokenSeed);
 	}
 
 	function _releaseTranche() internal {

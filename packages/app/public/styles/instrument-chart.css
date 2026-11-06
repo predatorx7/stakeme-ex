@@ -1,0 +1,113 @@
+/* instrument-chart: instrument view (see docs/instrument-view.md). */
+.smx-chart-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 1rem;
+	padding-block-end: 0.5rem;
+}
+
+.smx-chart-toolbar__group {
+	display: flex;
+	gap: 0.125rem;
+	margin: 0;
+	padding: 0.125rem;
+	list-style: none;
+	border: 1px solid var(--rc-color-border, currentcolor);
+	border-radius: 0.5rem;
+}
+
+.smx-chart-toolbar__group a {
+	display: block;
+	padding: 0.25rem 0.625rem;
+	border-radius: 0.375rem;
+	font-size: 0.8125rem;
+	font-variant-numeric: tabular-nums;
+	text-decoration: none;
+	color: inherit;
+	opacity: 0.7;
+	transition: background-color 0.1s, opacity 0.1s;
+}
+
+.smx-chart-toolbar__group a:hover,
+.smx-chart-toolbar__group a[aria-current='true'] {
+	opacity: 1;
+	background: color-mix(in srgb, currentcolor 12%, transparent);
+}
+
+.smx-candles {
+	--smx-up: #1a9d5c;
+	--smx-down: #d6402f;
+	display: grid;
+	gap: 0.25rem;
+	margin: 0;
+}
+
+.smx-candles [data-dir='up'] {
+	--smx-tone: var(--smx-up);
+}
+
+.smx-candles [data-dir='down'] {
+	--smx-tone: var(--smx-down);
+}
+
+.smx-candles__plot,
+.smx-candles__volume {
+	position: absolute;
+	inset-inline: 0;
+	display: block;
+	inline-size: 100%;
+}
+
+.smx-candles__plot {
+	inset-block: 0;
+	block-size: 100%;
+}
+
+.smx-candles__volume {
+	inset-block-end: 0;
+	block-size: 18%;
+}
+
+.smx-candles__wick {
+	stroke: var(--smx-tone);
+	stroke-width: 1.25;
+	vector-effect: non-scaling-stroke;
+}
+
+.smx-candles__body {
+	fill: var(--smx-tone);
+}
+
+.smx-candles__last {
+	stroke: var(--smx-tone);
+	stroke-width: 1;
+	stroke-dasharray: 3 3;
+	vector-effect: non-scaling-stroke;
+	opacity: 0.8;
+}
+
+.smx-candles__volume rect {
+	fill: var(--smx-tone);
+	opacity: 0.45;
+}
+
+.smx-candles__last-label {
+	position: absolute;
+	inset-inline-end: 0;
+	transform: translateY(-50%);
+	padding: 0.0625rem 0.375rem;
+	border-radius: 0.25rem;
+	background: var(--smx-tone);
+	color: #fff;
+	font-size: 0.6875rem;
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
+}
+
+.smx-candles-empty {
+	padding: 2rem 1rem;
+	text-align: center;
+	opacity: 0.7;
+}

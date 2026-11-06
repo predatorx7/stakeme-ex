@@ -189,7 +189,11 @@ function CreatorRow({ creator: c }: { creator: CreatorSummary }) {
 					</span>
 				</a>
 			</td>
-			<td data-align='end'>
+			<td
+				data-align='end'
+				data-price-flash
+				data-price={c.price}
+				data-price-key={`creators:${c.ticker}`}>
 				{escapeText(formatUsdc(c.price, 4))}
 			</td>
 			<td data-align='end'>
@@ -203,7 +207,8 @@ function CreatorRow({ creator: c }: { creator: CreatorSummary }) {
 			<td data-col='spark'>
 				<Sparkline
 					points={c.sparkline}
-					name={c.ticker} />
+					name={c.ticker}
+					area />
 			</td>
 			<td data-col='status'>
 				<CreatorStatusBadge

@@ -7,32 +7,45 @@ how to build, test and deploy them.
 
 Each creator launches one income share agreement (ISA). Investors buy share
 tokens with USDC, the USDC waits in escrow, and an oracle releases it to the
-creator in tranches. The creator pays dividends back to token holders. If the
-creator defaults, the remaining escrow and the creator's stake go back to
-investors.
+creator in tranches. When the raise closes, the ISA seeds a constant-product
+pool so holders can trade the shares. The creator pays dividends back to token
+holders. If the creator defaults, the remaining escrow and the creator's stake
+go back to investors.
 
 | Contract | Purpose |
 | --- | --- |
-| `MockUSDC` | Six-decimal test token with a public `mint`. |
+| `MockUSDC` | Six-decimal test token with an open `mint` and a capped `faucet`. |
 | `CreatorShareToken` | ERC-20 share token with built-in dividend accounting. Deployed once as an implementation; each ISA gets a clone. |
-| `LiquidISA` | One clone per creator. Holds escrow, stake and dividends. |
-| `LiquidISAFactory` | Clones ISAs and tokens, maps each World ID nullifier to its ISA and keeps the default blacklist. |
+| `LiquidISA` | One clone per creator. Holds escrow, stake and dividends, and seeds the pool. |
+| `CreatorPool` | One clone per ISA. Constant-product AMM between USDC and the creator's share token. |
+| `LiquidISAFactory` | Clones ISAs, tokens and pools, maps each World ID nullifier to its ISA and keeps the default blacklist. |
+
+### MockUSDC
+
+- `mint(to, amount)` is open. ISAs use it to seed pools with demo liquidity.
+- `faucet(to, amount)` lets demo wallets fund themselves. It reverts with
+  `FaucetCapExceeded` when `amount` exceeds `FAUCET_CAP` (50,000 USDC, or
+  `50_000 * 1e6` base units) per call.
 
 ## Minimal proxy clones
 
 Deploying a full `LiquidISA` (about 6.2 KB) plus a `CreatorShareToken` for every
-IPO cost 3 to 5 testnet HBAR on Hedera. The factory now clones both contracts
-with [EIP-1167](https://eips.ethereum.org/EIPS/eip-1167) minimal proxies
-(OpenZeppelin `Clones`), so an IPO deploys two 45-byte proxies.
+IPO cost 3 to 5 testnet HBAR on Hedera. The factory now clones the ISA, the
+token and the pool with [EIP-1167](https://eips.ethereum.org/EIPS/eip-1167)
+minimal proxies (OpenZeppelin `Clones`), so an IPO deploys three 45-byte
+proxies.
 
 ```mermaid
 flowchart LR
 	F["LiquidISAFactory"] -- "clone()" --> I["LiquidISA clone"]
 	F -- "clone()" --> T["CreatorShareToken clone"]
+	F -- "clone()" --> P["CreatorPool clone"]
 	I -. "delegatecall" .-> IA["LiquidISA implementation"]
 	T -. "delegatecall" .-> TA["CreatorShareToken implementation"]
+	P -. "delegatecall" .-> PA["CreatorPool implementation"]
 	F -- "initialize()" --> I
 	F -- "initialize()" --> T
+	F -- "initialize()" --> P
 ```
 
 - Constructors became `initialize(...)` (OpenZeppelin `Initializable`). The
@@ -43,8 +56,13 @@ flowchart LR
   names and types.
 - `CreatorShareToken` stores `name` and `symbol` in storage and overrides
   `name()` and `symbol()`.
-- The factory constructor is `(usdc, oracle, isaImplementation, tokenImplementation)`.
-  `createISA` and the `ISACreated` event are unchanged.
+- The factory constructor is
+  `(usdc, oracle, isaImplementation, tokenImplementation, poolImplementation)`.
+  All five are `immutable` public getters (`poolImplementation` for the pool).
+- `createISA` clones and initializes the pool, token and ISA, then stores
+  `poolOf[isa]` and emits `PoolCreated(isa, pool, token)` before
+  `ISACreated(creator, isa, token, ticker)`. `LiquidISA.initialize(params, token, pool)`
+  takes the pool address.
 
 Because a fresh factory is cheap, reseeding a demo means deploying a new
 factory. This keeps the one-ISA-per-nullifier Sybil check intact; there is no
@@ -52,16 +70,47 @@ nullifier reset function.
 
 ## Lifecycle
 
-1. The factory creates the ISA with `createISA`. The caller becomes the
-   creator. An empty tranche array defaults to `[2000, 4000, 4000]` basis
-   points.
+```mermaid
+sequenceDiagram
+	participant C as Creator
+	participant F as LiquidISAFactory
+	participant I as LiquidISA
+	participant P as CreatorPool
+	participant V as Investor or trader
+	participant O as Oracle
+	C->>F: createISA()
+	F-->>C: ISA, token and pool clones (PoolCreated, ISACreated)
+	C->>I: initializeIPO() locks stake
+	V->>I: invest(usdcAmount), user-signed
+	I-->>V: mint shares, 1 USDC = 1 share
+	Note over I: raise fills or creator calls closeRaise()
+	I->>I: raiseClosed = true, start term
+	I->>P: seed pool (mint USDC and tokens, seed())
+	I->>C: release tranche 0 (unless frozen)
+	V->>P: swapExactUsdcForTokens / swapExactTokensForUsdc
+	O->>I: unlockNextTranche() per milestone
+	alt missed deadline
+		O->>I: freezeEscrow()
+		Note over I,P: tranches stop, tradingOpen() is false
+		O->>I: unfreezeEscrow()
+	else default
+		O->>I: executeLiquidation()
+		Note over I,P: trading halts, holders claim() refunds
+	end
+```
+
+1. The factory creates the ISA, token and pool with `createISA`. The caller
+   becomes the creator. An empty tranche array defaults to `[2000, 4000, 4000]`
+   basis points.
 2. The creator calls `initializeIPO()`, which locks the USDC stake. Investing
    fails until you do this.
 3. Investors call `invest(usdcAmount)` and receive 1 share token per 1 USDC.
    Amounts above the remaining capacity are trimmed. When the raise fills, the
-   contract releases tranche 0 to the creator.
-4. The creator can call `closeRaise()` to end the raise early. Tranches are
-   computed from the amount raised, so they resize automatically.
+   contract closes the raise, seeds the pool and releases tranche 0 to the
+   creator.
+4. The creator can call `closeRaise()` to end the raise early (it needs a
+   nonzero `raised`). It runs the same close steps. Tranches are computed from
+   the amount raised, so they resize automatically.
 5. The oracle calls `unlockNextTranche()` after each verified milestone. The
    last tranche sweeps any rounding remainder.
 6. Anyone calls `distributeDividend(amount)`. Holders call `claim()`.
@@ -69,11 +118,61 @@ nullifier reset function.
 8. The oracle can call `freezeEscrow()` and `unfreezeEscrow()` at any time (see
    [Safe-stop](#safe-stop)).
 
+### User-signed invest
+
+`invest` pulls USDC from `msg.sender` with `safeTransferFrom` and mints shares
+to `msg.sender`. The investor signs two transactions from their own wallet: the
+USDC `approve(isa, amount)`, then `invest(amount)`. The server never invests on
+a user's behalf. Because the call trims to the remaining capacity, approve at
+least the amount you intend to spend.
+
+## Pool
+
+`CreatorPool` is a constant-product AMM (`x * y = k`) between MockUSDC (6
+decimals) and one creator's share token (18 decimals).
+
+### Seeding
+
+When the raise closes, `LiquidISA` runs `_seedPool()` once:
+
+- USDC seed = `poolSeedUsdc()`: 10% of `totalRaise` (the raise target), with a
+  minimum of `MIN_POOL_SEED` (100 USDC).
+- Token seed = USDC seed `* SCALE`, the same count of tokens at the IPO price of
+  1 USDC. Total supply is therefore `raised + pool seed`.
+- The ISA calls `token.setExcluded(pool)`, mints the USDC (protocol-provided
+  demo liquidity through `MockUSDC.mint`) and tokens to the pool, then calls
+  `pool.seed(usdcAmount, tokenAmount)`. `seed` is callable only by the ISA, once,
+  and reverts with `NotFunded` if the pool balances are short. It emits
+  `Seeded`.
+
+### Swaps
+
+| Function | Does |
+| --- | --- |
+| `swapExactUsdcForTokens(amountIn, minOut, to)` | Spends USDC (approve the pool first), sends tokens to `to`. |
+| `swapExactTokensForUsdc(amountIn, minOut, to)` | Sells tokens (approve the pool first), sends USDC to `to`. |
+| `quoteBuy(amountIn)` / `quoteSell(amountIn)` | Output for an input, rounded down. |
+| `getReserves()` | Returns `(usdcReserve, tokenReserve)`. |
+| `tradingOpen()` | `seeded` and the ISA's `tradingOpen()`. |
+
+- The fee is `FEE_BPS = 30` (0.3%) of the input. It stays in the pool, so `k`
+  grows and the fee accrues to liquidity rather than a recipient.
+- Output is `floor(rOut * in * 997 / (rIn * 1000 + in * 997))`. This matches the
+  SQL `amm_swap` function.
+- A swap reverts with `ZeroAmount`, `NotSeeded`, `TradingHalted`,
+  `InsufficientOutput` or `Slippage`. Each swap emits `Swap`.
+
+### Trading gate
+
+`LiquidISA.tradingOpen()` returns `raiseClosed && !defaulted && !frozen`. Pool
+swaps revert with `TradingHalted` otherwise. `LiquidISA.pool()` returns the
+pool address, and the factory exposes it as `poolOf(isa)`.
+
 ## Dividend math
 
 `CreatorShareToken` uses the ERC-2222 pattern. It stores:
 
-- `magnifiedDividendPerShare`: increases by `amount * 2^128 / totalSupply` on
+- `magnifiedDividendPerShare`: increases by `amount * 2^128 / circulatingSupply` on
   each distribution.
 - A signed correction per holder that every mint and transfer adjusts by
   `magnifiedDividendPerShare * value`.
@@ -87,20 +186,29 @@ A holder's withdrawable amount is:
 
 The corrections keep earned dividends fixed when tokens move, so a transfer
 between a distribution and a claim doesn't change anyone's accrued amount.
-Distribution costs the same gas for one holder or one million. Division floors,
+Distribution costs the same gas for one holder or one million.
+
+The pool is excluded. `CreatorShareToken.setExcluded(pool)` (owner-only, once)
+records it, and `circulatingSupply()` returns `totalSupply() - balanceOf(excluded)`.
+`accrue` divides by `circulatingSupply()` instead of `totalSupply()`, and
+`accumulativeDividendOf(excluded)` returns 0. Holders get the full dividend, and
+pool tokens never dilute it or collect a share. `accrue` reverts with `NoShares`
+when `circulatingSupply()` is 0. Division floors,
 so a payout can be one base unit (0.000001 USDC) short of the exact share.
 
 ## Liquidation
 
 Only the oracle can call `executeLiquidation()`. The contract:
 
-1. Sets `defaulted`, which blocks investing, unlocking and distributing.
+1. Sets `defaulted`, which blocks investing, unlocking and distributing, and
+   closes pool trading.
 2. Adds the remaining `escrowBalance` plus the creator stake to the dividend
-   accumulator, so holders claim refunds pro rata with `claim()`.
+   accumulator, so holders claim refunds pro rata with `claim()`. The pool's
+   tokens are excluded from the denominator, so the pool takes no refund.
 3. Calls the factory to blacklist the creator's World ID nullifier.
 4. Emits `CreatorDefaulted(nullifierHash, refunded, slashed)`.
 
-If no shares exist, the stake returns to the creator.
+If `circulatingSupply()` is 0, the stake returns to the creator.
 
 ## Safe-stop
 
@@ -114,8 +222,9 @@ While `frozen` is true:
 - `unlockNextTranche()` and `reclaimStake()` revert with `EscrowFrozenError`.
 - A raise that fills (or `closeRaise()`) still closes but doesn't release tranche
   0. The oracle releases it with `unlockNextTranche()` after unfreezing.
-- Investing, claiming, dividends and `executeLiquidation()` keep working, so a
-  freeze never traps investor money.
+- `tradingOpen()` is false, so pool swaps revert with `TradingHalted`.
+- Investing (while the raise is open), claiming, dividends and
+  `executeLiquidation()` keep working, so a freeze never traps investor money.
 
 ## Hedera ATS equity token (ATS-ready, simulated)
 
@@ -154,8 +263,8 @@ npm run deploy:hedera -- --new-usdc  # also deploy a fresh MockUSDC
 The script reads `ORACLE_PRIVATE_KEY` from the root `.env` (the deployer is
 the oracle) and:
 
-1. Deploys the `LiquidISA` and `CreatorShareToken` implementations and the
-   factory, waiting for each receipt.
+1. Deploys the `LiquidISA`, `CreatorShareToken` and `CreatorPool`
+   implementations and the factory, waiting for each receipt.
 2. Polls the Hedera mirror node
    (`https://testnet.mirrornode.hedera.com/api/v1/contracts/<address>`) until it
    returns each contract.
@@ -184,7 +293,7 @@ For a local chain, run `npm run node` and `npm run deploy:local`.
 | Action | Before clones | With clones |
 | --- | --- | --- |
 | `createISA` | about 3 to 5 HBAR | about 0.76 HBAR |
-| One-off deploy (two implementations and factory) | about 4.3 HBAR (factory only plus USDC) | about 3.7 HBAR |
+| One-off deploy (two implementations and factory) | about 4.3 HBAR (factory only plus USDC) | about 3.7 HBAR (measured before the pool; expect more with the third implementation) |
 
 ### Mirror-node lag
 
@@ -198,17 +307,25 @@ call's gas limit to `estimateGas` plus 20%.
 
 ## Verification
 
-All four Hedera testnet contracts are verified on Sourcify with an exact (runtime
+The addresses below are the previous deployment, which predates the pool. The
+new factory and `CreatorPool` are **pending redeploy**: after you redeploy,
+rerun `verify:hedera` and replace the factory, the `LiquidISA` and
+`CreatorShareToken` implementations and add the pool. Until then, the old
+factory has no `poolOf`, `PoolCreated` or pool-aware ISAs.
+
+All four Hedera testnet contracts below are verified on Sourcify with an exact (runtime
 bytecode) match, which HashScan reads (verified 2026-11-06). Sourcify reports
 `match: exact_match` and `runtimeMatch: exact_match`; `creationMatch` is not
 reported:
 
 | Contract | Address | Status |
 | --- | --- | --- |
-| MockUSDC | [`0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`](https://hashscan.io/testnet/contract/0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f) | exact match |
-| LiquidISA (implementation) | [`0xb2a511d967202950e3b259c7420de1a7729a2f15`](https://hashscan.io/testnet/contract/0xb2a511d967202950e3b259c7420de1a7729a2f15) | exact match |
-| CreatorShareToken (implementation) | [`0x8e483e26b05ee86f414a4f502457ee8fa3f05071`](https://hashscan.io/testnet/contract/0x8e483e26b05ee86f414a4f502457ee8fa3f05071) | exact match |
-| LiquidISAFactory | [`0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`](https://hashscan.io/testnet/contract/0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e) | exact match |
+| MockUSDC (old build, no `faucet`; pending redeploy) | [`0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`](https://hashscan.io/testnet/contract/0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f) | exact match |
+| LiquidISA (implementation, old, pending redeploy) | [`0xb2a511d967202950e3b259c7420de1a7729a2f15`](https://hashscan.io/testnet/contract/0xb2a511d967202950e3b259c7420de1a7729a2f15) | exact match |
+| CreatorShareToken (implementation, old, pending redeploy) | [`0x8e483e26b05ee86f414a4f502457ee8fa3f05071`](https://hashscan.io/testnet/contract/0x8e483e26b05ee86f414a4f502457ee8fa3f05071) | exact match |
+| LiquidISAFactory | [`0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`](https://hashscan.io/testnet/contract/0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e) | exact match (old, pending redeploy) |
+| CreatorPool (implementation) | pending redeploy | not deployed |
+| LiquidISAFactory (with `poolImplementation`) | pending redeploy | not deployed |
 
 Historical note: an earlier factory (`0x9698e237201c88be262523ef4917b144e857ca73`) and its implementations were superseded by the 2026-11-06T18:53Z redeploy and are no longer used.
 

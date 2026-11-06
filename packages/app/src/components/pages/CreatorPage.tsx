@@ -8,21 +8,30 @@ import { Avatar } from '../Avatar.tsx'
 import { Badge } from '../Badge.tsx'
 import { BlockingWarning } from '../BlockingWarning.tsx'
 import { PendingChainBadge } from '../ChainJobBadge.tsx'
-import { PriceChart } from '../charts/PriceChart.tsx'
-import { CreatorStatusBadge, isEscrowFrozen } from '../CreatorStatus.tsx'
+import { CreatorUpdates } from '../creator/CreatorUpdates.tsx'
+import { SocialLinks } from '../creator/SocialLinks.tsx'
+import { isEscrowFrozen } from '../CreatorStatus.tsx'
 import { DataTable } from '../DataTable.tsx'
 import { EmptyState } from '../EmptyState.tsx'
 import { OracleEventItem } from '../events/OracleEventItem.tsx'
 import { Field } from '../forms/Field.tsx'
 import { FormError } from '../forms/FormError.tsx'
 import { HxForm } from '../forms/HxForm.tsx'
+import { CorporateActions } from '../instrument/CorporateActions.tsx'
+import { EscrowMeter } from '../instrument/EscrowMeter.tsx'
+import { Fundamentals } from '../instrument/Fundamentals.tsx'
+import { InstrumentStats } from '../instrument/InstrumentStats.tsx'
+import { MarketDepth } from '../instrument/MarketDepth.tsx'
+import { OrderTicket } from '../instrument/OrderTicket.tsx'
+import { PositionBox } from '../instrument/PositionBox.tsx'
+import { pickTranche, ProofPipeline } from '../instrument/ProofPipeline.tsx'
+import { WatchlistButton } from '../instrument/Watchlist.tsx'
 import { Kpi } from '../Kpi.tsx'
 import { ViewAll } from '../lists/ViewAll.tsx'
 import { PageHeader } from '../PageHeader.tsx'
-import { PriceChange } from '../PriceChange.tsx'
-import { LinearProgress } from '../Progress.tsx'
 import { ProofAudit } from '../ProofAudit.tsx'
 import { SectionCard } from '../SectionCard.tsx'
+import { Skeleton } from '../Skeleton.tsx'
 import { HashRef, StorageRef, TxLink } from '../TxLink.tsx'
 
 const TRANCHE_TONE = {
@@ -37,11 +46,6 @@ const PROOF_TONE = {
 	REJECTED: 'danger',
 } as const
 
-/** Percent of `part` in `whole`, clamped to 0 to 100. */
-function pct(part: number, whole: number) {
-	return whole > 0 ? Math.min(100, Math.max(0, part / whole * 100)) : 0
-}
-
 /**
  * Token page. The market region (price, chart, terms, escrow, holders, proofs)
  * reloads after a trade, investment or oracle event. The forms and the event
@@ -51,44 +55,40 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 	const c = page.creator
 	const path = `/creators/${c.ticker}`
 	const frozen = isEscrowFrozen(c.status, page.events)
-	const trading = c.status === 'LIVE' || c.status === 'GRACE'
 	const raised = Number(c.raised)
 	const target = Number(c.targetRaise)
 	const open = c.status === 'LIVE' && raised < target
 	const signedIn = !!page.viewer.wallet
-	const escrowTotal = Number(c.escrow.locked) + Number(c.escrow.released)
-		+ Number(c.escrow.refunded)
-	const held = page.viewer.holding
+	const { market } = page
+	const raising = market.status.kind === 'LIVE' && market.status.tradingHalted
+	const refresh = 'smx:traded from:body, smx:invested from:body, '
+		+ 'smx:dividend-paid from:body, smx:oracle-event from:body delay:1s'
 	return (
 		<div class='smx-layout'>
-			<div>
+			<div class='smx-creator-main'>
 				<div
-					id='creator-live'
+					id='creator-top'
 					class='smx-page'
 					hx-get={path}
-					hx-trigger={
-						'smx:traded from:body, smx:invested from:body, '
-						+ 'smx:dividend-paid from:body, '
-						+ 'smx:oracle-event from:body delay:1s'
-					}
-					hx-select='#creator-live'
+					hx-trigger={refresh}
+					hx-select='#creator-top'
 					hx-swap='outerHTML'>
 					<PageHeader
 						eyebrow={`$${c.ticker}`}
 						title={c.displayName}
 						avatar={c.id}
+						coinSource
 						lede={c.headline}
 						meta={
 							<>
-								<span class='smx-price'>
-									<strong>
-										{escapeText(formatUsdc(c.price, 4))}
-									</strong>
-									<PriceChange value={c.change24h} />
-								</span>
-								<CreatorStatusBadge
-									status={c.status}
-									frozen={frozen} />
+								{
+									signedIn && (
+										<WatchlistButton
+											ticker={c.ticker}
+											watched={false} />
+									)
+								}
+								<SocialLinks links={c.socialLinks} />
 								<PendingChainBadge
 									creatorId={c.id}
 									pending={c.chain.pendingJobs} />
@@ -114,24 +114,44 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 							</BlockingWarning>
 						)
 					}
+					<InstrumentStats market={market} />
+				</div>
+				{/* Outside the refreshing regions, so the chosen interval survives. */}
+				<div
+					id='smx-chart'
+					class='smx-chart'
+					hx-get={`${path}/chart?mode=candles&interval=1D`}
+					hx-trigger='load'
+					hx-swap='outerHTML'>
+					<Skeleton
+						lines={1}
+						height='16rem'
+						label='Loading chart' />
+				</div>
+				<div
+					id='creator-live'
+					class='smx-page'
+					hx-get={path}
+					hx-trigger={refresh}
+					hx-select='#creator-live'
+					hx-swap='outerHTML'>
+					<MarketDepth
+						depth={market.depth}
+						quote={market.quote} />
+					<CorporateActions
+						actions={market.corporateActions}
+						ticker={c.ticker}
+						hasMore={!!page.more?.events} />
+					<CreatorUpdates
+						ticker={c.ticker}
+						items={page.updates ?? []}
+						hasMore={page.more?.updates} />
 					<div class='rc-kpi-grid'>
-						<Kpi
-							label='24h volume'
-							value={formatUsdc(c.volume24h)}
-							note='USDC traded' />
 						<Kpi
 							label='Raised'
 							value={formatUsdc(c.raised)}
 							note={`of ${formatUsdc(c.targetRaise)} target`} />
 					</div>
-					{
-						page.chart.length > 1 && (
-							<PriceChart
-								title='Price'
-								name={`${c.displayName} price history`}
-								points={page.chart} />
-						)
-					}
 					<SectionCard
 						title='L-ISA terms'
 						context='Liquid income share agreement'>
@@ -231,18 +251,13 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					</SectionCard>
 					<SectionCard
 						title='Escrow'>
-						<div class='smx-escrow'>
-							<LinearProgress
-								value={Math.round(pct(Number(c.escrow.released), escrowTotal))}
-								label='Released to creator'
-								valueLabel={`${formatUsdc(c.escrow.released)} of ${formatUsdc(escrowTotal)}`}
-								tone={frozen ? 'warning' : undefined}
-								note={
-									Number(c.escrow.refunded) > 0
-										? `${formatUsdc(c.escrow.refunded)} refunded to investors`
-										: `${formatUsdc(c.escrow.locked)} still locked`
-								} />
-						</div>
+						<EscrowMeter
+							ticker={c.ticker}
+							tranches={c.tranches}
+							status={market.status.kind}
+							raised={c.raised}
+							target={c.targetRaise}
+							raising={raising} />
 						<ol class='smx-tranches'>
 							{
 								c.tranches.map((t) => (
@@ -283,7 +298,8 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 									label='holders' />
 							)
 						}
-						count={page.holders.length}>
+						count={page.holders.length}
+						coinTarget>
 						{
 							page.holders.length === 0
 								? (
@@ -340,6 +356,10 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 								)
 						}
 					</SectionCard>
+					<ProofPipeline
+						ticker={c.ticker}
+						latestProof={page.proofs[0]}
+						nextTranche={pickTranche(c.tranches, page.proofs[0])} />
 					<SectionCard
 						title='Income proofs'
 						meta={
@@ -470,6 +490,8 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					}>
 					<ul
 						class='smx-feed'
+						data-live-list='creator-events'
+						data-live-noun='event'
 						aria-live='polite'
 						hx-ext='sse'
 						{
@@ -485,142 +507,81 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 			</div>
 			<aside
 				id='trade'
-				class='smx-page'
+				class='smx-page smx-creator-side'
 				aria-label='Buy and sell'>
-				<SectionCard
-					title='Invest'
-					context='Buy at the IPO price.'
-					plain>
-					<div class='smx-body'>
-						{
-							signedIn
-								? (
-									<HxForm
-										action={`${path}/investments`}
-										ext='json-enc'
-										class='smx-form'>
-										<Field
-											name='usdcAmount'
-											label='Amount (USDC)'
-											type='text'
-											required
-											placeholder='100.00'
-											pattern='[0-9]+(\.[0-9]{1,6})?'
-											hint={
-												open
-													? `${formatUsdc(raised >= target ? 0 : target - raised)} left to raise.`
-													: 'The raise is closed.'
-											}
-											disabled={!open} />
-										<button
-											class='rc-button'
-											data-variant='primary'
-											type='submit'
-											data-dw-sparkle
-											disabled={!open}>
-											Invest
-										</button>
-										<FormError />
-									</HxForm>
-								)
-								: (
-									<button
-										type='button'
-										class='rc-button'
-										data-variant='primary'
-										data-wallet-connect>
-										Connect wallet to invest
-									</button>
-								)
-						}
-					</div>
-				</SectionCard>
-				<SectionCard
-					title='Trade'
-					context='0.3% fee per trade.'
-					plain>
-					<div class='smx-body'>
-						{
-							signedIn
-								? (
-									<HxForm
-										action={`${path}/trades`}
-										ext='json-enc'
-										class='smx-form'>
-										<fieldset
-											class='smx-side'
-											disabled={!trading}>
-											<legend class='rc-visually-hidden'>
-												Side
-											</legend>
-											<label>
-												<input
-													type='radio'
-													name='side'
-													value='BUY'
-													checked />
-												Buy
-											</label>
-											<label>
-												<input
-													type='radio'
-													name='side'
-													value='SELL' />
-												Sell
-											</label>
-										</fieldset>
-										<Field
-											name='amountIn'
-											label='Amount in'
-											type='text'
-											required
-											placeholder='50'
-											pattern='[0-9]+(\.[0-9]{1,18})?'
-											hint='USDC when you buy, tokens when you sell.'
-											disabled={!trading} />
-										<Field
-											name='minOut'
-											label='Minimum received'
-											type='text'
-											value='0'
-											pattern='[0-9]+(\.[0-9]{1,18})?'
-											hint='The trade fails below this amount.'
-											disabled={!trading} />
-										<button
-											class='rc-button'
-											data-variant='primary'
-											type='submit'
-											data-dw-sparkle
-											disabled={!trading}>
-											Place trade
-										</button>
-										<FormError />
-									</HxForm>
-								)
-								: (
-									<button
-										type='button'
-										class='rc-button'
-										data-variant='primary'
-										data-wallet-connect>
-										Connect wallet to trade
-									</button>
-								)
-						}
-						{
-							!!held && (
-								<p>
+				<div
+					id='order-live'
+					class='smx-page'
+					hx-get={path}
+					hx-trigger='smx:traded from:body, smx:invested from:body'
+					hx-select='#order-live'
+					hx-swap='outerHTML'>
+					<OrderTicket
+						ticker={c.ticker}
+						market={market}
+						signedIn={signedIn} />
+					{
+						open && (
+							<SectionCard
+								title='Invest'
+								context='Buy at the IPO price.'
+								plain>
+								<div class='smx-body'>
 									{
-										escapeText(
-											`You hold ${formatTokens(held.balance)} $${c.ticker} `
-											+ `(${formatUsdc(held.value)}).`,
-										)
+										signedIn
+											? (
+												<HxForm
+													action={`${path}/investments`}
+													ext='json-enc'
+													class='smx-form'>
+													<Field
+														name='usdcAmount'
+														label='Amount (USDC)'
+														type='text'
+														required
+														placeholder='100.00'
+														pattern='[0-9]+(\.[0-9]{1,6})?'
+														hint={`${formatUsdc(target - raised)} left to raise.`} />
+													<button
+														class='rc-button'
+														data-variant='primary'
+														type='submit'
+														data-dw-sparkle>
+														Invest
+													</button>
+													<FormError />
+												</HxForm>
+											)
+											: (
+												<button
+													type='button'
+													class='rc-button'
+													data-variant='primary'
+													data-wallet-connect>
+													Connect wallet to invest
+												</button>
+											)
 									}
-								</p>
-							)
-						}
-					</div>
-				</SectionCard>
+								</div>
+							</SectionCard>
+						)
+					}
+				</div>
+				<div
+					id='creator-side'
+					class='smx-page'
+					hx-get={path}
+					hx-trigger={refresh}
+					hx-select='#creator-side'
+					hx-swap='outerHTML'>
+					<PositionBox
+						position={market.position}
+						ticker={c.ticker}
+						signedIn={signedIn} />
+					<Fundamentals
+						fundamentals={market.fundamentals}
+						ticker={c.ticker} />
+				</div>
 			</aside>
 		</div>
 	)

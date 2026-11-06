@@ -31,6 +31,8 @@ const DIALOG_ID = 'hedera-signer-dialog'
 const REPLACE_PROMPT =
 	'Replace the key saved in this browser? Export it first to keep it.'
 const ACCOUNT_STORAGE = 'smx.hedera.account'
+const RECEIPT_PREFIX = 'smx.hedera.receipt.'
+const FAUCET_URL = 'https://portal.hedera.com/faucet'
 /** Consensus node the transaction is frozen for (present on every network). */
 const NODE_ACCOUNT = 3
 
@@ -46,6 +48,9 @@ type PaymentRequest = {
 	network: string
 	asset: string
 	total: string
+	totalUsd?: string
+	totalHbar?: string
+	hbarPerUsdc?: string
 	accepts: Requirement[]
 }
 
@@ -61,7 +66,11 @@ document.addEventListener('click', (event) => {
 	button.setAttribute('aria-busy', 'true')
 	void pay(button)
 		.catch((err) => {
-			setStatus(button, err instanceof Error ? err.message : String(err))
+			// A handled error already put its own message (with links) in place.
+			if(!(err as { handled?: boolean })?.handled) {
+				setStatus(button, err instanceof Error ? err.message : String(err))
+			}
+
 			toastError(err)
 		})
 		.finally(() => {
@@ -84,9 +93,22 @@ async function pay(button: HTMLButtonElement) {
 		throw new Error('No payment terms returned. Try again.')
 	}
 
+	for(const slot of scopeOf(button).querySelectorAll<HTMLElement>(
+		'[data-hedera-pay-holders]',
+	)) {
+		slot.textContent = `${request.accepts.length} holders`
+	}
+
 	let paymentPayload: Record<string, unknown>
+	if(request.mode !== 'live' && request.mode !== 'simulated') {
+		throw new Error('Unknown payment mode. Try again.')
+	}
+
 	if(request.mode === 'simulated') {
-		setStatus(button, 'Demo mode: simulating payment...')
+		setStatus(
+			button,
+			`Demo mode: simulating the $${request.totalUsd ?? ''} payment...`,
+		)
 		paymentPayload = { x402Version: request.x402Version, simulated: true }
 	} else {
 		const transaction = await signTransfer(button, request)
@@ -106,7 +128,22 @@ async function pay(button: HTMLButtonElement) {
 
 	setStatus(button, `Settling ${request.accepts.length} payments...`)
 	const { json: paid } = await postJson(settleUrl, { paymentPayload })
-	setStatus(button, 'Dividend paid.')
+	const sent = request.totalHbar
+		? `${request.totalHbar} HBAR sent ($${request.totalUsd} due)`
+		: 'Dividend paid'
+	const settlement = pick(paid, 'settlement')
+	const url = pick(settlement, 'hashscanUrl')
+	const txId = pick(settlement, 'txId')
+	if(typeof url === 'string' && typeof txId === 'string') {
+		saveReceipt(button.dataset.hederaSettle, { url, txId, sent })
+		setStatus(button, `Dividend paid. ${sent}. `, {
+			text: 'View on HashScan',
+			href: url,
+		})
+	} else {
+		setStatus(button, `Dividend paid. ${sent}.`)
+	}
+
 	button.dispatchEvent(
 		new CustomEvent('smx:hedera-paid', { bubbles: true, detail: paid }),
 	)
@@ -153,18 +190,24 @@ async function signTransfer(button: HTMLElement, request: PaymentRequest) {
 
 	const key = burnerKey()
 	const privateKey = sdk.PrivateKey.fromStringECDSA(key)
-	const payer = await resolvePayerAccount(
-		privateKey.publicKey.toEvmAddress(),
-		request.network,
-	)
-	if(!payer) {
-		const evm = `0x${privateKey.publicKey.toEvmAddress()}`
-		throw new Error(
-			`Account ${evm} has no HBAR. Fund it at `
-			+ 'portal.hedera.com/faucet, then pay again.',
+	const evm = `0x${privateKey.publicKey.toEvmAddress()}`
+	const needed = BigInt(request.total)
+	const payerInfo = await fetchPayer(evm, request.network)
+	if(!payerInfo || payerInfo.balance < needed) {
+		const have = formatHbar(payerInfo?.balance ?? 0n)
+		const want = formatHbar(needed)
+		setStatus(
+			button,
+			`Fund your wallet: ${evm} holds ${have} HBAR and the dividend needs `
+			+ `${want} HBAR (network fees are covered). Get testnet HBAR at `,
+			{ text: 'portal.hedera.com/faucet', href: FAUCET_URL },
 		)
+		throw Object.assign(new Error('Fund your wallet to pay this dividend.'), {
+			handled: true,
+		})
 	}
 
+	const payer = payerInfo.account
 	setStatus(button, `Signing as ${payer}...`)
 	const signed = await buildTransfer(sdk, request, payer).sign(privateKey)
 	return toBase64(signed.toBytes())
@@ -351,33 +394,33 @@ function burnerKey() {
 	return key
 }
 
-/** Burner account id: cached, else found by EVM alias on the mirror node. */
-async function resolvePayerAccount(evmAddress: string, network: string) {
-	try {
-		const cached = localStorage.getItem(ACCOUNT_STORAGE)
-		if(cached) {
-			return cached
-		}
-	} catch{}
-
+/**
+ * Burner account and balance (tinybars) from the mirror node, found by EVM
+ * alias. Undefined when the alias has no account yet (never funded).
+ */
+async function fetchPayer(evmAddress: string, network: string) {
 	const net = network.endsWith('mainnet') ? 'mainnet' : 'testnet'
 	const res = await fetch(
-		`https://${net}.mirrornode.hedera.com/api/v1/accounts/0x${evmAddress}`,
+		`https://${net}.mirrornode.hedera.com/api/v1/accounts/${evmAddress}`,
 	)
 	if(!res.ok) {
 		return undefined
 	}
 
-	const account = pick(await res.json(), 'account')
+	const json = await res.json()
+	const account = pick(json, 'account')
+	const balance = pick(pick(json, 'balance'), 'balance')
 	if(typeof account !== 'string') {
 		return undefined
 	}
 
-	try {
-		localStorage.setItem(ACCOUNT_STORAGE, account)
-	} catch{}
+	return { account, balance: BigInt(typeof balance === 'number' ? balance : 0) }
+}
 
-	return account
+function formatHbar(tinybars: bigint) {
+	const frac = (tinybars % 100_000_000n).toString().padStart(8, '0')
+		.replace(/0+$/, '')
+	return `${tinybars / 100_000_000n}${frac ? `.${frac}` : ''}`
 }
 
 function toBase64(bytes: Uint8Array) {
@@ -389,10 +432,72 @@ function toBase64(bytes: Uint8Array) {
 	return btoa(binary)
 }
 
-function setStatus(from: HTMLElement, text: string) {
-	const scope = from.closest('[data-hedera-pay-scope]') || document
-	const out = scope.querySelector<HTMLElement>('[data-hedera-pay-status]')
-	if(out) {
-		out.textContent = text
+function scopeOf(from: HTMLElement) {
+	return from.closest('[data-hedera-pay-scope]') || document
+}
+
+/** Sets the progress text, with an optional link appended (built via DOM). */
+function setStatus(
+	from: HTMLElement,
+	text: string,
+	link?: { text: string, href: string },
+) {
+	const out = scopeOf(from)
+		.querySelector<HTMLElement>('[data-hedera-pay-status]')
+	if(!out) {
+		return
+	}
+
+	out.textContent = text
+	if(link) {
+		const a = document.createElement('a')
+		a.href = link.href
+		a.textContent = link.text
+		a.target = '_blank'
+		a.rel = 'noopener noreferrer'
+		out.append(a)
 	}
 }
+
+type Receipt = { url: string, txId: string, sent: string }
+
+/** Remembers the receipt for the session: the Hub reloads after the event. */
+function saveReceipt(settleUrl: string | undefined, receipt: Receipt) {
+	const id = settleUrl?.split('/')[2]
+	if(!id) {
+		return
+	}
+
+	try {
+		sessionStorage.setItem(`${RECEIPT_PREFIX}${id}`, JSON.stringify(receipt))
+	} catch{}
+
+	showReceipts()
+}
+
+/** Fills `[data-hedera-receipt]` cells from receipts saved this session. */
+function showReceipts() {
+	for(const cell of document.querySelectorAll<HTMLElement>(
+		'[data-hedera-receipt]',
+	)) {
+		try {
+			const raw = sessionStorage.getItem(
+				`${RECEIPT_PREFIX}${cell.dataset.hederaReceipt}`,
+			)
+			const receipt = raw ? JSON.parse(raw) as Receipt : undefined
+			if(!receipt || !/^https:\/\/hashscan\.io\//.test(receipt.url)) {
+				continue
+			}
+
+			const a = document.createElement('a')
+			a.href = receipt.url
+			a.textContent = `${receipt.sent}: HashScan`
+			a.target = '_blank'
+			a.rel = 'noopener noreferrer'
+			cell.replaceChildren(a)
+		} catch{}
+	}
+}
+
+document.addEventListener('DOMContentLoaded', showReceipts)
+document.addEventListener('htmx:afterSwap', showReceipts)

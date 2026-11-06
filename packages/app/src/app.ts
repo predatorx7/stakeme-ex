@@ -24,6 +24,7 @@ import type { PluginOption, ViteDevServer } from 'vite'
 import type ErrorPage from './routes/ErrorPage.tsx'
 import type { IAuthenticatedUser, IPgClientLike } from './types/index.ts'
 import { mapError } from './utils/map-error.ts'
+import { warmTicker } from './utils/ticker-feed.ts'
 import { requireAuth, resolveViewer } from './auth.ts'
 import { type Auth, createAuth } from './better-auth.ts'
 import {
@@ -94,6 +95,18 @@ export async function createApp(
 	const app = express()
 	const server = createServer(app)
 	app.pg = pg
+	// Caddy is the single reverse proxy: trust its X-Forwarded-* so
+	// req.protocol / req.ip reflect the real client connection.
+	app.set('trust proxy', 1)
+	app.disable('x-powered-by')
+	// Baseline security headers (HSTS is only meaningful over https, set by
+	// Caddy; the rest are cheap to also send from the app).
+	app.use((_req, res, next) => {
+		res.setHeader('X-Content-Type-Options', 'nosniff')
+		res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+		res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+		next()
+	})
 
 	// The documented APIs are callable from any website. Authentication and
 	// authorization still happen at each operation; CORS is not an
@@ -178,6 +191,15 @@ export async function createApp(
 			// invalid tokens are not fatal — handlers decide.
 			next()
 		}
+	})
+
+	// Page shell reads the cached ticker synchronously; refresh it here.
+	app.use(async(req, _res, next) => {
+		if(req.method === 'GET' && req.headers.accept?.includes('text/html')) {
+			await warmTicker(pg)
+		}
+
+		next()
 	})
 
 	// generate request ID

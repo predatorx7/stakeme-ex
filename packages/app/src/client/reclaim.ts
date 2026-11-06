@@ -18,7 +18,8 @@ import {
  *                                the document).
  *   [data-reclaim-demo="/url"]   DEMO_MODE only: POST a fixture proof
  *       data-reclaim-demo-context  creator id echoed back (required)
- *       data-reclaim-demo-amount   USDC decimal (default 5000.00)
+ *       data-reclaim-demo-amount   USDC decimal (default 5000.00); a
+ *           [data-reclaim-demo-scenario] <select> in scope overrides it
  *       data-reclaim-demo-field    body key for the proof (default `proof`)
  *       data-reclaim-body          extra JSON body fields
  *
@@ -75,7 +76,11 @@ async function submitDemo(button: HTMLElement) {
 	// Matches the server's `demoIncomeProof`; only accepted when DEMO_MODE=1.
 	const fixture = {
 		demo: true,
-		amount: button.dataset.reclaimDemoAmount || '5000.00',
+		amount: scopeOf(button)
+			?.querySelector<HTMLSelectElement>('[data-reclaim-demo-scenario]')
+			?.value
+			|| button.dataset.reclaimDemoAmount
+			|| '5000.00',
 		context,
 		id: `0xdemo${crypto.randomUUID().replaceAll('-', '')}`,
 	}
@@ -84,6 +89,10 @@ async function submitDemo(button: HTMLElement) {
 		[button.dataset.reclaimDemoField || 'proof']: fixture,
 	})
 	reloadOrRedirect(headers)
+}
+
+function scopeOf(el: HTMLElement) {
+	return el.closest('[data-reclaim]')
 }
 
 function extraBody(el: HTMLElement): Record<string, unknown> {

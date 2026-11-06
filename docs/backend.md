@@ -121,7 +121,7 @@ written earlier in the same statement.
 | `GetReclaimSessionStatus` | `GET /reclaim/sessions/{sessionId}` | session, owner | Polling fallback for SSE; asks Reclaim while pending. |
 | `ReclaimCallback` | `POST /reclaim/callback` | public, result verified | `results.receive`, then the `AuditMilestone` pipeline. `503` only when a retry can succeed. |
 | `AuditMilestone` | `POST /api/audit-milestone` | public, proof verified | Verify, audit, apply. |
-| `TriggerDefault` | `POST /api/trigger-default` | public, `DEMO_MODE=1` | `403` otherwise. |
+| `TriggerDefault` | `POST /api/trigger-default` | public, `DEMO_MODE=1` and `X-Admin-Key` = `SMX_ADMIN_KEY` | `403` otherwise. |
 | `CreateDividendPaymentRequest` | `POST /dividends/{dividendId}/payment-request` | session, owner | x402 payment requirements from `PaymentService`. Splits come from SQL. |
 | `PayDividend` | `POST /dividends/{dividendId}/payment` | session, owner | Optional `paymentPayload` is settled first, then `pay_dividend`. |
 | `StreamEvents` | `GET /events` | public | SSE with `Last-Event-ID` replay. |

@@ -1,0 +1,32 @@
+/* instrument-position: instrument view (see docs/instrument-view.md). */
+.smx-position {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+	gap: var(--rc-space-3);
+	padding: var(--rc-space-3) var(--rc-space-4);
+	margin: 0;
+}
+
+.smx-position dt {
+	color: var(--rc-color-text-secondary);
+	font-size: var(--rc-font-size-caption);
+}
+
+.smx-position dd {
+	margin: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.smx-position dd[data-dir='up'] {
+	color: var(--rc-color-status-success);
+}
+
+.smx-position dd[data-dir='down'] {
+	color: var(--rc-color-status-danger);
+}
+
+.smx-position__empty {
+	margin: 0;
+	padding: var(--rc-space-3) var(--rc-space-4);
+	color: var(--rc-color-text-secondary);
+}

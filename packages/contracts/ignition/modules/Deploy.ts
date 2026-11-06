@@ -11,7 +11,8 @@ export default buildModule('Deploy', (m) => {
 	const usdc = m.contract('MockUSDC')
 	const isaImpl = m.contract('LiquidISA')
 	const tokenImpl = m.contract('CreatorShareToken')
-	const factory = m.contract('LiquidISAFactory', [usdc, oracle, isaImpl, tokenImpl])
+	const poolImpl = m.contract('CreatorPool')
+	const factory = m.contract('LiquidISAFactory', [usdc, oracle, isaImpl, tokenImpl, poolImpl])
 
-	return { usdc, isaImpl, tokenImpl, factory }
+	return { usdc, isaImpl, tokenImpl, poolImpl, factory }
 })

@@ -17,9 +17,12 @@ import {
 	ROUTER_PROVIDER,
 	RULES_MODEL,
 	runAuditVerdict,
+	windowPreCheck,
 } from '../../integrations/zero-g.ts'
 import { prepareStorage } from '../storage/storage-document.ts'
 import type { IOracle, OracleProofPayload } from './oracle.ts'
+
+const PRE_CHECK = 'pre-check'
 
 /** An audit plus the log document the storage outbox uploads later. */
 export type OracleAudit = IncomeAudit & { logDocument: object }
@@ -76,10 +79,21 @@ export class ZeroGravityAgent implements IOracle {
 
 	/** Audits verified income and prepares the log (local `logRef`). */
 	async audit(input: IncomeAuditInput): Promise<OracleAudit> {
-		const { verdict, model, provider, teeVerified, routerTrace } =
-			await runAuditVerdict(input, this.deps)
-		const engine: 'rules' | '0g-router' | '0g-compute' =
-			model === RULES_MODEL
+		// Deterministic date check first: out of window is denied without a 0G
+		// call, and the log says 0G did not decide it.
+		const denied = windowPreCheck(input)
+		const { verdict, model, provider, teeVerified, routerTrace } = denied
+			? {
+				verdict: denied,
+				model: PRE_CHECK,
+				provider: null,
+				teeVerified: null,
+				routerTrace: undefined,
+			}
+			: await runAuditVerdict(input, this.deps)
+		const engine: NonNullable<IncomeAudit['engine']> = denied
+			? PRE_CHECK
+			: model === RULES_MODEL
 				? 'rules'
 				: provider === ROUTER_PROVIDER ? '0g-router' : '0g-compute'
 		const requestId = routerTrace?.requestId ?? undefined
@@ -104,6 +118,8 @@ export class ZeroGravityAgent implements IOracle {
 				termsRef: input.termsRef ?? null,
 				proofId: input.income.proofId,
 				depositAmount: input.income.amount,
+				depositDate: input.income.depositDate ?? null,
+				window: input.window ?? null,
 				minIncome: input.minIncome,
 				verdict,
 			},

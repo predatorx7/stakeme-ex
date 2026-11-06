@@ -37,6 +37,23 @@ document.addEventListener('htmx:configRequest', (event) => {
 	}
 
 	delete body.sharePct
+
+	// Profile links arrive as `social_<network>` inputs; the API wants one
+	// `socialLinks` object holding only the filled ones.
+	const socialLinks: Record<string, string> = {}
+	for(const network of ['x', 'github', 'linkedin', 'website']) {
+		const value = body[`social_${network}`]
+		if(typeof value === 'string' && value.trim()) {
+			socialLinks[network] = value.trim()
+		}
+
+		delete body[`social_${network}`]
+	}
+
+	if(Object.keys(socialLinks).length) {
+		body.socialLinks = socialLinks
+	}
+
 	for(const key of ['headline']) {
 		if(body[key] === '') {
 			delete body[key]

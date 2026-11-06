@@ -1,0 +1,12 @@
+/* Brand mark: the logo in the app bar. A light chip keeps the navy strokes
+   readable on the dark canvas. */
+.smx-brand-mark {
+	background: #f7f7fb;
+	block-size: 30px;
+	border-radius: 8px;
+	box-shadow: 0 0 10px -2px var(--smx-dw-marigold, #f59e0b);
+	box-sizing: content-box;
+	flex: none;
+	inline-size: 32px;
+	padding: 3px 4px;
+}

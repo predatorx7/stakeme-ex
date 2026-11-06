@@ -1,0 +1,88 @@
+/* instrument-depth: instrument view (see docs/instrument-view.md). */
+
+.depth-ladder {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--rc-space-4);
+	padding: var(--rc-space-3) var(--rc-space-4);
+}
+
+.depth-side {
+	border-collapse: collapse;
+	width: 100%;
+	font-variant-numeric: tabular-nums;
+}
+
+.depth-side caption {
+	color: var(--rc-color-text-tertiary);
+	font-size: var(--rc-font-size-caption);
+	padding-block-end: var(--rc-space-2);
+	text-align: start;
+}
+
+.depth-side th,
+.depth-side td {
+	padding: var(--rc-space-2);
+	text-align: end;
+	white-space: nowrap;
+}
+
+.depth-side th:first-child {
+	text-align: start;
+}
+
+.depth-side thead th {
+	border-block-end: 1px solid var(--rc-color-border-default);
+	color: var(--rc-color-text-tertiary);
+	font-size: var(--rc-font-size-caption);
+	font-weight: normal;
+}
+
+.depth-side tbody th {
+	font-weight: normal;
+}
+
+.depth-side tbody td[colspan] {
+	text-align: start;
+}
+
+/* Impact bar behind each row: sell grows from the right, buy from the left. */
+.depth-side tbody tr[style] {
+	background-image: linear-gradient(
+		var(--depth-dir, to right),
+		var(--depth-color) var(--depth-bar),
+		transparent var(--depth-bar)
+	);
+	background-repeat: no-repeat;
+}
+
+.depth-side[data-side='buy'] {
+	--depth-color: color-mix(
+		in srgb,
+		var(--rc-color-status-success) 18%,
+		transparent
+	);
+}
+
+.depth-side[data-side='sell'] {
+	--depth-dir: to left;
+	--depth-color: color-mix(
+		in srgb,
+		var(--rc-color-status-danger) 18%,
+		transparent
+	);
+}
+
+.depth-side[data-side='buy'] tbody td:last-child {
+	color: var(--rc-color-status-success);
+}
+
+.depth-side[data-side='sell'] tbody td:last-child {
+	color: var(--rc-color-status-danger);
+}
+
+@media (max-width: 35rem) {
+	.depth-ladder {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from '@kitajs/html'
+import { BANK_SCENARIOS, DEFAULT_SCENARIO } from '../../services/mock-bank.ts'
 import type { MockBank } from '../../types/index.ts'
 import { escapeText, trustedHtml } from '../../utils/escape.ts'
 
@@ -21,6 +22,11 @@ td.amt,th.amt{text-align:right}
 label{display:block;margin:12px 0 4px;font-weight:bold}
 input{width:100%;padding:8px;border:1px solid #b8c0cc;border-radius:3px;font-size:14px}
 button{margin-top:16px;padding:9px 20px;background:#e5252a;color:#fff;border:0;border-radius:3px;font-size:14px;cursor:pointer}
+.scenarios{margin:16px 0 0;padding:0;border:0}
+.scenarios legend{font-weight:bold;padding:0}
+.scenarios label{display:flex;gap:8px;align-items:flex-start;font-weight:normal;margin:8px 0 0}
+.scenarios input{width:auto;margin-top:4px}
+.scenarios small{display:block;color:#667}
 .hint{margin-top:16px;padding:10px;background:#fff8e1;border:1px solid #f0d98c;font-size:12px}
 `
 
@@ -96,12 +102,35 @@ export function MockBankLoginPage() {
 						required
 						maxlength='100'
 						autocomplete='current-password' />
+					<fieldset class='scenarios'>
+						<legend>
+							Income scenario
+						</legend>
+						{
+							BANK_SCENARIOS.map((s) => (
+								<label>
+									<input
+										type='radio'
+										name='scenario'
+										value={s.id}
+										checked={s.id === DEFAULT_SCENARIO}
+										required />
+									<span>
+										{escapeText(s.label)}
+										<small>
+											{escapeText(s.hint)}
+										</small>
+									</span>
+								</label>
+							))
+						}
+					</fieldset>
 					<button type='submit'>
 						Login
 					</button>
 				</form>
 				<p class='hint'>
-					Demo bank: any non-empty customer ID and password works.
+					Demo bank: any non-empty customer ID and password works. The scenario sets the deposits this account shows.
 				</p>
 			</section>
 		</BankShell>

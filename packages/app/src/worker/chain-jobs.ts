@@ -7,6 +7,7 @@ import {
 	completeChainJob,
 	listQueuedChainJobs,
 	requeueFailedChainJobs,
+	setChainJobPool,
 } from '../queries.ts'
 import type { IPgClientLike } from '../types/index.ts'
 
@@ -89,6 +90,12 @@ async function settle(
 			},
 			pg,
 		)
+		if(result.deployed?.pool) {
+			await setChainJobPool.run(
+				{ job_id: job.id, pool: result.deployed.pool },
+				pg,
+			)
+		}
 	} catch(err) {
 		LOGGER.error({ err, jobId: job.id, fn: job.fn }, 'chain job failed')
 		await completeChainJob.run(

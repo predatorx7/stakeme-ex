@@ -18,6 +18,8 @@ const KIND_TONE: Record<string, BadgeTone> = {
 	ESCROW_FROZEN: 'warn',
 	ESCROW_UNFROZEN: 'success',
 	STORAGE_CONFIRMED: 'info',
+	CREATOR_UPDATE: 'info',
+	STAKE_RETURNED: 'success',
 }
 
 /** The badge text for an event kind, for example `proof verified`. */
@@ -51,6 +53,7 @@ export function describeEvent(event: OracleEvent) {
 		case 'TRANCHE_RELEASED':
 			return `tranche ${String(p.idx)} · ${usd('amount')}`
 		case 'DIVIDEND_PAID':
+		case 'STAKE_RETURNED':
 			return usd('amount')
 		case 'GRACE_STARTED':
 			return 'proof deadline missed'
@@ -60,6 +63,8 @@ export function describeEvent(event: OracleEvent) {
 			return 'proof overdue'
 		case 'ESCROW_UNFROZEN':
 			return 'proof approved'
+		case 'CREATOR_UPDATE':
+			return String(p.body ?? '')
 		case 'STORAGE_CONFIRMED':
 			return p.kind === 'AUDIT_LOG' ? 'audit log' : 'terms'
 		default:

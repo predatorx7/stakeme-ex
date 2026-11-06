@@ -1,0 +1,160 @@
+/* instrument-ticket: instrument view (see docs/instrument-view.md). */
+.ticket {
+	--ticket-accent: var(--rc-color-status-success);
+	display: grid;
+	gap: var(--rc-space-3);
+	padding: var(--rc-space-3) var(--rc-space-4) var(--rc-space-4);
+}
+
+.ticket[data-side='SELL'] {
+	--ticket-accent: var(--rc-color-status-danger);
+}
+
+.ticket-form {
+	display: grid;
+	gap: var(--rc-space-3);
+}
+
+.ticket-tabs,
+.ticket-slippage {
+	border: 0;
+	margin: 0;
+	min-inline-size: 0;
+	padding: 0;
+}
+
+.ticket-tabs {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+}
+
+.ticket-tabs label {
+	align-items: center;
+	border: 1px solid var(--rc-color-border-strong);
+	cursor: pointer;
+	display: flex;
+	justify-content: center;
+	min-block-size: 44px;
+	transition: background 0.1s, color 0.1s;
+}
+
+.ticket-tabs input {
+	opacity: 0;
+	pointer-events: none;
+	position: absolute;
+}
+
+.ticket-tabs label[data-tab='BUY']:has(input:checked) {
+	background: color-mix(in srgb, var(--rc-color-status-success) 18%, transparent);
+	border-color: var(--rc-color-status-success);
+	color: var(--rc-color-status-success);
+	font-weight: 600;
+}
+
+.ticket-tabs label[data-tab='SELL']:has(input:checked) {
+	background: color-mix(in srgb, var(--rc-color-status-danger) 18%, transparent);
+	border-color: var(--rc-color-status-danger);
+	color: var(--rc-color-status-danger);
+	font-weight: 600;
+}
+
+.ticket-tabs label:has(input:focus-visible) {
+	outline: 2px solid var(--rc-color-action-primary);
+	outline-offset: 2px;
+}
+
+.ticket-slippage {
+	align-items: center;
+	display: grid;
+	gap: var(--rc-space-2);
+	grid-template-columns: repeat(3, 1fr) 1.6fr;
+}
+
+.ticket-slippage legend {
+	color: var(--rc-color-text-secondary);
+	font-size: var(--rc-font-size-caption);
+	grid-column: 1 / -1;
+	padding-block-end: var(--rc-space-2);
+}
+
+.ticket-chip {
+	background: transparent;
+	border: 1px solid var(--rc-color-border-default);
+	color: var(--rc-color-text-primary);
+	cursor: pointer;
+	font: inherit;
+	min-block-size: 36px;
+	min-inline-size: 0;
+	padding: 0 var(--rc-space-2);
+	text-align: center;
+	transition: background 0.1s, border-color 0.1s;
+}
+
+.ticket-chip[aria-pressed='true'],
+.ticket-chip[data-active='true'] {
+	border-color: var(--rc-color-action-primary);
+	color: var(--rc-color-action-primary);
+	font-weight: 600;
+}
+
+.ticket-chip[aria-invalid] {
+	border-color: var(--rc-color-status-danger);
+}
+
+.ticket-estimate {
+	border-block: 1px solid var(--rc-color-border-default);
+	display: grid;
+	gap: var(--rc-space-2) var(--rc-space-3);
+	grid-template-columns: 1fr auto;
+	margin: 0;
+	padding-block: var(--rc-space-3);
+}
+
+.ticket-estimate dt {
+	color: var(--rc-color-text-secondary);
+}
+
+.ticket-estimate dd {
+	font-variant-numeric: tabular-nums;
+	margin: 0;
+	text-align: end;
+}
+
+.ticket-estimate dd[data-est='out'] {
+	color: var(--ticket-accent);
+	font-weight: 600;
+}
+
+.ticket-status,
+.ticket-note {
+	color: var(--rc-color-text-secondary);
+	font-size: var(--rc-font-size-caption);
+	margin: 0;
+}
+
+.ticket-status:empty {
+	display: none;
+}
+
+.ticket-halt {
+	border: 1px solid var(--rc-color-status-danger);
+	color: var(--rc-color-status-danger);
+	margin: 0;
+	padding: var(--rc-space-2) var(--rc-space-3);
+}
+
+.ticket-submit {
+	background: var(--ticket-accent);
+	border-color: var(--ticket-accent);
+	color: var(--rc-color-text-on-action, #fff);
+	transition: opacity 0.1s;
+}
+
+.ticket-submit:disabled {
+	opacity: 0.5;
+}
+
+.ticket-slippage:disabled,
+.ticket-tabs:disabled {
+	opacity: 0.6;
+}

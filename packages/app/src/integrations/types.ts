@@ -45,6 +45,11 @@ export type VerifiedIncome = {
 	provider: string
 	/** Verified income in USDC, as a decimal string (6 dp max). */
 	amount: string
+	/**
+	 * Deposit date (`YYYY-MM-DD`, UTC) from the proof. Absent ("unknown") for
+	 * demo fixtures and providers that don't extract it.
+	 */
+	depositDate?: string
 	/** Context echoed from the session (creator id). */
 	context: string
 	/** Full proof JSON, stored for audit. */
@@ -60,6 +65,11 @@ export type IncomeAuditInput = {
 	termsHash: string
 	/** Storage ref of the L-ISA terms, echoed into the audit log. */
 	termsRef?: string
+	/**
+	 * Reporting period the deposit must fall in (inclusive `YYYY-MM-DD`, UTC).
+	 * Absent: no date check.
+	 */
+	window?: { from: string, to: string }
 	income: VerifiedIncome
 }
 
@@ -72,8 +82,11 @@ export type IncomeAudit = {
 	model: string
 	/** 0G Storage root hash (or `local:<sha256>`) of the audit log. */
 	logRef: string | null
-	/** `0g-router`, `0g-compute` or `rules` (offline dev fallback). */
-	engine?: 'rules' | '0g-router' | '0g-compute'
+	/**
+	 * `0g-router`, `0g-compute`, `rules` (offline dev fallback) or `pre-check`
+	 * (a deterministic denial made before any 0G call; 0G did not decide).
+	 */
+	engine?: 'rules' | '0g-router' | '0g-compute' | 'pre-check'
 	/** 0G Router request id (`x_0g_trace.request_id`). */
 	requestId?: string
 	/** On-chain address of the TEE provider that served the request. */
@@ -94,6 +107,8 @@ export type LisaTerms = {
 	targetRaise: string
 	stakeAmount: string
 	trancheBps: number[]
+	/** Days between proof deadlines; part of the terms when set. */
+	proofCadenceDays?: number
 	worldIdNullifier: string
 	creatorWallet: string
 }
@@ -114,8 +129,8 @@ export type ChainFn =
 	| 'executeLiquidation'
 	| 'freezeEscrow'
 	| 'unfreezeEscrow'
-	| 'freezeEscrow'
-	| 'unfreezeEscrow'
+	| 'closeRaise'
+	| 'reclaimStake'
 
 export type ChainJob = {
 	id: string
@@ -129,7 +144,13 @@ export type ChainJobResult = {
 	status: 'CONFIRMED' | 'SIMULATED' | 'FAILED'
 	txHash: string | null
 	/** Set for `createISA`: deployed addresses. */
-	deployed?: { isa: string, token: string, atsToken?: string }
+	deployed?: {
+		isa: string
+		token: string
+		atsToken?: string
+		/** CreatorPool clone; unset in simulated mode. */
+		pool?: string
+	}
 	error?: string
 }
 

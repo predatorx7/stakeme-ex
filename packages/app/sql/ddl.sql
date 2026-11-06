@@ -49,6 +49,39 @@ CREATE DOMAIN evm_address AS CITEXT
 CREATE DOMAIN tx_hash AS TEXT
 	CHECK (VALUE ~ '^0x[0-9a-f]{64}$');
 
+-- Social profile links. https only, and the host is pinned per network so a
+-- look-alike host (`x.com.evil.test`, `x.com@evil.test`) can't pass: the host
+-- must be followed by `/` or the end. Handles are bounded to what each network
+-- allows. Case-insensitive on host and path.
+CREATE DOMAIN social_x_url AS TEXT
+	CHECK (
+		VALUE ~* '^https://(www\.)?(x|twitter)\.com/[a-z0-9_]{1,15}/?$'
+		AND length(VALUE) <= 200
+	);
+CREATE DOMAIN social_github_url AS TEXT
+	CHECK (
+		VALUE ~* '^https://(www\.)?github\.com/[a-z0-9]([a-z0-9-]{0,38})(/[a-z0-9._-]{1,100})?/?$'
+		AND length(VALUE) <= 200
+	);
+CREATE DOMAIN social_linkedin_url AS TEXT
+	CHECK (
+		VALUE ~* '^https://([a-z]{2,3}\.)?linkedin\.com/(in|company)/[a-z0-9_%-]{3,100}/?$'
+		AND length(VALUE) <= 200
+	);
+-- A personal site: any https host name (no userinfo, no IP-only or bare
+-- label), optional port and path, no whitespace or markup characters.
+CREATE DOMAIN social_website_url AS TEXT
+	CHECK (
+		VALUE ~* '^https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:[0-9]{1,5})?(/[^\s<>"''`\\]*)?$'
+		AND length(VALUE) <= 300
+	);
+-- An optional link on a creator update: https only, any host.
+CREATE DOMAIN https_url AS TEXT
+	CHECK (
+		VALUE ~* '^https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:[0-9]{1,5})?(/[^\s<>"''`\\]*)?$'
+		AND length(VALUE) <= 300
+	);
+
 -- ─── audit-column conventions ─────────────────────────────────
 -- Every mutable table carries:
 --   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -222,8 +255,12 @@ CREATE TYPE dividend_status AS ENUM ('DUE', 'PAID');
 CREATE TYPE oracle_event_kind AS ENUM (
 	'IPO', 'INVESTED', 'PROOF_VERIFIED', 'PROOF_REJECTED', 'TRANCHE_RELEASED',
 	'DIVIDEND_PAID', 'GRACE_STARTED', 'DEFAULTED', 'TRADE',
-	'ESCROW_FROZEN', 'ESCROW_UNFROZEN', 'STORAGE_CONFIRMED'
+	'ESCROW_FROZEN', 'ESCROW_UNFROZEN', 'STORAGE_CONFIRMED', 'CREATOR_UPDATE',
+	'STAKE_RETURNED'
 );
+-- How often a creator must prove income. One approved proof releases the next
+-- tranche and pushes the deadline out by this interval.
+CREATE TYPE proof_cadence AS ENUM ('MONTHLY', 'QUARTERLY');
 CREATE TYPE storage_upload_kind AS ENUM ('LISA_TERMS', 'AUDIT_LOG');
 CREATE TYPE storage_upload_status AS ENUM (
 	'QUEUED', 'UPLOADED', 'FAILED', 'SKIPPED'
@@ -276,6 +313,16 @@ CREATE TABLE creators(
 	next_proof_due_at  TIMESTAMPTZ,
 	grace_until        TIMESTAMPTZ,
 	ipo_at             TIMESTAMPTZ,
+	-- When the raise closed (filled, or closed by the creator). Tranche 0
+	-- releases, the pool opens for trading and the term clock starts here.
+	raise_closed_at    TIMESTAMPTZ,
+	-- Chosen at launch; sets the deadline step (see `proof_cadence_interval`).
+	proof_cadence      proof_cadence NOT NULL DEFAULT 'MONTHLY',
+	-- Optional public profile links (at most these four).
+	x_url              social_x_url,
+	github_url         social_github_url,
+	linkedin_url       social_linkedin_url,
+	website_url        social_website_url,
 	created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
 	created_by         UUID,
 	updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -293,8 +340,8 @@ CREATE TRIGGER creators_touch_updated_at
 	FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ─── tranches ─────────────────────────────────────────────────
--- Escrow schedule (default 20/40/40). Tranche 0 releases at IPO; each approved
--- income proof releases the next locked one.
+-- Escrow schedule (default 20/40/40). Tranche 0 releases when the raise closes
+-- (`finish_raise`); each approved income proof releases the next locked one.
 CREATE TABLE tranches(
 	id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	creator_id  UUID NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
@@ -310,6 +357,21 @@ CREATE TABLE tranches(
 CREATE TRIGGER tranches_touch_updated_at
 	BEFORE UPDATE ON tranches
 	FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ─── creator_updates ──────────────────────────────────────────
+-- Short plain-text posts by a creator to their holders. Each insert also emits
+-- a CREATOR_UPDATE oracle event (see `post_creator_update`).
+CREATE TABLE creator_updates(
+	id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	creator_id UUID NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+	body       TEXT NOT NULL CHECK (length(btrim(body)) BETWEEN 1 AND 1000),
+	link       https_url,
+	created_by UUID,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Keyset pages (newest first) and the daily post count.
+CREATE INDEX creator_updates_creator_idx
+	ON creator_updates(creator_id, created_at DESC, id DESC);
 
 -- ─── investments ──────────────────────────────────────────────
 -- Primary-market purchases at the fixed IPO price (1 USDC = 1 token).
@@ -338,8 +400,13 @@ CREATE INDEX holdings_creator_balance_idx
 	ON holdings(creator_id, balance DESC, wallet) WHERE balance > 0;
 
 -- ─── pools ────────────────────────────────────────────────────
--- Simulated constant-product AMM, one per creator. Reserves are seeded with
--- virtual liquidity at IPO (price 1.0), so a first buyer has a counterparty.
+-- Constant-product AMM, one per creator. The pool is an explicit token holder:
+-- `token_reserve` is the pool's balance of the creator token, seeded at IPO
+-- (price 1.0) so a first buyer has a counterparty. Buys move tokens from the
+-- reserve to the buyer, sells move them back, so always
+-- `sum(holdings) + token_reserve = raised_amount + seed` (see
+-- `token_supply_check`). The pool is not in `holdings`, so dividends, refunds
+-- and slashes (which split by holdings) exclude it, as the contract does.
 CREATE TABLE pools(
 	creator_id    UUID PRIMARY KEY REFERENCES creators(id) ON DELETE CASCADE,
 	usdc_reserve  money_amount NOT NULL CHECK (usdc_reserve > 0),
@@ -500,7 +567,7 @@ CREATE TABLE chain_jobs(
 	fn         TEXT NOT NULL CHECK (fn IN (
 		'createISA', 'initializeIPO', 'invest', 'unlockNextTranche',
 		'distributeDividend', 'executeLiquidation', 'freezeEscrow',
-		'unfreezeEscrow'
+		'unfreezeEscrow', 'closeRaise', 'reclaimStake'
 	)),
 	args       JSONB NOT NULL DEFAULT '{}',
 	status     chain_job_status NOT NULL DEFAULT 'QUEUED',
@@ -710,7 +777,8 @@ $$;
 -- ─── events and chain jobs ────────────────────────────────────
 
 -- Appends an oracle event and one price tick at the current pool price. The
--- tick lives here so "one tick per oracle event" can't drift. The trigger on
+-- tick lives here so "one tick per oracle event" can't drift. Events that
+-- say nothing about price (STORAGE_CONFIRMED, CREATOR_UPDATE) add no tick. The trigger on
 -- oracle_events publishes it to pgmb.
 CREATE OR REPLACE FUNCTION emit_oracle_event(
 	p_creator UUID, p_kind oracle_event_kind, p_payload JSONB DEFAULT '{}'
@@ -729,7 +797,8 @@ BEGIN
 
 	INSERT INTO price_ticks(creator_id, price)
 	SELECT p_creator, pool_price(p_creator)
-	WHERE pool_price(p_creator) IS NOT NULL AND p_kind <> 'STORAGE_CONFIRMED';
+	WHERE pool_price(p_creator) IS NOT NULL
+		AND p_kind NOT IN ('STORAGE_CONFIRMED', 'CREATOR_UPDATE');
 
 	RETURN v_event;
 END;
@@ -897,10 +966,23 @@ $$;
 
 -- ─── launch_ipo ───────────────────────────────────────────────
 
--- Creates the creator, escrow tranches (default 20/40/40), the AMM pool, the
--- first price tick and the IPO event; releases tranche 0; queues the
--- `createISA` and `initializeIPO` onchain calls. Every rule is asserted here
--- so the route stays a thin caller (World ID is verified by the route first).
+-- Steps between proof deadlines for a cadence. The grace period (14 days)
+-- is the same for both.
+CREATE OR REPLACE FUNCTION proof_cadence_interval(p_cadence proof_cadence)
+RETURNS INTERVAL
+LANGUAGE sql IMMUTABLE
+AS $$
+	SELECT CASE p_cadence WHEN 'QUARTERLY' THEN interval '90 days'
+		ELSE interval '30 days' END
+$$;
+
+-- Creates the creator, escrow tranches (default 20/40/40; 2 to 5 entries
+-- summing to 10000 bps), the AMM pool, the first price tick and the IPO event;
+-- queues the `createISA` and `initializeIPO` onchain calls. All tranches start
+-- LOCKED: tranche 0 releases when the raise closes (see `finish_raise`). `p_social_links` is an object with any of `x`, `github`, `linkedin`,
+-- `website`; each is checked by its domain. The first proof is due one cadence
+-- after launch. Every rule is asserted here so the route stays a thin caller
+-- (World ID is verified by the route first).
 CREATE OR REPLACE FUNCTION launch_ipo(
 	p_owner UUID,
 	p_wallet evm_address,
@@ -916,7 +998,9 @@ CREATE OR REPLACE FUNCTION launch_ipo(
 	p_terms_hash TEXT,
 	p_chain_id INTEGER DEFAULT NULL,
 	p_terms_document JSONB DEFAULT NULL,
-	p_tranche_bps INTEGER[] DEFAULT ARRAY[2000, 4000, 4000]
+	p_tranche_bps INTEGER[] DEFAULT ARRAY[2000, 4000, 4000],
+	p_proof_cadence proof_cadence DEFAULT 'MONTHLY',
+	p_social_links JSONB DEFAULT '{}'
 )
 RETURNS creators
 LANGUAGE plpgsql
@@ -926,6 +1010,7 @@ DECLARE
 	v_creator creators;
 	v_seed NUMERIC;
 	v_n INTEGER := cardinality(p_tranche_bps);
+	v_links JSONB := coalesce(p_social_links, '{}');
 BEGIN
 	PERFORM assert_nullifier_available(p_nullifier);
 	PERFORM assert_that(
@@ -937,37 +1022,68 @@ BEGIN
 		409, 'That ticker is taken'
 	);
 	PERFORM assert_that(
-		v_n BETWEEN 1 AND 12
-			AND (SELECT sum(b) FROM unnest(p_tranche_bps) AS b) = 10000,
-		400, 'Tranche schedule must sum to 10000 bps'
+		v_n BETWEEN 2 AND 5
+			AND (SELECT sum(b) FROM unnest(p_tranche_bps) AS b) = 10000
+			AND (SELECT min(b) FROM unnest(p_tranche_bps) AS b) > 0,
+		400, 'Tranche schedule needs 2 to 5 tranches that sum to 10000 bps'
+	);
+	PERFORM assert_that(
+		jsonb_typeof(v_links) = 'object' AND NOT EXISTS (
+			SELECT 1 FROM jsonb_object_keys(v_links) AS k
+			WHERE k NOT IN ('x', 'github', 'linkedin', 'website')
+		),
+		400, 'Social links can only be x, github, linkedin and website'
+	);
+	PERFORM assert_that(
+		coalesce(pg_input_is_valid(nullif(btrim(v_links ->> 'x'), ''), 'smx.social_x_url'), TRUE),
+		400, 'The X link must look like https://x.com/yourhandle'
+	);
+	PERFORM assert_that(
+		coalesce(pg_input_is_valid(
+			nullif(btrim(v_links ->> 'github'), ''), 'smx.social_github_url'
+		), TRUE),
+		400, 'The GitHub link must look like https://github.com/yourname'
+	);
+	PERFORM assert_that(
+		coalesce(pg_input_is_valid(
+			nullif(btrim(v_links ->> 'linkedin'), ''), 'smx.social_linkedin_url'
+		), TRUE),
+		400, 'The LinkedIn link must look like https://linkedin.com/in/yourname'
+	);
+	PERFORM assert_that(
+		coalesce(pg_input_is_valid(
+			nullif(btrim(v_links ->> 'website'), ''), 'smx.social_website_url'
+		), TRUE),
+		400, 'The website link must be a full https:// address'
 	);
 
 	INSERT INTO creators(
 		owner_user_id, owner_wallet, ticker, display_name, headline, share_bps,
 		term_months, target_raise, stake_amount, status, world_id_nullifier,
 		terms_ref, terms_hash, chain_id, ipo_at, next_proof_due_at,
-		created_by
+		proof_cadence, x_url, github_url, linkedin_url, website_url, created_by
 	)
 	VALUES (
 		p_owner, p_wallet, p_ticker, p_display_name, coalesce(p_headline, ''),
 		p_share_bps, p_term_months, p_target_raise, p_stake_amount, 'LIVE',
 		p_nullifier, p_terms_ref, p_terms_hash, p_chain_id,
-		now(), now() + interval '30 days', p_owner
+		now(), now() + proof_cadence_interval(p_proof_cadence), p_proof_cadence,
+		nullif(btrim(v_links ->> 'x'), ''),
+		nullif(btrim(v_links ->> 'github'), ''),
+		nullif(btrim(v_links ->> 'linkedin'), ''),
+		nullif(btrim(v_links ->> 'website'), ''), p_owner
 	)
 	RETURNING * INTO v_creator;
 
 	-- The last tranche takes the rounding remainder so they sum to the target.
-	INSERT INTO tranches(creator_id, idx, amount, status, released_at)
+	INSERT INTO tranches(creator_id, idx, amount)
 	SELECT
 		v_creator.id,
 		t.idx - 1,
 		CASE WHEN t.idx = v_n
 			THEN p_target_raise - coalesce(sum(trunc(p_target_raise * t.bps / 10000, 6))
 				OVER (ORDER BY t.idx ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0)
-			ELSE trunc(p_target_raise * t.bps / 10000, 6) END,
-		CASE WHEN t.idx = 1 THEN 'RELEASED'::tranche_status
-			ELSE 'LOCKED'::tranche_status END,
-		CASE WHEN t.idx = 1 THEN now() END
+			ELSE trunc(p_target_raise * t.bps / 10000, 6) END
 	FROM unnest(p_tranche_bps) WITH ORDINALITY AS t(bps, idx);
 
 	-- Virtual liquidity: 10% of the target (min 100) on both sides, price 1.0.
@@ -1008,11 +1124,190 @@ BEGIN
 END;
 $$;
 
+-- ─── creator updates ──────────────────────────────────────────
+
+-- A creator posts a short update to holders. Only the creator's owner may post
+-- (403 otherwise; 404 for an unknown ticker), at most 5 per rolling 24 hours
+-- (429). Emits CREATOR_UPDATE so the live feed and the corporate-actions
+-- timeline pick it up. The row is locked first so two simultaneous posts can't
+-- both slip under the limit.
+CREATE OR REPLACE FUNCTION post_creator_update(
+	p_user UUID, p_ticker TEXT, p_body TEXT, p_link TEXT DEFAULT NULL
+)
+RETURNS creator_updates
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_creator creators;
+	v_update creator_updates;
+	v_body TEXT := btrim(coalesce(p_body, ''));
+	v_link TEXT := nullif(btrim(coalesce(p_link, '')), '');
+BEGIN
+	SELECT * INTO v_creator FROM creators c
+	WHERE c.id = creator_id_by_ticker(p_ticker) FOR UPDATE;
+	PERFORM assert_that(
+		v_creator.owner_user_id = p_user, 403,
+		'Only the creator can post updates'
+	);
+	PERFORM assert_that(
+		length(v_body) BETWEEN 1 AND 1000, 400,
+		'An update needs 1 to 1,000 characters'
+	);
+	PERFORM assert_that(
+		coalesce(pg_input_is_valid(v_link, 'smx.https_url'), TRUE), 400,
+		'The link must be a full https:// address'
+	);
+	PERFORM assert_that(
+		(
+			SELECT count(*) FROM creator_updates u
+			WHERE u.creator_id = v_creator.id
+				AND u.created_at > now() - interval '24 hours'
+		) < 5,
+		429, 'You can post 5 updates a day. Try again tomorrow.'
+	);
+
+	INSERT INTO creator_updates(creator_id, body, link, created_by)
+	VALUES (v_creator.id, v_body, v_link, p_user)
+	RETURNING * INTO v_update;
+
+	PERFORM emit_oracle_event(v_creator.id, 'CREATOR_UPDATE', jsonb_build_object(
+		'updateId', v_update.id,
+		'body', left(v_body, 140),
+		'link', v_update.link
+	));
+	RETURN v_update;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION creator_update_json(u creator_updates)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	SELECT jsonb_strip_nulls(jsonb_build_object(
+		'id', u.id,
+		'body', u.body,
+		'link', u.link,
+		'createdAt', u.created_at
+	))
+$$;
+
+-- ─── raise close and supply invariant ─────────────────────────
+
+-- True when the newest freeze/unfreeze event is a freeze (contract `frozen`).
+CREATE OR REPLACE FUNCTION escrow_frozen(
+	p_creator UUID, p_now TIMESTAMPTZ DEFAULT now()
+)
+RETURNS BOOLEAN
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	SELECT coalesce((
+		SELECT e.kind = 'ESCROW_FROZEN' FROM oracle_events e
+		WHERE e.creator_id = p_creator
+			AND e.kind IN ('ESCROW_FROZEN', 'ESCROW_UNFROZEN')
+			AND e.created_at <= p_now
+		ORDER BY e.created_at DESC, e.seq DESC LIMIT 1
+	), FALSE)
+$$;
+
+-- Token supply check. The pool's `token_reserve` is a holder, so
+-- sum(holdings) + pool tokens must equal raised + pool seed (contract:
+-- totalSupply = raised + seed). `seed` is the pool's initial reserve, derived
+-- from the target like at launch. Returns one row; `ok` is the invariant.
+CREATE OR REPLACE FUNCTION token_supply_check(p_creator UUID)
+RETURNS TABLE(supply NUMERIC, held NUMERIC, pool_tokens NUMERIC, ok BOOLEAN)
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	SELECT
+		c.raised_amount + greatest(trunc(c.target_raise / 10, 6), 100),
+		coalesce((SELECT sum(h.balance) FROM holdings h WHERE h.creator_id = c.id), 0),
+		p.token_reserve,
+		c.raised_amount + greatest(trunc(c.target_raise / 10, 6), 100)
+			= coalesce((SELECT sum(h.balance) FROM holdings h WHERE h.creator_id = c.id), 0)
+				+ p.token_reserve
+	FROM creators c JOIN pools p ON p.creator_id = c.id
+	WHERE c.id = p_creator
+$$;
+
+-- Closes the raise (contract `_closeAndRelease`): tranches resize to the amount
+-- raised (last takes the remainder), tranche 0 releases, the first proof
+-- deadline and the term clock start now, and the pool opens for trading.
+-- Called by `record_investment` when the round fills and by `close_raise`.
+CREATE OR REPLACE FUNCTION finish_raise(p_creator UUID)
+RETURNS creators
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_creator creators;
+	v_tranche tranches;
+BEGIN
+	UPDATE creators SET
+		raise_closed_at = now(),
+		next_proof_due_at = now() + proof_cadence_interval(proof_cadence)
+	WHERE id = p_creator
+	RETURNING * INTO v_creator;
+
+	WITH sized AS (
+		SELECT t.id, t.idx,
+			trunc(t.amount * v_creator.raised_amount / v_creator.target_raise, 6) AS amt,
+			t.idx = max(t.idx) OVER () AS is_last
+		FROM tranches t WHERE t.creator_id = p_creator
+	)
+	UPDATE tranches t SET amount = CASE WHEN s.is_last
+		THEN v_creator.raised_amount - coalesce((
+			SELECT sum(o.amt) FROM sized o WHERE NOT o.is_last
+		), 0)
+		ELSE s.amt END
+	FROM sized s WHERE t.id = s.id;
+
+	UPDATE tranches SET status = 'RELEASED', released_at = now()
+	WHERE creator_id = p_creator AND idx = 0
+	RETURNING * INTO v_tranche;
+
+	PERFORM emit_oracle_event(p_creator, 'TRANCHE_RELEASED', jsonb_build_object(
+		'idx', v_tranche.idx, 'amount', v_tranche.amount::TEXT
+	));
+	RETURN v_creator;
+END;
+$$;
+
+-- The creator ends the raise early (contract `closeRaise`). Needs at least one
+-- investment. When `p_user` is set only the creator's owner may call. Queues
+-- the `closeRaise` onchain call.
+CREATE OR REPLACE FUNCTION close_raise(p_creator UUID, p_user UUID DEFAULT NULL)
+RETURNS creators
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_creator creators;
+BEGIN
+	SELECT * INTO v_creator FROM creators c WHERE c.id = p_creator FOR UPDATE;
+	PERFORM assert_that(FOUND, 404, 'Creator not found');
+	PERFORM assert_that(
+		p_user IS NULL OR assert_creator_owner(p_creator, p_user),
+		403, 'Only the creator can close the raise'
+	);
+	PERFORM assert_that(
+		v_creator.status = 'LIVE' AND v_creator.raise_closed_at IS NULL,
+		409, 'This raise is not open'
+	);
+	PERFORM assert_that(v_creator.raised_amount > 0, 409, 'Nothing has been raised yet');
+	v_creator := finish_raise(p_creator);
+	PERFORM enqueue_chain_job(p_creator, 'closeRaise', '{}');
+	RETURN v_creator;
+END;
+$$;
+
 -- ─── record_investment ────────────────────────────────────────
 
 -- Primary market: 1 USDC buys 1 token at the IPO price. The amount is capped
 -- at the remaining raise, so the last investor fills the round rather than
--- being rejected.
+-- being rejected. Filling the round closes the raise (see `finish_raise`).
 CREATE OR REPLACE FUNCTION record_investment(
 	p_creator UUID, p_wallet evm_address, p_usdc NUMERIC
 )
@@ -1029,7 +1324,8 @@ BEGIN
 	SELECT * INTO v_creator FROM creators c WHERE c.id = p_creator FOR UPDATE;
 	PERFORM assert_that(FOUND, 404, 'Creator not found');
 	PERFORM assert_that(
-		v_creator.status = 'LIVE', 409, 'This raise is not open for investment'
+		v_creator.status = 'LIVE' AND v_creator.raise_closed_at IS NULL,
+		409, 'This raise is not open for investment'
 	);
 	v_amount := least(trunc(p_usdc, 6), v_creator.target_raise - v_creator.raised_amount);
 	PERFORM assert_that(v_amount > 0, 409, 'This raise is fully subscribed');
@@ -1045,7 +1341,8 @@ BEGIN
 		updated_at = now();
 
 	UPDATE creators SET raised_amount = raised_amount + v_amount
-	WHERE id = p_creator;
+	WHERE id = p_creator
+	RETURNING * INTO v_creator;
 
 	PERFORM emit_oracle_event(p_creator, 'INVESTED', jsonb_build_object(
 		'wallet', p_wallet::TEXT,
@@ -1055,6 +1352,10 @@ BEGIN
 	PERFORM enqueue_chain_job(p_creator, 'invest', jsonb_build_object(
 		'investmentId', v_inv.id, 'wallet', p_wallet::TEXT, 'amount', v_amount::TEXT
 	));
+	-- The contract closes the raise inside `invest` when it fills.
+	IF v_creator.raised_amount = v_creator.target_raise THEN
+		PERFORM finish_raise(p_creator);
+	END IF;
 
 	RETURN v_inv;
 END;
@@ -1063,8 +1364,11 @@ $$;
 -- ─── amm_swap ─────────────────────────────────────────────────
 
 -- Constant-product swap (x * y = k) with a 0.3% input fee that stays in the
--- pool (k grows). BUY spends `p_amount_in` USDC, SELL spends tokens. Rejects
--- non-trading creators, oversells, and fills below `p_min_out` (slippage).
+-- pool (k grows). BUY spends `p_amount_in` USDC, SELL spends tokens. Tokens
+-- move between the pool reserve and the wallet. Trading is halted until the
+-- raise closes, while the escrow is frozen (GRACE) and after default. After the
+-- term ends (COMPLETED) only SELL is allowed. Rejects oversells and fills below
+-- `p_min_out` (slippage).
 CREATE OR REPLACE FUNCTION amm_swap(
 	p_creator UUID,
 	p_wallet evm_address,
@@ -1078,6 +1382,7 @@ SET search_path = smx, public
 AS $$
 DECLARE
 	v_status creator_status;
+	v_closed TIMESTAMPTZ;
 	v_pool pools;
 	v_fee NUMERIC;
 	v_eff NUMERIC;
@@ -1087,13 +1392,26 @@ DECLARE
 	v_trade trades;
 BEGIN
 	PERFORM assert_that(p_amount_in > 0, 400, 'Amount must be positive');
-	SELECT c.status INTO v_status FROM creators c WHERE c.id = p_creator;
+	SELECT c.status, c.raise_closed_at INTO v_status, v_closed
+	FROM creators c WHERE c.id = p_creator;
 	PERFORM assert_that(FOUND, 404, 'Creator not found');
 	PERFORM assert_that(
-		v_status IN ('LIVE', 'GRACE'), 409,
+		v_status IN ('LIVE', 'GRACE', 'COMPLETED'), 409,
 		CASE WHEN v_status = 'DEFAULTED'
 			THEN 'Trading is closed: this creator defaulted'
 			ELSE 'Trading is not open for this creator' END
+	);
+	PERFORM assert_that(
+		v_closed IS NOT NULL, 409, 'Trading opens when the raise closes'
+	);
+	PERFORM assert_that(
+		v_status = 'COMPLETED'
+			OR (v_status <> 'GRACE' AND NOT escrow_frozen(p_creator)),
+		409, 'Trading is halted: the escrow is frozen'
+	);
+	PERFORM assert_that(
+		v_status <> 'COMPLETED' OR p_side = 'SELL', 409,
+		'Term ended: only selling is allowed'
 	);
 	SELECT * INTO v_pool FROM pools p WHERE p.creator_id = p_creator FOR UPDATE;
 
@@ -1182,12 +1500,15 @@ SET search_path = smx, public
 AS $$
 DECLARE
 	v_status creator_status;
+	v_closed TIMESTAMPTZ;
 	v_proof income_proofs;
 BEGIN
-	SELECT c.status INTO v_status FROM creators c WHERE c.id = p_creator;
+	SELECT c.status, c.raise_closed_at INTO v_status, v_closed
+	FROM creators c WHERE c.id = p_creator;
 	PERFORM assert_that(FOUND, 404, 'Creator not found');
 	PERFORM assert_that(
-		v_status IN ('LIVE', 'GRACE'), 409, 'This creator is not accepting proofs'
+		v_status IN ('LIVE', 'GRACE') AND v_closed IS NOT NULL, 409,
+		'This creator is not accepting proofs'
 	);
 	-- Retrying a proof whose 0G audit was unavailable returns the PENDING row.
 	SELECT * INTO v_proof FROM income_proofs ip
@@ -1241,7 +1562,8 @@ $$;
 -- period isn't already approved, and the auditor (0G) didn't veto
 -- (`audit.approved = false`); the auditor can only tighten, never override,
 -- these rules. Approval creates the dividend, releases the next locked
--- tranche, pushes the proof deadline out 30 days, clears grace, and emits
+-- tranche, pushes the proof deadline out by the creator's cadence (30 or 90
+-- days), clears grace, and emits
 -- events plus chain jobs. Rejection records why and emits PROOF_REJECTED.
 CREATE OR REPLACE FUNCTION audit_income_proof(
 	p_proof UUID, p_verified_amount money_amount, p_audit JSONB DEFAULT '{}',
@@ -1264,8 +1586,8 @@ BEGIN
 	SELECT * INTO v_creator FROM creators c
 	WHERE c.id = v_proof.creator_id FOR UPDATE;
 	PERFORM assert_that(
-		v_creator.status IN ('LIVE', 'GRACE'), 409,
-		'This creator is not accepting proofs'
+		v_creator.status IN ('LIVE', 'GRACE') AND v_creator.raise_closed_at IS NOT NULL,
+		409, 'This creator is not accepting proofs'
 	);
 
 	v_reason := CASE
@@ -1277,7 +1599,7 @@ BEGIN
 				AND ip.period = v_proof.period AND ip.status = 'APPROVED'
 		) THEN 'Period ' || v_proof.period || ' is already approved'
 		WHEN coalesce((p_audit ->> 'approved')::BOOLEAN, TRUE) IS FALSE
-			THEN 'Auditor rejected the proof'
+			THEN coalesce(nullif(btrim(p_audit ->> 'reasoning'), ''), 'Auditor rejected the proof')
 	END;
 
 	IF v_reason IS NOT NULL THEN
@@ -1340,7 +1662,8 @@ BEGIN
 	-- From the later of the old deadline and now, so a late proof doesn't
 	-- leave the creator immediately overdue again.
 	UPDATE creators SET
-		next_proof_due_at = greatest(next_proof_due_at, now()) + interval '30 days',
+		next_proof_due_at = greatest(next_proof_due_at, now())
+			+ proof_cadence_interval(v_creator.proof_cadence),
 		grace_until = NULL,
 		status = 'LIVE'
 	WHERE id = v_creator.id;
@@ -1412,7 +1735,28 @@ BEGIN
 		'dividendId', p_dividend,
 		'amount', v_div.amount_due::TEXT,
 		'splits', v_splits
-	));
+	) || CASE WHEN dividend_settlement_tx(v_div) IS NOT NULL
+		THEN jsonb_build_object('txId', dividend_settlement_tx(v_div))
+		ELSE '{}'::JSONB END);
+	-- Paying the last overdue dividend inside the grace period cures a GRACE
+	-- that the dividend caused (the proof deadline itself is still ahead).
+	IF EXISTS (
+		SELECT 1 FROM creators c
+		WHERE c.id = v_div.creator_id AND c.status = 'GRACE'
+			AND c.next_proof_due_at >= now()
+	) AND NOT EXISTS (
+		SELECT 1 FROM dividends d
+		JOIN creators c ON c.id = d.creator_id
+		WHERE d.creator_id = v_div.creator_id AND d.status = 'DUE'
+			AND d.created_at + proof_cadence_interval(c.proof_cadence) < now()
+	) THEN
+		UPDATE creators SET status = 'LIVE', grace_until = NULL
+		WHERE id = v_div.creator_id;
+		PERFORM emit_oracle_event(v_div.creator_id, 'ESCROW_UNFROZEN', jsonb_build_object(
+			'dividendId', p_dividend
+		));
+		PERFORM enqueue_chain_job(v_div.creator_id, 'unfreezeEscrow', '{}');
+	END IF;
 	PERFORM enqueue_chain_job(v_div.creator_id, 'distributeDividend', jsonb_build_object(
 		'dividendId', p_dividend, 'amount', v_div.amount_due::TEXT
 	));
@@ -1474,10 +1818,12 @@ $$;
 
 -- ─── deadlines and default ────────────────────────────────────
 
--- Refunds locked escrow pro rata to investors, slashes the creator stake pro
--- rata to holders, blacklists the World ID nullifier, marks DEFAULTED, emits
--- DEFAULTED and queues `executeLiquidation`. Locked tranches are scaled by
--- raised/target because tranches are sized on the target, not the actual raise.
+-- Refunds locked escrow and slashes the creator stake, both pro rata to the
+-- current token holders (pool excluded: it isn't in `holdings`; with no
+-- holders the stake goes back to the creator), blacklists the World ID nullifier, marks DEFAULTED, emits
+-- DEFAULTED and queues `executeLiquidation`. While the raise is still open,
+-- locked tranches are scaled by raised/target because they are sized on the
+-- target; `finish_raise` resizes them to the amount raised.
 CREATE OR REPLACE FUNCTION liquidate_creator(p_creator UUID)
 RETURNS creators
 LANGUAGE plpgsql
@@ -1498,20 +1844,27 @@ BEGIN
 
 	SELECT coalesce(sum(t.amount), 0) INTO v_locked
 	FROM tranches t WHERE t.creator_id = p_creator AND t.status = 'LOCKED';
-	v_refund := trunc(v_locked * v_creator.raised_amount / v_creator.target_raise, 6);
+	v_refund := CASE WHEN v_creator.raise_closed_at IS NULL
+		THEN trunc(v_locked * v_creator.raised_amount / v_creator.target_raise, 6)
+		ELSE v_locked END;
 
 	UPDATE tranches SET status = 'REFUNDED'
 	WHERE creator_id = p_creator AND status = 'LOCKED';
 
 	INSERT INTO payouts(creator_id, wallet, kind, amount)
 	SELECT p_creator, s.wallet, 'REFUND', s.amount
-	FROM pro_rata_split(p_creator, v_refund, 'INVESTED') s;
+	FROM pro_rata_split(p_creator, v_refund, 'HOLDINGS') s;
 	GET DIAGNOSTICS v_refunds = ROW_COUNT;
 
 	INSERT INTO payouts(creator_id, wallet, kind, amount)
 	SELECT p_creator, s.wallet, 'SLASH', s.amount
 	FROM pro_rata_split(p_creator, v_creator.stake_amount, 'HOLDINGS') s;
 	GET DIAGNOSTICS v_slashes = ROW_COUNT;
+	IF v_slashes = 0 THEN
+		PERFORM emit_oracle_event(p_creator, 'STAKE_RETURNED', jsonb_build_object(
+			'amount', v_creator.stake_amount::TEXT, 'reason', 'No holders to slash'
+		));
+	END IF;
 
 	INSERT INTO blacklisted_nullifiers(nullifier, creator_id)
 	VALUES (v_creator.world_id_nullifier, p_creator)
@@ -1555,10 +1908,14 @@ BEGIN
 END;
 $$;
 
--- Periodic deadline sweep. LIVE creators past `next_proof_due_at` enter GRACE
--- for 14 days; GRACE creators past `grace_until` are liquidated; LIVE creators
--- past the term end complete. `SKIP LOCKED` lets overlapping sweeps (cron plus
--- a manual call) run without blocking or double-acting. Returns what changed.
+-- Periodic deadline sweep (creators whose raise is closed). LIVE creators
+-- past `next_proof_due_at`, or with a dividend unpaid for a full cadence
+-- (`created_at` + cadence), enter GRACE for 14 days and the escrow freezes;
+-- GRACE creators past `grace_until` are liquidated; LIVE creators past the term
+-- end (raise close + term_months * 30 days, like the contract) complete and
+-- their stake is returned (STAKE_RETURNED + `reclaimStake`). `SKIP LOCKED` lets
+-- overlapping sweeps (cron plus a manual call) run without blocking or
+-- double-acting. Returns what changed.
 CREATE OR REPLACE FUNCTION sweep_deadlines(p_now TIMESTAMPTZ DEFAULT now())
 RETURNS TABLE(creator_id UUID, transition TEXT)
 LANGUAGE plpgsql
@@ -1566,12 +1923,18 @@ SET search_path = smx, public
 AS $$
 DECLARE
 	r RECORD;
+	v_reason TEXT;
 BEGIN
 	FOR r IN
-		SELECT c.id, c.status, c.ipo_at, c.term_months, c.next_proof_due_at,
-			c.grace_until
+		SELECT c.id, c.status, c.raise_closed_at, c.term_months,
+			c.next_proof_due_at, c.grace_until, c.stake_amount,
+			EXISTS (
+				SELECT 1 FROM dividends d
+				WHERE d.creator_id = c.id AND d.status = 'DUE'
+					AND d.created_at + proof_cadence_interval(c.proof_cadence) < p_now
+			) AS dividend_overdue
 		FROM creators c
-		WHERE c.status IN ('LIVE', 'GRACE')
+		WHERE c.status IN ('LIVE', 'GRACE') AND c.raise_closed_at IS NOT NULL
 		ORDER BY c.id
 		FOR UPDATE SKIP LOCKED
 	LOOP
@@ -1579,17 +1942,26 @@ BEGIN
 			PERFORM liquidate_creator(r.id);
 			creator_id := r.id; transition := 'DEFAULTED'; RETURN NEXT;
 		ELSIF r.status = 'LIVE'
-			AND r.ipo_at + make_interval(months => r.term_months) < p_now THEN
+			AND r.raise_closed_at + r.term_months * interval '30 days' < p_now THEN
 			UPDATE creators SET status = 'COMPLETED' WHERE id = r.id;
+			PERFORM emit_oracle_event(r.id, 'STAKE_RETURNED', jsonb_build_object(
+				'amount', r.stake_amount::TEXT
+			));
+			PERFORM enqueue_chain_job(r.id, 'reclaimStake', jsonb_build_object(
+				'amount', r.stake_amount::TEXT
+			));
 			creator_id := r.id; transition := 'COMPLETED'; RETURN NEXT;
-		ELSIF r.status = 'LIVE' AND r.next_proof_due_at < p_now THEN
+		ELSIF r.status = 'LIVE'
+			AND (r.next_proof_due_at < p_now OR r.dividend_overdue) THEN
+			v_reason := CASE WHEN r.next_proof_due_at < p_now
+				THEN 'Proof deadline missed' ELSE 'Dividend unpaid' END;
 			UPDATE creators SET
 				status = 'GRACE', grace_until = p_now + interval '14 days'
 			WHERE id = r.id;
 			PERFORM emit_oracle_event(r.id, 'GRACE_STARTED', jsonb_build_object(
-				'graceUntil', p_now + interval '14 days'
+				'graceUntil', p_now + interval '14 days', 'reason', v_reason
 			));
-			PERFORM freeze_escrow(r.id, 'Proof deadline missed');
+			PERFORM freeze_escrow(r.id, v_reason);
 			creator_id := r.id; transition := 'GRACE'; RETURN NEXT;
 		END IF;
 	END LOOP;
@@ -1754,6 +2126,16 @@ AS $$
 	))
 $$;
 
+-- Hedera settlement tx id (`0.0.x@s.n`) of a dividend, from the stored stream
+-- receipts (`{status, receipts: ["<txId>#..."]}`). NULL until settled. It never
+-- goes in `paid_tx_hash`, which only holds 0x hashes.
+CREATE OR REPLACE FUNCTION dividend_settlement_tx(d dividends)
+RETURNS TEXT
+LANGUAGE sql IMMUTABLE
+AS $$
+	SELECT nullif(split_part(d.stream_receipts -> 'receipts' ->> 0, '#', 1), '')
+$$;
+
 CREATE OR REPLACE FUNCTION dividend_json(d dividends)
 RETURNS JSONB
 LANGUAGE sql
@@ -1768,6 +2150,7 @@ AS $$
 		'amountDue', d.amount_due::TEXT,
 		'status', d.status,
 		'paidTxHash', d.paid_tx_hash,
+		'settlementTxId', dividend_settlement_tx(d),
 		'paidAt', d.paid_at,
 		'createdAt', d.created_at
 	))
@@ -1903,6 +2286,11 @@ AS $$
 		'graceUntil', c.grace_until,
 		'ipoAt', c.ipo_at,
 		'createdAt', c.created_at,
+		'proofCadence', c.proof_cadence,
+		'socialLinks', jsonb_build_object(
+			'x', c.x_url, 'github', c.github_url,
+			'linkedin', c.linkedin_url, 'website', c.website_url
+		),
 		'tranches', (
 			SELECT coalesce(jsonb_agg(tranche_json(t) ORDER BY t.idx), '[]')
 			FROM tranches t WHERE t.creator_id = c.id
@@ -1998,6 +2386,537 @@ AS $$
 			SELECT dividend_json(d) FROM dividends d WHERE d.proof_id = p.id
 		)
 	))
+$$;
+
+-- ─── instrument view ──────────────────────────────────────────
+-- Broker-style quote screen for one creator token: quote, day statistics,
+-- pool depth, status, fundamentals, the viewer's position and corporate
+-- actions (`creator_market_json`), OHLCV candles (`creator_candles_json`) and
+-- the per-user watchlist. Contract: docs/instrument-view.md.
+
+-- ─── watchlists ───────────────────────────────────────────────
+-- Creators a user follows. Capped per user (see watchlist_add), so the list
+-- is returned whole instead of paged.
+CREATE TABLE watchlists(
+	user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	creator_id UUID NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	PRIMARY KEY (user_id, creator_id)
+);
+-- GET /watchlist order (newest first).
+CREATE INDEX watchlists_user_created_idx
+	ON watchlists(user_id, created_at DESC, creator_id);
+
+-- ─── pool curve quotes ────────────────────────────────────────
+-- Same constant-product + 0.3% input-fee math as amm_swap, as pure functions
+-- so depth can be quoted without touching the pool. Keep in sync with
+-- amm_swap (a test compares them).
+
+-- Tokens received for spending `p_usdc` USDC (BUY).
+CREATE OR REPLACE FUNCTION pool_tokens_for_usdc(
+	p_usdc_reserve NUMERIC, p_token_reserve NUMERIC, p_usdc NUMERIC
+)
+RETURNS NUMERIC
+LANGUAGE sql IMMUTABLE
+AS $$
+	SELECT trunc(
+		p_token_reserve * (p_usdc * 0.997)
+		/ (p_usdc_reserve + p_usdc * 0.997),
+		18
+	)
+$$;
+
+-- Tokens to sell to receive `p_usdc` USDC (SELL), rounded up so the swap
+-- yields at least `p_usdc`. NULL when the pool can't pay that much.
+CREATE OR REPLACE FUNCTION pool_tokens_to_receive_usdc(
+	p_usdc_reserve NUMERIC, p_token_reserve NUMERIC, p_usdc NUMERIC
+)
+RETURNS NUMERIC
+LANGUAGE sql IMMUTABLE
+AS $$
+	SELECT CASE WHEN p_usdc > 0 AND p_usdc < p_usdc_reserve THEN
+		-- out = R_u * e / (R_t + e) with e = 0.997 * tokens, so
+		-- tokens = out * R_t / ((R_u - out) * 0.997).
+		-- The scale-40 cast makes numeric division keep 40 decimals (its default
+		-- precision is ~16 significant digits), so rounding up to 18 dp is exact
+		-- and the swap never pays out below `p_usdc`. (Multiplying by 1e-18 keeps
+		-- all 18 decimals; dividing would round to ~16 significant digits.)
+		ceil(
+			(p_usdc * p_token_reserve)::NUMERIC(100, 40)
+			/ ((p_usdc_reserve - p_usdc) * 0.997)
+			* 1000000000000000000
+		) * 0.000000000000000001
+	END
+$$;
+
+-- Depth ladder for the standard sizes. Each level: tokens, average price and
+-- signed impact vs the spot price (asks above it, bids below it).
+CREATE OR REPLACE FUNCTION pool_depth_json(
+	p_usdc_reserve NUMERIC, p_token_reserve NUMERIC
+)
+RETURNS JSONB
+LANGUAGE sql IMMUTABLE
+AS $$
+	WITH spot AS (SELECT p_usdc_reserve / p_token_reserve AS price),
+	sizes AS (SELECT s FROM unnest(ARRAY[100, 500, 1000, 5000]::NUMERIC[]) AS s),
+	asks AS (
+		SELECT s, smx.pool_tokens_for_usdc(p_usdc_reserve, p_token_reserve, s) AS tokens
+		FROM sizes
+	),
+	bids AS (
+		SELECT s, smx.pool_tokens_to_receive_usdc(p_usdc_reserve, p_token_reserve, s) AS tokens
+		FROM sizes
+	)
+	SELECT jsonb_build_object(
+		'bids', coalesce((
+			SELECT jsonb_agg(jsonb_build_object(
+				'sizeUsdc', b.s::TEXT,
+				'tokens', b.tokens::TEXT,
+				'avgPrice', trunc(b.s / b.tokens, 18)::TEXT,
+				'impactPct', round((b.s / b.tokens - spot.price) / spot.price * 100, 2)::TEXT
+			) ORDER BY b.s)
+			FROM bids b, spot WHERE b.tokens > 0
+		), '[]'),
+		'asks', coalesce((
+			SELECT jsonb_agg(jsonb_build_object(
+				'sizeUsdc', a.s::TEXT,
+				'tokens', a.tokens::TEXT,
+				'avgPrice', trunc(a.s / a.tokens, 18)::TEXT,
+				'impactPct', round((a.s / a.tokens - spot.price) / spot.price * 100, 2)::TEXT
+			) ORDER BY a.s)
+			FROM asks a, spot WHERE a.tokens > 0
+		), '[]')
+	)
+$$;
+
+-- ─── creator_market_json ──────────────────────────────────────
+
+-- The `market` object on GET /creators/{ticker}. `p_wallet` is the viewer's
+-- wallet (NULL when signed out, so `position` is null). `p_now` exists so
+-- tests can pin the clock.
+--
+-- Definitions: 24h window is (now - 24h, now]. `open` is the last tick at or
+-- before the window start (the first tick for a younger creator), `close` is
+-- the pool price. VWAP is USDC volume / token volume. Circulating supply is
+-- the sum of holder balances. Average cost is total USDC spent / tokens
+-- bought across primary investments and BUY trades (sells leave it
+-- unchanged, the weighted-average-cost method).
+CREATE OR REPLACE FUNCTION creator_market_json(
+	p_creator UUID, p_wallet TEXT DEFAULT NULL, p_now TIMESTAMPTZ DEFAULT now()
+)
+RETURNS JSONB
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	WITH c AS (
+		SELECT * FROM creators WHERE id = p_creator
+	),
+	pl AS (
+		SELECT p.usdc_reserve, p.token_reserve FROM pools p
+		WHERE p.creator_id = p_creator
+	),
+	px AS (
+		SELECT coalesce((SELECT trunc(usdc_reserve / token_reserve, 18) FROM pl), 0) AS price
+	),
+	base AS (
+		SELECT coalesce(
+			(
+				SELECT t.price FROM price_ticks t
+				WHERE t.creator_id = p_creator AND t.at <= p_now - interval '24 hours'
+				ORDER BY t.at DESC LIMIT 1
+			),
+			(
+				SELECT t.price FROM price_ticks t
+				WHERE t.creator_id = p_creator ORDER BY t.at ASC LIMIT 1
+			),
+			px.price
+		) AS price
+		FROM px
+	),
+	win AS (
+		SELECT max(t.price) AS hi, min(t.price) AS lo FROM price_ticks t
+		WHERE t.creator_id = p_creator
+			AND t.at > p_now - interval '24 hours' AND t.at <= p_now
+	),
+	ohlc AS (
+		SELECT
+			base.price AS o,
+			greatest(base.price, px.price, win.hi) AS h,
+			least(base.price, px.price, win.lo) AS l,
+			px.price AS c
+		FROM base, px, win
+	),
+	ever AS (
+		SELECT max(t.price) AS hi, min(t.price) AS lo FROM price_ticks t
+		WHERE t.creator_id = p_creator AND t.at <= p_now
+	),
+	tr24 AS (
+		SELECT
+			coalesce(sum(t.usdc_amount), 0) AS usdc,
+			coalesce(sum(t.token_amount), 0) AS tokens,
+			count(*) AS n
+		FROM trades t
+		WHERE t.creator_id = p_creator
+			AND t.created_at > p_now - interval '24 hours' AND t.created_at <= p_now
+	),
+	frozen AS (
+		-- The newest freeze/unfreeze event decides.
+		SELECT e.kind = 'ESCROW_FROZEN' AS is_frozen, e.payload ->> 'reason' AS reason
+		FROM oracle_events e
+		WHERE e.creator_id = p_creator
+			AND e.kind IN ('ESCROW_FROZEN', 'ESCROW_UNFROZEN')
+			AND e.created_at <= p_now
+		ORDER BY e.created_at DESC, e.seq DESC LIMIT 1
+	),
+	st AS (
+		SELECT
+			CASE
+				WHEN c.status = 'DEFAULTED' THEN 'DEFAULTED'
+				WHEN c.status = 'COMPLETED' THEN 'COMPLETED'
+				WHEN c.status = 'GRACE' THEN 'GRACE'
+				WHEN coalesce((SELECT is_frozen FROM frozen), FALSE) THEN 'FROZEN'
+				ELSE 'LIVE'
+			END AS kind,
+			c.status AS raw,
+			c.raise_closed_at IS NULL AS raising
+		FROM c
+	),
+	supply AS (
+		-- Contract totalSupply: holders plus the pool's tokens.
+		SELECT coalesce(sum(h.balance), 0) + coalesce((SELECT token_reserve FROM pl), 0) AS total,
+			count(*) FILTER (WHERE h.balance > 0) AS holders
+		FROM holdings h WHERE h.creator_id = p_creator
+	),
+	pos AS (
+		-- cost = remaining tokens at the average cost. Multiplying before the
+		-- division keeps it exact when nothing was sold.
+		SELECT
+			h.balance AS tokens,
+			coalesce(b.usdc / nullif(b.tokens, 0), px.price) AS avg_cost,
+			coalesce(h.balance * b.usdc / nullif(b.tokens, 0), h.balance * px.price)
+				AS cost
+		FROM holdings h
+		CROSS JOIN px
+		CROSS JOIN LATERAL (
+			SELECT sum(x.usdc) AS usdc, sum(x.tokens) AS tokens FROM (
+				SELECT i.usdc_amount AS usdc, i.token_amount AS tokens
+				FROM investments i
+				WHERE i.creator_id = p_creator AND i.wallet = p_wallet::evm_address
+				UNION ALL
+				SELECT t.usdc_amount, t.token_amount FROM trades t
+				WHERE t.creator_id = p_creator AND t.wallet = p_wallet::evm_address
+					AND t.side = 'BUY' AND t.created_at <= p_now
+			) x
+		) b
+		WHERE h.creator_id = p_creator AND h.wallet = p_wallet::evm_address
+			AND h.balance > 0
+	)
+	SELECT jsonb_build_object(
+		'quote', jsonb_build_object(
+			'price', px.price::TEXT,
+			'change24h', (px.price - base.price)::TEXT,
+			'changePct24h', coalesce(
+				round((px.price - base.price) / nullif(base.price, 0) * 100, 2), 0
+			)::TEXT
+		),
+		'ohlc24h', jsonb_build_object(
+			'open', ohlc.o::TEXT, 'high', ohlc.h::TEXT,
+			'low', ohlc.l::TEXT, 'close', ohlc.c::TEXT
+		),
+		'dayRange', jsonb_build_object('low', ohlc.l::TEXT, 'high', ohlc.h::TEXT),
+		'sinceIpoRange', jsonb_build_object(
+			'low', least(ever.lo, px.price)::TEXT,
+			'high', greatest(ever.hi, px.price)::TEXT
+		),
+		'volume24h', tr24.usdc::TEXT,
+		'vwap24h', trunc(tr24.usdc / nullif(tr24.tokens, 0), 18)::TEXT,
+		'trades24h', tr24.n,
+		'pool', jsonb_build_object(
+			'usdcReserve', coalesce((SELECT usdc_reserve FROM pl), 0)::TEXT,
+			'tokenReserve', coalesce((SELECT token_reserve FROM pl), 0)::TEXT,
+			'feeBps', 30
+		),
+		'depth', coalesce(
+			(SELECT pool_depth_json(pl.usdc_reserve, pl.token_reserve) FROM pl),
+			'{"bids":[],"asks":[]}'
+		),
+		'status', jsonb_build_object(
+			'kind', st.kind,
+			'label', CASE st.kind
+				WHEN 'LIVE' THEN CASE
+					WHEN st.raw = 'DRAFT' THEN 'Not yet listed'
+					WHEN st.raising THEN 'Raise open: trading starts when it closes'
+					ELSE 'Live' END
+				WHEN 'GRACE' THEN 'Grace period: proof overdue'
+				WHEN 'FROZEN' THEN 'Escrow frozen: '
+					|| coalesce((SELECT reason FROM frozen), 'proof overdue')
+				WHEN 'DEFAULTED' THEN 'Defaulted: trading closed'
+				ELSE 'Term ended: sell only'
+			END,
+			-- COMPLETED stays open for SELL only (amm_swap rejects BUY).
+			'tradingHalted', st.raw <> 'COMPLETED' AND (
+				st.raw <> 'LIVE' OR st.raising
+				OR coalesce((SELECT is_frozen FROM frozen), FALSE)
+			)
+		),
+		'fundamentals', jsonb_build_object(
+			'marketCap', trunc(px.price * supply.total, 6)::TEXT,
+			'supply', supply.total::TEXT,
+			'shareBps', c.share_bps,
+			'termMonths', c.term_months,
+			'termLeftMonths', CASE
+				WHEN c.raise_closed_at IS NULL THEN c.term_months
+				ELSE greatest(0, c.term_months - (
+					extract(year FROM age(p_now, c.raise_closed_at)) * 12
+					+ extract(month FROM age(p_now, c.raise_closed_at))
+				)::INTEGER)
+			END,
+			'verifiedIncomeTotal', (
+				SELECT coalesce(sum(ip.verified_amount), 0)::TEXT FROM income_proofs ip
+				WHERE ip.creator_id = p_creator AND ip.status = 'APPROVED'
+			),
+			'dividendsPaidTotal', (
+				SELECT coalesce(sum(d.amount_due), 0)::TEXT FROM dividends d
+				WHERE d.creator_id = p_creator AND d.status = 'PAID'
+			),
+			'nextProofDueAt', c.next_proof_due_at,
+			'holders', supply.holders
+		),
+		'position', (
+			SELECT jsonb_build_object(
+				'tokens', pos.tokens::TEXT,
+				'avgCost', pos.avg_cost::TEXT,
+				'value', trunc(pos.tokens * px.price, 6)::TEXT,
+				'pnl', trunc(pos.tokens * px.price - pos.cost, 6)::TEXT,
+				'pnlPct', coalesce(
+					round((pos.tokens * px.price - pos.cost) / nullif(pos.cost, 0) * 100, 2), 0
+				)::TEXT
+			)
+			FROM pos
+		),
+		'corporateActions', coalesce((
+			SELECT jsonb_agg(jsonb_build_object(
+				'at', e.created_at,
+				'kind', e.kind,
+				'label', CASE e.kind
+					WHEN 'IPO' THEN 'IPO launched'
+					WHEN 'PROOF_VERIFIED' THEN 'Income proof verified (period '
+						|| (e.payload ->> 'period') || ')'
+					WHEN 'PROOF_REJECTED' THEN 'Income proof rejected'
+						|| coalesce(': ' || (e.payload ->> 'reason'), '')
+					WHEN 'TRANCHE_RELEASED' THEN 'Escrow tranche '
+						|| (e.payload ->> 'idx') || ' released'
+					WHEN 'DIVIDEND_PAID' THEN 'Dividend paid'
+					WHEN 'ESCROW_FROZEN' THEN 'Escrow frozen'
+						|| coalesce(': ' || (e.payload ->> 'reason'), '')
+					WHEN 'ESCROW_UNFROZEN' THEN 'Escrow unfrozen'
+					WHEN 'CREATOR_UPDATE' THEN 'Creator update: '
+						|| (e.payload ->> 'body')
+					ELSE 'Defaulted: holders refunded'
+				END,
+				'amount', CASE e.kind
+					WHEN 'IPO' THEN e.payload ->> 'targetRaise'
+					WHEN 'DEFAULTED' THEN e.payload ->> 'refundTotal'
+					ELSE e.payload ->> 'amount'
+				END
+			) ORDER BY e.created_at DESC, e.seq DESC)
+			FROM (
+				SELECT x.* FROM oracle_events x
+				WHERE x.creator_id = p_creator
+					AND x.kind IN (
+						'IPO', 'PROOF_VERIFIED', 'PROOF_REJECTED', 'TRANCHE_RELEASED',
+						'DIVIDEND_PAID', 'ESCROW_FROZEN', 'ESCROW_UNFROZEN', 'DEFAULTED',
+						'CREATOR_UPDATE'
+					)
+					AND x.created_at <= p_now
+				ORDER BY x.created_at DESC, x.seq DESC LIMIT 50
+			) e
+		), '[]')
+	)
+	FROM c, px, base, ohlc, ever, tr24, st, supply
+$$;
+
+-- ─── creator_candles_json ─────────────────────────────────────
+
+-- OHLCV candles for GET /creators/{ticker}/candles. `p_interval` is the
+-- visible range; the bucket size follows from it:
+--   1H  -> 1 minute buckets, last 60 candles
+--   1D  -> 1 hour buckets,   last 24 candles
+--   1W  -> 4 hour buckets,   last 42 candles
+--   ALL -> whole life, bucket = span / 198 rounded up to whole minutes
+--          (at least 1 minute), so never more than 200 candles
+-- Buckets align to the UTC epoch and run up to the current (partial) bucket.
+-- OHLC come from price_ticks, volume (USDC) from trades. A bucket without
+-- ticks is flat at the previous close with zero volume; buckets before the
+-- first tick are omitted. Each open is the previous close for a continuous
+-- chart. `p_now` pins the clock in tests.
+CREATE OR REPLACE FUNCTION creator_candles_json(
+	p_creator UUID, p_interval TEXT, p_now TIMESTAMPTZ DEFAULT now()
+)
+RETURNS JSONB
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	WITH first_tick AS (
+		SELECT min(t.at) AS at FROM price_ticks t
+		WHERE t.creator_id = p_creator AND t.at <= p_now
+	),
+	cfg AS (
+		SELECT
+			CASE p_interval
+				WHEN '1H' THEN interval '1 minute'
+				WHEN '1D' THEN interval '1 hour'
+				WHEN '1W' THEN interval '4 hours'
+				ELSE make_interval(secs := greatest(60, ceil(
+					extract(epoch FROM p_now - coalesce(f.at, p_now)) / 198 / 60
+				) * 60)::DOUBLE PRECISION)
+			END AS b,
+			CASE p_interval WHEN '1H' THEN 60 WHEN '1D' THEN 24
+				WHEN '1W' THEN 42 ELSE 200 END AS n,
+			f.at AS first_at
+		FROM first_tick f
+		WHERE p_interval IN ('1H', '1D', '1W', 'ALL')
+	),
+	bounds AS (
+		SELECT cfg.b,
+			greatest(
+				date_bin(cfg.b, cfg.first_at, TIMESTAMPTZ 'epoch'),
+				date_bin(cfg.b, p_now, TIMESTAMPTZ 'epoch') - (cfg.n - 1) * cfg.b
+			) AS start_at,
+			date_bin(cfg.b, p_now, TIMESTAMPTZ 'epoch') AS end_at
+		FROM cfg WHERE cfg.first_at IS NOT NULL
+	),
+	series AS (
+		SELECT bo.b, g.bk
+		FROM bounds bo, generate_series(bo.start_at, bo.end_at, bo.b) AS g(bk)
+	),
+	tk AS (
+		SELECT date_bin(bo.b, t.at, TIMESTAMPTZ 'epoch') AS bk,
+			(array_agg(t.price ORDER BY t.at, t.id))[1] AS o,
+			(array_agg(t.price ORDER BY t.at DESC, t.id DESC))[1] AS c,
+			max(t.price) AS h, min(t.price) AS l
+		FROM bounds bo
+		JOIN price_ticks t ON t.creator_id = p_creator
+			AND t.at >= bo.start_at AND t.at <= p_now
+		GROUP BY 1
+	),
+	vol AS (
+		SELECT date_bin(bo.b, t.created_at, TIMESTAMPTZ 'epoch') AS bk,
+			sum(t.usdc_amount) AS v
+		FROM bounds bo
+		JOIN trades t ON t.creator_id = p_creator
+			AND t.created_at >= bo.start_at AND t.created_at <= p_now
+		GROUP BY 1
+	),
+	pre AS (
+		SELECT t.price FROM bounds bo
+		JOIN price_ticks t ON t.creator_id = p_creator AND t.at < bo.start_at
+		ORDER BY t.at DESC, t.id DESC LIMIT 1
+	),
+	-- Forward-fill the close: `grp` bumps at every bucket that has ticks.
+	grouped AS (
+		SELECT s.bk, tk.o, tk.h, tk.l, tk.c, coalesce(vol.v, 0) AS v,
+			count(tk.c) OVER (ORDER BY s.bk) AS grp
+		FROM series s
+		LEFT JOIN tk ON tk.bk = s.bk
+		LEFT JOIN vol ON vol.bk = s.bk
+	),
+	filled AS (
+		SELECT g.*,
+			coalesce(
+				first_value(g.c) OVER (PARTITION BY g.grp ORDER BY g.bk),
+				(SELECT price FROM pre)
+			) AS close
+		FROM grouped g
+	),
+	candles AS (
+		SELECT f.bk, f.v, f.close,
+			coalesce(lag(f.close) OVER (ORDER BY f.bk), f.o) AS open,
+			f.h, f.l
+		FROM filled f
+	)
+	SELECT jsonb_build_object('items', coalesce((
+		SELECT jsonb_agg(jsonb_build_object(
+			't', c.bk,
+			'o', c.open::TEXT,
+			'h', greatest(c.open, c.h, c.close)::TEXT,
+			'l', least(c.open, c.l, c.close)::TEXT,
+			'c', c.close::TEXT,
+			'v', c.v::TEXT
+		) ORDER BY c.bk)
+		FROM candles c WHERE c.close IS NOT NULL
+	), '[]'))
+$$;
+
+-- ─── watchlist functions ──────────────────────────────────────
+
+-- One watchlist row as the drawer shows it: the creator summary (price, 24h
+-- change, sparkline) plus when it was added.
+CREATE OR REPLACE FUNCTION watchlist_item_json(c creators, p_added TIMESTAMPTZ)
+RETURNS JSONB
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	SELECT creator_summary_json(c) || jsonb_build_object('addedAt', p_added)
+$$;
+
+-- GET /watchlist: the user's creators, newest first (capped at 100 rows).
+CREATE OR REPLACE FUNCTION watchlist_json(p_user UUID)
+RETURNS JSONB
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	SELECT jsonb_build_object('items', coalesce((
+		SELECT jsonb_agg(
+			watchlist_item_json(c, w.created_at) ORDER BY w.created_at DESC, c.id
+		)
+		FROM watchlists w
+		JOIN creators c ON c.id = w.creator_id
+		WHERE w.user_id = p_user
+	), '[]'))
+$$;
+
+-- PUT /watchlist/{ticker}: idempotent add; 404 for an unknown ticker, 409
+-- once the user holds 100 creators.
+CREATE OR REPLACE FUNCTION watchlist_add(p_user UUID, p_ticker TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_creator UUID := creator_id_by_ticker(p_ticker);
+	v_added TIMESTAMPTZ;
+BEGIN
+	SELECT w.created_at INTO v_added FROM watchlists w
+	WHERE w.user_id = p_user AND w.creator_id = v_creator;
+	IF v_added IS NULL THEN
+		PERFORM assert_that(
+			(SELECT count(*) FROM watchlists w WHERE w.user_id = p_user) < 100,
+			409, 'Watchlist is full (100 creators)'
+		);
+		INSERT INTO watchlists(user_id, creator_id) VALUES (p_user, v_creator)
+		RETURNING created_at INTO v_added;
+	END IF;
+	RETURN (
+		SELECT watchlist_item_json(c, v_added) FROM creators c WHERE c.id = v_creator
+	);
+END;
+$$;
+
+-- DELETE /watchlist/{ticker}: idempotent remove; 404 for an unknown ticker.
+CREATE OR REPLACE FUNCTION watchlist_remove(p_user UUID, p_ticker TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_removed INTEGER;
+BEGIN
+	DELETE FROM watchlists w
+	WHERE w.user_id = p_user AND w.creator_id = creator_id_by_ticker(p_ticker);
+	GET DIAGNOSTICS v_removed = ROW_COUNT;
+	RETURN v_removed > 0;
+END;
 $$;
 
 -- ─── page documents ───────────────────────────────────────────
@@ -2109,8 +3028,14 @@ AS $$
 			FROM dividends d
 			WHERE d.id IN (SELECT y.id FROM dividends y WHERE y.creator_id = c.id ORDER BY y.created_at DESC, y.id LIMIT 10)
 		),
+		'updates', (
+			SELECT coalesce(jsonb_agg(creator_update_json(u) ORDER BY u.created_at DESC, u.id), '[]')
+			FROM creator_updates u
+			WHERE u.id IN (SELECT y.id FROM creator_updates y WHERE y.creator_id = c.id ORDER BY y.created_at DESC, y.id LIMIT 5)
+		),
 		-- "View all" flags: true when the full list holds more than shown here.
 		'more', jsonb_build_object(
+			'updates', (SELECT count(*) > 5 FROM (SELECT 1 FROM creator_updates y WHERE y.creator_id = c.id LIMIT 6) y),
 			'holders', (SELECT count(*) > 20 FROM (SELECT 1 FROM holdings y WHERE y.creator_id = c.id AND y.balance > 0 LIMIT 21) y),
 			'trades', (SELECT count(*) > 20 FROM (SELECT 1 FROM trades y WHERE y.creator_id = c.id LIMIT 21) y),
 			'events', (SELECT count(*) > 20 FROM (SELECT 1 FROM oracle_events y WHERE y.creator_id = c.id LIMIT 21) y),
@@ -2124,7 +3049,7 @@ AS $$
 				WHERE h.creator_id = c.id AND h.wallet = p_wallet::evm_address
 			)
 		)
-	))
+	)) || jsonb_build_object('market', creator_market_json(c.id, p_wallet))
 	FROM creators c WHERE c.ticker = p_ticker
 $$;
 
@@ -2163,6 +3088,15 @@ AS $$
 				'dividends', (SELECT count(*) > 10 FROM (SELECT 1 FROM dividends y WHERE y.creator_id = c.id LIMIT 11) y),
 				'events', (SELECT count(*) > 0 FROM (SELECT 1 FROM oracle_events y WHERE y.creator_id = c.id LIMIT 1) y)
 			),
+			-- Posts left in the rolling 24-hour limit of `post_creator_update`.
+			'holderCount', (
+				SELECT count(*) FROM holdings h
+				WHERE h.creator_id = c.id AND h.balance > 0
+			)::INTEGER,
+			'updatesLeft', greatest(0, 5 - (
+				SELECT count(*) FROM creator_updates y
+				WHERE y.creator_id = c.id AND y.created_at > now() - interval '24 hours'
+			))::INTEGER,
 			'collateral', jsonb_build_object(
 				'stakeAmount', c.stake_amount::TEXT,
 				'atRisk', c.status IN ('LIVE', 'GRACE')
@@ -2448,6 +3382,52 @@ AS $$
 	)
 $$;
 
+-- GET /creators/{ticker}/updates : newest first. Raises 404 for an unknown
+-- ticker.
+CREATE OR REPLACE FUNCTION creator_updates_page_json(
+	p_ticker TEXT, p_after_key TEXT, p_after_id TEXT, p_limit INTEGER
+)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	WITH cr AS (
+		SELECT c.id, c.ticker, c.display_name, c.status FROM creators c
+		WHERE c.id = creator_id_by_ticker(p_ticker)
+	),
+	page AS (
+		SELECT x, x.created_at::TEXT AS k, x.id::TEXT AS i,
+			row_number() OVER (ORDER BY x.created_at DESC, x.id DESC) AS n
+		FROM creator_updates x
+		WHERE x.creator_id = (SELECT id FROM cr)
+			AND (
+				p_after_key IS NULL
+				OR (x.created_at, x.id)
+					< (p_after_key::TIMESTAMPTZ, p_after_id::UUID)
+			)
+		ORDER BY x.created_at DESC, x.id DESC
+		LIMIT least(greatest(p_limit, 1), 100) + 1
+	)
+	SELECT jsonb_build_object(
+		'creator', (
+			SELECT jsonb_build_object(
+				'ticker', cr.ticker, 'displayName', cr.display_name,
+				'status', cr.status
+			) FROM cr
+		),
+		'items', coalesce((
+			SELECT jsonb_agg(creator_update_json(p.x) ORDER BY p.n)
+			FROM page p WHERE p.n <= least(greatest(p_limit, 1), 100)
+		), '[]'),
+		'next', (
+			SELECT jsonb_build_object('key', p.k, 'id', p.i)
+			FROM page p
+			WHERE p.n = least(greatest(p_limit, 1), 100)
+				AND EXISTS (SELECT 1 FROM page x WHERE x.n > p.n)
+		)
+	)
+$$;
+
 -- GET /creators/{ticker}/dividends : newest first. Raises 404 for an unknown
 -- ticker.
 CREATE OR REPLACE FUNCTION creator_dividends_page_json(
@@ -2493,3 +3473,351 @@ AS $$
 		)
 	)
 $$;
+
+-- ─── portfolio (BEGIN) ────────────────────────────────────────
+-- Read-only functions behind GET /portfolio. Appended as one block; the
+-- migration `portfolio` ships exactly these.
+
+-- A wallet's portfolio. Position math is NOT repeated here: each holding's
+-- tokens, average cost, value and P&L come from `creator_market_json(...)
+-- -> position`, so this page and the token page always agree. Cost is the
+-- position value minus its P&L. Totals sum the rows. Dividends are the
+-- wallet's DIVIDEND payouts (latest 25 plus the lifetime total). `creator` is
+-- the user's own IPO, if any.
+CREATE OR REPLACE FUNCTION wallet_portfolio_json(p_wallet TEXT, p_user UUID)
+RETURNS JSONB
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	WITH h AS (
+		SELECT c.id, c.ticker, c.display_name, creator_market_json(c.id, p_wallet) AS m
+		FROM holdings hd
+		JOIN creators c ON c.id = hd.creator_id
+		WHERE hd.wallet = p_wallet::evm_address AND hd.balance > 0
+	),
+	pos AS (
+		SELECT h.id, h.ticker, h.display_name,
+			(h.m -> 'position' ->> 'tokens')::NUMERIC AS tokens,
+			(h.m -> 'position' ->> 'avgCost')::NUMERIC AS avg_cost,
+			(h.m -> 'quote' ->> 'price')::NUMERIC AS price,
+			(h.m -> 'position' ->> 'value')::NUMERIC AS value,
+			(h.m -> 'position' ->> 'pnl')::NUMERIC AS pnl,
+			(h.m -> 'position' ->> 'pnlPct')::NUMERIC AS pnl_pct,
+			h.m -> 'status' ->> 'kind' AS status_kind,
+			h.m -> 'status' ->> 'label' AS status_label
+		FROM h
+		WHERE h.m -> 'position' IS NOT NULL AND h.m -> 'position' <> 'null'::JSONB
+	),
+	tot AS (
+		SELECT coalesce(sum(value - pnl), 0) AS invested,
+			coalesce(sum(value), 0) AS value,
+			coalesce(sum(pnl), 0) AS pnl
+		FROM pos
+	),
+	dv AS (
+		SELECT po.id, po.amount, po.created_at, d.id AS dividend_id,
+			d.paid_tx_hash, c.id AS creator_id, c.ticker, c.display_name
+		FROM payouts po
+		JOIN dividends d ON d.id = po.dividend_id
+		JOIN creators c ON c.id = po.creator_id
+		WHERE po.wallet = p_wallet::evm_address AND po.kind = 'DIVIDEND'
+	)
+	SELECT jsonb_build_object(
+		'wallet', p_wallet,
+		'totals', (
+			SELECT jsonb_build_object(
+				'invested', tot.invested::TEXT,
+				'value', tot.value::TEXT,
+				'pnl', tot.pnl::TEXT,
+				'pnlPct', coalesce(
+					round(tot.pnl / nullif(tot.invested, 0) * 100, 2), 0
+				)::TEXT
+			) FROM tot
+		),
+		'holdings', coalesce((
+			SELECT jsonb_agg(jsonb_build_object(
+				'creatorId', p.id,
+				'ticker', p.ticker,
+				'displayName', p.display_name,
+				'tokens', p.tokens::TEXT,
+				'avgCost', p.avg_cost::TEXT,
+				'price', p.price::TEXT,
+				'value', p.value::TEXT,
+				'pnl', p.pnl::TEXT,
+				'pnlPct', p.pnl_pct::TEXT,
+				'status', p.status_kind,
+				'statusLabel', p.status_label
+			) ORDER BY p.value DESC, p.ticker)
+			FROM pos p
+		), '[]'),
+		'dividends', jsonb_build_object(
+			'total', (SELECT coalesce(sum(amount), 0) FROM dv)::TEXT,
+			'count', (SELECT count(*) FROM dv),
+			'items', coalesce((
+				SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+					'id', x.id,
+					'dividendId', x.dividend_id,
+					'creatorId', x.creator_id,
+					'ticker', x.ticker,
+					'displayName', x.display_name,
+					'amount', x.amount::TEXT,
+					'txHash', x.paid_tx_hash,
+					'createdAt', x.created_at
+				)) ORDER BY x.created_at DESC, x.id DESC)
+				FROM (
+					SELECT * FROM dv ORDER BY created_at DESC, id DESC LIMIT 25
+				) x
+			), '[]')
+		),
+		'creator', (
+			SELECT jsonb_build_object(
+				'ticker', c.ticker, 'displayName', c.display_name, 'status', c.status
+			)
+			FROM creators c WHERE c.owner_user_id = p_user
+		)
+	)
+$$;
+
+-- GET /portfolio transactions: a wallet's primary investments and AMM trades,
+-- newest first, keyset on (created_at, id). `type` is INVESTMENT, BUY or SELL.
+-- Investments price at USDC / tokens (1.0 at the IPO).
+CREATE OR REPLACE FUNCTION wallet_transactions_json(
+	p_wallet TEXT, p_after_key TEXT, p_after_id TEXT, p_limit INTEGER
+)
+RETURNS JSONB
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	WITH tx AS (
+		SELECT i.id, i.creator_id, 'INVESTMENT' AS type, i.usdc_amount,
+			i.token_amount, trunc(i.usdc_amount / nullif(i.token_amount, 0), 18) AS price,
+			i.tx_hash::TEXT AS tx_hash, i.created_at
+		FROM investments i WHERE i.wallet = p_wallet::evm_address
+		UNION ALL
+		SELECT t.id, t.creator_id, t.side::TEXT, t.usdc_amount, t.token_amount,
+			t.price, t.tx_hash::TEXT, t.created_at
+		FROM trades t WHERE t.wallet = p_wallet::evm_address
+	),
+	page AS (
+		SELECT tx.*, c.ticker, c.display_name,
+			tx.created_at::TEXT AS k, tx.id::TEXT AS i,
+			row_number() OVER (ORDER BY tx.created_at DESC, tx.id DESC) AS n
+		FROM tx
+		JOIN creators c ON c.id = tx.creator_id
+		WHERE p_after_key IS NULL
+			OR (tx.created_at, tx.id)
+				< (p_after_key::TIMESTAMPTZ, p_after_id::UUID)
+		ORDER BY tx.created_at DESC, tx.id DESC
+		LIMIT least(greatest(p_limit, 1), 100) + 1
+	)
+	SELECT jsonb_build_object(
+		'items', coalesce((
+			SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+				'id', p.id,
+				'type', p.type,
+				'creatorId', p.creator_id,
+				'ticker', p.ticker,
+				'displayName', p.display_name,
+				'tokenAmount', p.token_amount::TEXT,
+				'usdcAmount', p.usdc_amount::TEXT,
+				'price', p.price::TEXT,
+				'txHash', p.tx_hash,
+				'createdAt', p.created_at
+			)) ORDER BY p.n)
+			FROM page p WHERE p.n <= least(greatest(p_limit, 1), 100)
+		), '[]'),
+		'next', (
+			SELECT jsonb_build_object('key', p.k, 'id', p.i)
+			FROM page p
+			WHERE p.n = least(greatest(p_limit, 1), 100)
+				AND EXISTS (SELECT 1 FROM page x WHERE x.n > p.n)
+		)
+	)
+$$;
+-- ─── portfolio (END) ──────────────────────────────────────────
+
+-- ─── onchain ingest (BEGIN) ───────────────────────────────────
+-- Live chain mode: users sign swaps and investments, the server verifies the
+-- receipt and these functions record the exact event amounts. The chain is the
+-- truth; SQL is the index. Appended as one block; the migration
+-- `onchain_ingest` ships exactly this.
+
+-- Address of the creator's CreatorPool clone (factory `poolOf`). NULL for
+-- creators launched before the AMM or in simulated chain mode.
+ALTER TABLE creators ADD COLUMN IF NOT EXISTS pool_address evm_address;
+
+-- One user transaction records one trade or one investment.
+CREATE UNIQUE INDEX IF NOT EXISTS trades_tx_hash_uidx
+	ON trades(tx_hash) WHERE tx_hash IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS investments_tx_hash_uidx
+	ON investments(tx_hash) WHERE tx_hash IS NOT NULL;
+
+-- Stores the pool address a settled `createISA` job deployed.
+CREATE OR REPLACE FUNCTION set_chain_job_pool(p_job UUID, p_pool evm_address)
+RETURNS UUID
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	UPDATE creators SET pool_address = p_pool
+	WHERE id = (SELECT j.creator_id FROM chain_jobs j WHERE j.id = p_job)
+	RETURNING id
+$$;
+
+-- Records a CreatorPool `Swap` event. Amounts are base units (USDC 6 dp,
+-- token 18 dp) exactly as in the event, and so are the post-swap reserves,
+-- which replace the pool row. BUY has `p_token_out > 0`, SELL `p_usdc_out > 0`.
+-- Idempotent on the transaction hash: a replay returns the stored trade.
+CREATE OR REPLACE FUNCTION ingest_onchain_swap(
+	p_creator UUID,
+	p_trader evm_address,
+	p_tx_hash tx_hash,
+	p_usdc_in NUMERIC,
+	p_token_in NUMERIC,
+	p_usdc_out NUMERIC,
+	p_token_out NUMERIC,
+	p_usdc_reserve NUMERIC,
+	p_token_reserve NUMERIC
+)
+RETURNS trades
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_trade trades;
+	v_buy BOOLEAN := p_token_out > 0;
+	v_usdc NUMERIC := greatest(p_usdc_in, p_usdc_out) * 1e-6;
+	v_tokens NUMERIC := greatest(p_token_in, p_token_out) * 1e-18;
+BEGIN
+	PERFORM assert_that(
+		(v_buy AND p_usdc_in > 0 AND p_token_in = 0 AND p_usdc_out = 0)
+			OR (NOT v_buy AND p_token_in > 0 AND p_usdc_out > 0 AND p_usdc_in = 0),
+		400, 'Not a single swap'
+	);
+	PERFORM assert_that(
+		p_usdc_reserve > 0 AND p_token_reserve > 0, 400, 'Pool reserves are empty'
+	);
+	-- Serializes ingests per creator, so a replay sees the first insert.
+	PERFORM 1 FROM creators c WHERE c.id = p_creator FOR UPDATE;
+	PERFORM assert_that(FOUND, 404, 'Creator not found');
+
+	SELECT * INTO v_trade FROM trades t WHERE t.tx_hash = p_tx_hash;
+	IF FOUND THEN
+		PERFORM assert_that(
+			v_trade.creator_id = p_creator AND v_trade.wallet = p_trader,
+			409, 'Transaction already recorded for another trade'
+		);
+		RETURN v_trade;
+	END IF;
+
+	INSERT INTO pools(creator_id, usdc_reserve, token_reserve)
+	VALUES (p_creator, p_usdc_reserve * 1e-6, p_token_reserve * 1e-18)
+	ON CONFLICT (creator_id) DO UPDATE SET
+		usdc_reserve = EXCLUDED.usdc_reserve,
+		token_reserve = EXCLUDED.token_reserve,
+		updated_at = now();
+
+	IF v_buy THEN
+		INSERT INTO holdings(creator_id, wallet, balance)
+		VALUES (p_creator, p_trader, v_tokens)
+		ON CONFLICT (creator_id, wallet)
+		DO UPDATE SET balance = holdings.balance + EXCLUDED.balance,
+			updated_at = now();
+	ELSE
+		-- The chain already enforced the balance; never go negative if an
+		-- earlier transfer was not indexed.
+		UPDATE holdings SET balance = greatest(balance - v_tokens, 0),
+			updated_at = now()
+		WHERE creator_id = p_creator AND wallet = p_trader;
+	END IF;
+
+	INSERT INTO trades(
+		creator_id, wallet, side, usdc_amount, token_amount, price, fee, tx_hash
+	)
+	VALUES (
+		p_creator, p_trader, CASE WHEN v_buy THEN 'BUY' ELSE 'SELL' END::trade_side,
+		v_usdc, v_tokens, trunc(v_usdc / v_tokens, 18),
+		CASE WHEN v_buy THEN v_usdc ELSE v_tokens END * 0.003, p_tx_hash
+	)
+	RETURNING * INTO v_trade;
+
+	PERFORM emit_oracle_event(p_creator, 'TRADE', jsonb_build_object(
+		'side', v_trade.side,
+		'wallet', p_trader::TEXT,
+		'usdcAmount', v_usdc::TEXT,
+		'tokenAmount', v_tokens::TEXT,
+		'price', v_trade.price::TEXT
+	));
+	RETURN v_trade;
+END;
+$$;
+
+-- Records a LiquidISA `Invested` event (base units). `p_raise_closed` is true
+-- when the same receipt holds `RaiseClosed`; the optional pool reserves come
+-- from that receipt's pool `Seeded` event and replace the pool row before the
+-- raise closes. Queues no chain job: the user already sent the transaction.
+-- Idempotent on the transaction hash.
+CREATE OR REPLACE FUNCTION ingest_onchain_invest(
+	p_creator UUID,
+	p_investor evm_address,
+	p_tx_hash tx_hash,
+	p_usdc NUMERIC,
+	p_shares NUMERIC,
+	p_raise_closed BOOLEAN DEFAULT FALSE,
+	p_pool_usdc NUMERIC DEFAULT NULL,
+	p_pool_tokens NUMERIC DEFAULT NULL
+)
+RETURNS investments
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_creator creators;
+	v_inv investments;
+	v_usdc NUMERIC := p_usdc * 1e-6;
+	v_shares NUMERIC := p_shares * 1e-18;
+BEGIN
+	PERFORM assert_that(p_usdc > 0 AND p_shares > 0, 400, 'Amount must be positive');
+	SELECT * INTO v_creator FROM creators c WHERE c.id = p_creator FOR UPDATE;
+	PERFORM assert_that(FOUND, 404, 'Creator not found');
+
+	SELECT * INTO v_inv FROM investments i WHERE i.tx_hash = p_tx_hash;
+	IF FOUND THEN
+		PERFORM assert_that(
+			v_inv.creator_id = p_creator AND v_inv.wallet = p_investor,
+			409, 'Transaction already recorded for another investment'
+		);
+		RETURN v_inv;
+	END IF;
+
+	INSERT INTO investments(creator_id, wallet, usdc_amount, token_amount, tx_hash)
+	VALUES (p_creator, p_investor, v_usdc, v_shares, p_tx_hash)
+	RETURNING * INTO v_inv;
+
+	INSERT INTO holdings(creator_id, wallet, balance)
+	VALUES (p_creator, p_investor, v_shares)
+	ON CONFLICT (creator_id, wallet)
+	DO UPDATE SET balance = holdings.balance + EXCLUDED.balance,
+		updated_at = now();
+
+	UPDATE creators SET raised_amount = least(raised_amount + v_usdc, target_raise)
+	WHERE id = p_creator
+	RETURNING * INTO v_creator;
+
+	IF p_pool_usdc > 0 AND p_pool_tokens > 0 THEN
+		UPDATE pools SET usdc_reserve = p_pool_usdc * 1e-6,
+			token_reserve = p_pool_tokens * 1e-18, updated_at = now()
+		WHERE creator_id = p_creator;
+	END IF;
+
+	PERFORM emit_oracle_event(p_creator, 'INVESTED', jsonb_build_object(
+		'wallet', p_investor::TEXT,
+		'usdcAmount', v_usdc::TEXT,
+		'tokenAmount', v_shares::TEXT
+	));
+	IF p_raise_closed AND v_creator.raise_closed_at IS NULL THEN
+		PERFORM finish_raise(p_creator);
+	END IF;
+	RETURN v_inv;
+END;
+$$;
+-- ─── onchain ingest (END) ─────────────────────────────────────

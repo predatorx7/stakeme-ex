@@ -54,8 +54,8 @@ SMX targets World ID 4.0 (IDKit 4.x). Don't use the old
 ```ts
 import { signRequest } from '@worldcoin/idkit-core/signing';
 
-// GET/POST /api/world-id/rp-signature
-app.post('/api/world-id/rp-signature', (req, res) => {
+// POST /api/rp-signature
+app.post('/api/rp-signature', (req, res) => {
 	const { sig, nonce, createdAt, expiresAt } = signRequest({
 		signingKeyHex: process.env.WORLD_RP_SIGNING_KEY!,
 		action: process.env.WORLD_ACTION!,
@@ -126,7 +126,7 @@ Framework-neutral. Bundle with Vite as a plain module.
 import { IDKit, proofOfHuman } from '@worldcoin/idkit-core';
 
 export async function verifyHuman(appId: string, rpId: string, action: string, wallet: string, env: 'staging' | 'production') {
-	const rp = await fetch('/api/world-id/rp-signature', { method: 'POST' }).then((r) => r.json());
+	const rp = await fetch('/api/rp-signature', { method: 'POST' }).then((r) => r.json());
 
 	const request = await IDKit.request({
 		app_id: appId,

@@ -24,11 +24,13 @@ describe('LiquidISA', async() => {
 		const mock = await viem.deployContract('MockUSDC')
 		const isaImpl = await viem.deployContract('LiquidISA')
 		const tokenImpl = await viem.deployContract('CreatorShareToken')
+		const poolImpl = await viem.deployContract('CreatorPool')
 		const factory = await viem.deployContract('LiquidISAFactory', [
 			mock.address,
 			oracle.account.address,
 			isaImpl.address,
 			tokenImpl.address,
+			poolImpl.address,
 		])
 		await factory.write.createISA(
 			['Ravi Kumar', 'RAVI', usdc(1000), usdc(200), 1000, 24, [], NULLIFIER],
@@ -214,7 +216,7 @@ describe('LiquidISA', async() => {
 				usdc: mock.address, creator: alice.account.address, oracle: alice.account.address,
 				totalRaise: 1n, creatorStake: 0n, shareBps: 1, termMonths: 1,
 				trancheBps: [10000], worldIdNullifierHash: NULLIFIER,
-			}, token.address]),
+			}, token.address, alice.account.address]),
 			impl,
 			'InvalidInitialization',
 		)

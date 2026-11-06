@@ -1,12 +1,25 @@
-import { badRequest, Boom, isBoom, notFound } from '@hapi/boom'
+import {
+	badRequest,
+	Boom,
+	forbidden,
+	isBoom,
+	notFound,
+	tooManyRequests,
+	unauthorized,
+} from '@hapi/boom'
 import assert from 'node:assert'
+import { DEMO_MODE, DEMO_PROOFS_PER_HOUR } from '../consts.ts'
 import { readDeliveryEnvelope } from '../integrations/reclaim.ts'
 import { field } from '../integrations/util.ts'
-import { ZeroGAuditUnavailable } from '../integrations/zero-g.ts'
+import {
+	reportingWindow,
+	ZeroGAuditUnavailable
+} from '../integrations/zero-g.ts'
 import { LOGGER } from '../logger.ts'
 import {
 	auditIncomeProof,
 	finishReclaimSession,
+	getDemoProofQuota,
 	getReclaimSession,
 	markAuditUnavailable,
 	submitIncomeProof,
@@ -40,6 +53,12 @@ export type IncomeAuditOutcome =
 export async function runIncomeAudit(
 	pg: IPgClientLike,
 	rawBody: unknown,
+	/**
+	 * Demo fixtures (`demo: true`) are accepted only with `demoViewerId`, the
+	 * signed-in owner of the creator (the Hub's demo button). Reclaim
+	 * deliveries never pass it, so they can't carry fixtures.
+	 */
+	opts: { demoViewerId?: string } = {},
 ): Promise<IncomeAuditOutcome> {
 	const body = demoFixtureOf(unwrapProofBody(rawBody))
 	const oracle = createOracle()
@@ -55,6 +74,7 @@ export async function runIncomeAudit(
 			badRequest('Proof does not name a creator'),
 		)
 		creatorId = context
+		await assertDemoProofAllowed(pg, creatorId, opts.demoViewerId)
 	} else {
 		const hint = field(body, 'sessionId')
 		assert(typeof hint === 'string', badRequest('Delivery has no session id'))
@@ -127,6 +147,11 @@ export async function runIncomeAudit(
 			period: pending.period,
 			termsHash: pending.terms_hash ?? '',
 			termsRef: pending.terms_ref ?? undefined,
+			window: reportingWindow(
+				'proof_cadence' in pending && pending.proof_cadence === 'QUARTERLY'
+					? 90
+					: 30,
+			),
 			income,
 		})
 	} catch(err) {
@@ -173,4 +198,31 @@ export async function runIncomeAudit(
 function demoFixtureOf(body: unknown): unknown {
 	const proof = field(body, 'proof')
 	return field(proof, 'demo') === true ? proof : body
+}
+
+/** Demo proofs: DEMO_MODE, a signed-in owner, and the hourly creator cap. */
+async function assertDemoProofAllowed(
+	pg: IPgClientLike,
+	creatorId: string,
+	viewerId: string | undefined,
+) {
+	assert(DEMO_MODE, forbidden('Demo proofs need DEMO_MODE=1'))
+	assert(viewerId, unauthorized('Sign in as the creator for a demo proof'))
+	assert(
+		UUID_REGEX.test(creatorId),
+		badRequest('Proof does not name a creator'),
+	)
+	const [quota] = await getDemoProofQuota.run(
+		{ creator_id: creatorId, viewer_id: viewerId }, pg,
+	)
+	assert(
+		quota.is_owner,
+		forbidden('Only the creator can submit demo proofs'),
+	)
+	assert(
+		quota.recent < DEMO_PROOFS_PER_HOUR,
+		tooManyRequests(
+			`At most ${DEMO_PROOFS_PER_HOUR} demo proofs per creator per hour`,
+		),
+	)
 }

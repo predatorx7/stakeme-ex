@@ -54,6 +54,21 @@ SELECT smx.creator_proofs_page_json(
 ) AS j;
 
 
+/* @name ListCreatorUpdates */
+-- One page of a creator's updates (404 for an unknown ticker).
+-- Route: ListCreatorUpdates.
+SELECT smx.creator_updates_page_json(
+	:ticker!, :after_key, :after_id, :limit!::INTEGER
+) AS j;
+
+
+/* @name CreateCreatorUpdate */
+-- Owner-only post, 5 per rolling 24 hours; emits CREATOR_UPDATE.
+-- Route: CreateCreatorUpdate.
+SELECT smx.creator_update_json(u) AS j
+FROM smx.post_creator_update(:viewer_id!, :ticker!, :body!, :link) AS u;
+
+
 /* @name ListCreatorDividends */
 -- One page of a creator's dividends (404 for an unknown ticker).
 -- Route: ListCreatorDividends.
@@ -75,6 +90,31 @@ FROM smx.oracle_events_since(
 -- Token page document; no row when the ticker is unknown. `wallet` is the
 -- viewer's wallet (optional). Route: GetCreator.
 SELECT smx.creator_page_json(:ticker!, :wallet::TEXT) AS j;
+
+
+/* @name GetCreatorCandles */
+-- OHLCV candles for one creator and chart interval (1H, 1D, 1W, ALL); raises
+-- 404 for an unknown ticker. Route: GetCreatorCandles.
+SELECT smx.creator_candles_json(
+	smx.creator_id_by_ticker(:ticker!), :interval!
+) AS j;
+
+
+/* @name GetWatchlist */
+-- The viewer's watchlist with each creator's summary. Route: GetWatchlist.
+SELECT smx.watchlist_json(:viewer_id!) AS j;
+
+
+/* @name PutWatchlistItem */
+-- Adds a creator to the viewer's watchlist (idempotent). Route:
+-- PutWatchlistItem.
+SELECT smx.watchlist_add(:viewer_id!, :ticker!) AS j;
+
+
+/* @name DeleteWatchlistItem */
+-- Removes a creator from the viewer's watchlist (idempotent). Route:
+-- DeleteWatchlistItem.
+SELECT smx.watchlist_remove(:viewer_id!, :ticker!) AS removed;
 
 
 /* @name GetCreatorHub */
@@ -109,7 +149,10 @@ FROM smx.launch_ipo(
 	:terms_ref,
 	:terms_hash,
 	:chain_id,
-	:terms_document::JSONB
+	:terms_document::JSONB,
+	:tranche_bps!::INTEGER[],
+	:proof_cadence!::smx.proof_cadence,
+	:social_links!::JSONB
 ) AS c;
 
 
@@ -119,6 +162,12 @@ SELECT smx.investment_json(i) AS j
 FROM smx.record_investment(
 	smx.creator_id_by_ticker(:ticker!), :wallet!, :usdc_amount!::NUMERIC
 ) AS i;
+
+
+/* @name CloseRaise */
+-- Creator ends the raise early; releases tranche 0 and opens trading.
+SELECT c.id
+FROM smx.close_raise(smx.creator_id_by_ticker(:ticker!), :viewer_id) AS c;
 
 
 /* @name Trade */
@@ -151,7 +200,8 @@ SELECT
 	c.share_bps AS "share_bps!",
 	c.min_income::TEXT AS "min_income!",
 	c.terms_hash,
-	c.terms_ref
+	c.terms_ref,
+	c.proof_cadence AS "proof_cadence!"
 FROM smx.submit_income_proof(
 	:creator_id!::UUID,
 	:provider!,
@@ -177,6 +227,22 @@ RETURNING id;
 SELECT r.id AS "id!", r.creator_id AS "creator_id!", r.org_id, r.status::TEXT AS "status!"
 FROM smx.reclaim_sessions r
 WHERE r.id = :id!;
+
+
+/* @name GetDemoProofQuota */
+-- Whether the viewer owns the creator, and how many demo proofs it got in the
+-- last hour (the per-creator cap protects the 0G credit). Route: AuditMilestone.
+SELECT
+	EXISTS(
+		SELECT 1 FROM smx.creators c
+		WHERE c.id = :creator_id! AND c.owner_user_id = :viewer_id!
+	) AS "is_owner!",
+	(
+		SELECT count(*)::INT FROM smx.income_proofs p
+		WHERE p.creator_id = :creator_id!
+			AND p.provider = 'demo'
+			AND p.created_at > now() - interval '1 hour'
+	) AS "recent!";
 
 
 /* @name GetOwnedReclaimSession */
@@ -400,3 +466,49 @@ SELECT s.id, s.status
 FROM smx.complete_storage_upload(
 	:id!, :status!::smx.storage_upload_status, :ref, :error, :transient!::BOOLEAN
 ) AS s;
+
+
+/* @name GetPortfolio */
+-- A wallet's holdings, totals and dividends received, plus the user's own IPO.
+-- Route: GetPortfolio.
+SELECT smx.wallet_portfolio_json(:wallet, :user_id!) AS j;
+
+
+/* @name ListWalletTransactions */
+-- One page of a wallet's investments and trades, newest first.
+-- Route: GetPortfolio.
+SELECT smx.wallet_transactions_json(
+	:wallet!, :after_key, :after_id, :limit!::INTEGER
+) AS j;
+
+
+/* @name GetCreatorChain */
+-- Onchain addresses of a creator (no row for an unknown ticker).
+-- Routes: Trade, Invest, GetCreatorChain.
+SELECT c.id, c.status, c.contract_address, c.token_address, c.pool_address
+FROM smx.creators c
+WHERE c.ticker = :ticker!;
+
+
+/* @name SetChainJobPool */
+-- Stores the pool a settled createISA job deployed. Worker.
+SELECT smx.set_chain_job_pool(:job_id!, :pool!) AS id;
+
+
+/* @name IngestOnchainSwap */
+-- Records a verified CreatorPool Swap event (base units). Route: Trade.
+SELECT smx.trade_json(t) AS j
+FROM smx.ingest_onchain_swap(
+	:creator_id!, :trader!, :tx_hash!, :usdc_in!::NUMERIC, :token_in!::NUMERIC,
+	:usdc_out!::NUMERIC, :token_out!::NUMERIC, :usdc_reserve!::NUMERIC,
+	:token_reserve!::NUMERIC
+) AS t;
+
+
+/* @name IngestOnchainInvest */
+-- Records a verified LiquidISA Invested event (base units). Route: Invest.
+SELECT smx.investment_json(i) AS j
+FROM smx.ingest_onchain_invest(
+	:creator_id!, :investor!, :tx_hash!, :usdc!::NUMERIC, :shares!::NUMERIC,
+	:raise_closed!::BOOLEAN, :pool_usdc::NUMERIC, :pool_tokens::NUMERIC
+) AS i;

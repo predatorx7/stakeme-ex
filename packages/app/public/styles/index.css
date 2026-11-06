@@ -2,6 +2,7 @@
 @import './app.css';
 @import './public.css';
 @import './smx.css';
+@import './brand.css';
 @import './lists.css';
 /* Diwali theme: tokens first, then shared effects, then per-surface files.
    Each file has one owner; see docs/diwali-theme.md. */
@@ -17,3 +18,28 @@
    surfaces above without each page restyling them. */
 @import './diwali-jali.css';
 @import './diwali-lights.css';
+
+/* Instrument view: one file per component, see docs/instrument-view.md. */
+@import './instrument-depth.css';
+@import './instrument-stats.css';
+@import './instrument-fundamentals.css';
+@import './instrument-position.css';
+@import './instrument-actions.css';
+@import './instrument-ticket.css';
+@import './instrument-chart.css';
+@import './instrument-watchlist.css';
+@import './instrument-flash.css';
+@import './instrument-layout.css';
+@import './creator-profile.css';
+@import './number-roll.css';
+@import './sparkline.css';
+@import './card-tilt.css';
+@import './coin-trail.css';
+@import './activity-pulse.css';
+@import './states.css';
+@import './escrow-meter.css';
+@import './spotlight.css';
+@import './ticker.css';
+@import './countdown.css';
+@import './proof-pipeline.css';
+@import './portfolio.css';

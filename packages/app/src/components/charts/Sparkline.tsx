@@ -1,39 +1,40 @@
 import type { PricePoint } from '../../types/index.ts'
+import { sparklineArea, sparklinePath } from './sparkline-path.ts'
 
-/** Normalized line coordinates for a price series in a 100x28 box. */
-export function sparkPath(points: PricePoint[]) {
-	const values = points.map((p) => Number(p.price))
-	const min = Math.min(...values)
-	const span = Math.max(...values) - min || 1
-	return values
-		.map((v, i) => {
-			const x = values.length > 1 ? i / (values.length - 1) * 100 : 50
-			const y = 26 - (v - min) / span * 24
-			return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`
-		})
-		.join(' ')
-}
+const W = 100
+const H = 28
 
-/** A tiny trend line for a table row. Green when the series ends higher. */
-export function Sparkline({ points, name }: {
+/**
+ * Tiny server-rendered trend line (80x24 via CSS). Mint when the series ends
+ * at or above its start, red below. Decorative: keep the change text visible.
+ * The line is the first path; the live watchlist client rewrites only that.
+ */
+export function Sparkline({ points, area }: {
 	points: PricePoint[]
-	name: string
+	name?: string
+	area?: boolean
 }) {
 	if(points.length < 2) {
 		return <span class='smx-spark' />
 	}
 
-	const first = Number(points[0].price)
-	const last = Number(points[points.length - 1].price)
+	const values = points.map((p) => Number(p.price))
 	return (
 		<svg
 			class='smx-spark'
-			data-dir={last >= first ? 'up' : 'down'}
-			viewBox='0 0 100 28'
+			data-dir={values[values.length - 1] >= values[0] ? 'up' : 'down'}
+			viewBox={`0 0 ${W} ${H}`}
 			preserveAspectRatio='none'
-			role='img'
-			aria-label={`${name} price trend`}>
-			<path d={sparkPath(points)} />
+			aria-hidden='true'
+			focusable='false'>
+			<path d={sparklinePath(values, W, H)} />
+			{
+				area && (
+					<path
+						class='smx-spark__area'
+						d={sparklineArea(values, W, H)} />
+				)
+			}
 		</svg>
 	)
 }

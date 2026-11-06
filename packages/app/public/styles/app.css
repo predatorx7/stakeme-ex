@@ -197,16 +197,3 @@ form.htmx-request {
 	letter-spacing: 0.08em;
 }
 
-.smx-brand-mark {
-	align-items: center;
-	background: var(--rc-color-action-primary);
-	block-size: 24px;
-	border-radius: var(--rc-radius-control);
-	color: var(--rc-color-text-on-action, #fff);
-	display: inline-flex;
-	font-family: var(--rc-font-family-mono);
-	font-size: 10px;
-	font-weight: 600;
-	inline-size: 24px;
-	justify-content: center;
-}

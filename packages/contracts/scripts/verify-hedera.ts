@@ -98,7 +98,7 @@ async function latestClone() {
 	return '0x' + log.topics[2].slice(26)
 }
 
-for(const name of ['MockUSDC', 'LiquidISA', 'CreatorShareToken', 'LiquidISAFactory']) {
+for(const name of ['MockUSDC', 'LiquidISA', 'CreatorShareToken', 'CreatorPool', 'LiquidISAFactory']) {
 	const address = dep.contracts[name]
 	console.log(await verify(name, address))
 	console.log(`  ${hashscan(address)}`)

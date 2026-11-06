@@ -1,0 +1,15 @@
+{
+  "name": "StakeMe Exchange",
+  "short_name": "SMX",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#040A20",
+  "background_color": "#040A20",
+  "icons": [
+    { "src": "/public/assets/favicon.ico", "type": "image/x-icon", "sizes": "16x16 32x32" },
+    { "src": "/public/assets/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/public/assets/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "/public/assets/icon-192-maskable.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
+    { "src": "/public/assets/icon-512-maskable.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}

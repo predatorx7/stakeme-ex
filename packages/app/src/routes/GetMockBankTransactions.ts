@@ -12,5 +12,5 @@ export default function GetMockBankTransactions(
 	}
 
 	req.res!.set('Cache-Control', 'no-store')
-	req.res!.json(buildStatement(session.holderName))
+	req.res!.json(buildStatement(session.holderName, session.scenario))
 }

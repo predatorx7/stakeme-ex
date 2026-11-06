@@ -4,11 +4,6 @@
 /* Header: the string-light strand (diwali-lights.css) is the only bottom-edge
    effect; no hairline or glow here. */
 
-/* Brand mark: soft warm glow (static). */
-.smx-brand-mark {
-	box-shadow: 0 0 10px -2px var(--smx-dw-marigold, #f59e0b);
-}
-
 /* Primary call to action: uses the shared gradient (diwali-components.css). */
 .rc-app-bar__actions .rc-button[data-variant='primary']:hover {
 	box-shadow: var(--smx-dw-glow, 0 0 16px -2px var(--smx-dw-marigold, #f59e0b));

@@ -1,0 +1,57 @@
+/* Hover tilt + gold edge for [data-tilt] cards. Driven by card-tilt.ts.
+   The card needs `position: relative` (set here). */
+[data-tilt] {
+	position: relative;
+	--tilt-edge: color-mix(in srgb, var(--smx-dw-gold, #f5c451) 25%, transparent);
+}
+
+[data-tilt]::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: 1px;
+	background: var(--tilt-edge);
+	-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 200ms ease;
+}
+
+/* Static edge: pointer hover (also reduced motion) and keyboard focus. */
+[data-tilt]:hover::before,
+[data-tilt]:focus-within:has(:focus-visible)::before {
+	opacity: 1;
+}
+
+@media (hover: none) {
+	[data-tilt]::before {
+		display: none;
+	}
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+	[data-tilt] {
+		transform: perspective(800px) rotateX(0) rotateY(0);
+		transition: transform 200ms ease-out;
+		will-change: transform;
+	}
+
+	[data-tilt][data-tilt-on] {
+		transform: perspective(800px) rotateX(var(--rx, 0)) rotateY(var(--ry, 0));
+		/* Follow the pointer without easing lag; ease only on leave. */
+		transition: none;
+	}
+
+	/* Sweep: bright spot under the pointer over the faint static edge. */
+	[data-tilt][data-tilt-on]::before {
+		background:
+			radial-gradient(
+				180px circle at var(--mx, 50%) var(--my, 50%),
+				var(--tilt-edge),
+				transparent 70%
+			);
+	}
+}

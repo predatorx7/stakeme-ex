@@ -21,6 +21,7 @@ const KINDS = [
 	'ESCROW_FROZEN',
 	'ESCROW_UNFROZEN',
 	'STORAGE_CONFIRMED',
+	'CREATOR_UPDATE',
 ]
 
 type Props = {
@@ -114,17 +115,18 @@ export function ActivityListPage(props: Props) {
 					items.length === 0
 						? (
 							<EmptyState
-								title={filtered ? 'No events match' : 'No events yet'}
+								title={filtered ? 'No events match' : 'Nothing yet'}
 								hint={
 									filtered
 										? 'Try another kind or ticker.'
-										: 'Events appear as creators launch, raise and trade.'
+										: 'Trades and audits show up here live.'
 								} />
 						)
 						: (
 							<ul
 								id={LIST_BODY_ID}
-								class='smx-feed'>
+								class='smx-feed'
+								data-live-list='activity'>
 								{items.map((e) => <OracleEventItem event={e} />)}
 							</ul>
 						)

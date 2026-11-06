@@ -3,11 +3,21 @@ import { markup } from '../utils/escape.ts'
 import { Avatar } from './Avatar.tsx'
 
 /** The heading block at the top of a console page. */
-export function PageHeader({ eyebrow, title, avatar, meta, lede, actions }: {
+export function PageHeader({
+	eyebrow,
+	title,
+	avatar,
+	coinSource,
+	meta,
+	lede,
+	actions,
+}: {
 	eyebrow?: string
 	title: string
 	/** Id to show a generated avatar beside the title. */
 	avatar?: string
+	/** Marks the avatar as the coin trail origin. */
+	coinSource?: boolean
 	/** A kind tag and a line of facts under the title. */
 	meta?: Children
 	lede?: string
@@ -29,6 +39,7 @@ export function PageHeader({ eyebrow, title, avatar, meta, lede, actions }: {
 						!!avatar && (
 							<Avatar
 								seed={avatar}
+								coinSource={coinSource}
 								size='lg' />
 						)
 					}

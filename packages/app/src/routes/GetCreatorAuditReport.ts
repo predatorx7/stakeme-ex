@@ -1,7 +1,11 @@
 import { notFound, serverUnavailable } from '@hapi/boom'
 import { HTTPFacilitatorClient } from '@x402/core/server'
 import assert from 'node:assert'
-import { HEDERA_ACCOUNT_ID, HEDERA_NETWORK } from '../consts.ts'
+import {
+	canonicalOrigin,
+	HEDERA_ACCOUNT_ID,
+	HEDERA_NETWORK,
+} from '../consts.ts'
 import {
 	AUDIT_REPORT_PRICE_TINYBARS,
 	type IX402Facilitator,
@@ -67,7 +71,7 @@ export default async function GetCreatorAuditReport(
 	const res = req.res!
 	const result = await runPaywall({
 		config: {
-			resourceUrl: `${req.protocol}://${req.get('host')}${req.originalUrl}`,
+			resourceUrl: `${canonicalOrigin()}${req.originalUrl}`,
 			description: `Audit report for $${ticker}`,
 			network,
 			payTo,

@@ -41,6 +41,10 @@ tags:
     description: Reclaim income proofs, audits, dividends and defaults.
   - name: Events
     description: Live oracle events (Server-Sent Events).
+  - name: Watchlist
+    description: The signed-in viewer's followed creators.
+  - name: Portfolio
+    description: The signed-in viewer's funds, holdings, transactions and dividends.
 paths:
   /:
     get:
@@ -107,6 +111,7 @@ paths:
               - PROOF_VERIFIED
               - PROOF_REJECTED
               - TRANCHE_RELEASED
+              - STAKE_RETURNED
               - DIVIDEND_PAID
               - GRACE_STARTED
               - DEFAULTED
@@ -114,6 +119,7 @@ paths:
               - ESCROW_FROZEN
               - ESCROW_UNFROZEN
               - STORAGE_CONFIRMED
+              - CREATOR_UPDATE
         - name: ticker
           in: query
           required: false
@@ -145,8 +151,9 @@ paths:
         - Creators
       description: >-
         Returns one creator's terms, escrow progress, price chart, top holders,
-        recent trades, proofs, dividends and events, plus the signed-in
-        viewer's holding. Use it for the token page; `404` when the ticker is
+        recent trades, proofs, dividends and events, the `market` instrument
+        data (quote, depth, fundamentals, corporate actions), plus the
+        signed-in viewer's holding and position. Use it for the token page; `404` when the ticker is
         unknown.
       security:
         - {}
@@ -163,6 +170,147 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreatorPage'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/candles:
+    get:
+      summary: Creator candles
+      operationId: GetCreatorCandles
+      tags:
+        - Creators
+      description: >-
+        Returns OHLCV candles for the token chart, oldest first, at most 200.
+        `interval` is the visible range: `1H` gives 1-minute candles (60), `1D`
+        1-hour (24), `1W` 4-hour (42) and `ALL` the creator's whole life in
+        buckets sized to stay within 200. Empty buckets repeat the previous
+        close with zero volume; `404` when the ticker is unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - name: interval
+          in: query
+          required: true
+          description: Visible chart range, which fixes the candle size.
+          schema:
+            type: string
+            enum: [1H, 1D, 1W, ALL]
+      responses:
+        '200':
+          description: Candles, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Candles'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/chart:
+    get:
+      summary: Creator chart fragment
+      operationId: GetCreatorChartFragment
+      tags:
+        - Creators
+      description: >-
+        Returns the price chart region (interval tabs plus a line or candle
+        plot) as an HTML fragment for in-place swaps; `404` when the ticker is
+        unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - name: interval
+          in: query
+          required: false
+          description: Visible chart range; defaults to `1D`.
+          schema:
+            type: string
+            enum: [1H, 1D, 1W, ALL]
+        - name: mode
+          in: query
+          required: false
+          description: Plot type; defaults to `candles`.
+          schema:
+            type: string
+            enum: [line, candles]
+      responses:
+        '200':
+          description: Chart region (HTML).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /watchlist:
+    get:
+      summary: Watchlist
+      operationId: GetWatchlist
+      tags:
+        - Watchlist
+      description: >-
+        Lists the signed-in viewer's watched creators, newest first, with price,
+        24h change and sparkline. Holds at most 100 creators, so it isn't paged.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The viewer's watchlist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Watchlist'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /watchlist/{ticker}:
+    put:
+      summary: Add to watchlist
+      operationId: PutWatchlistItem
+      tags:
+        - Watchlist
+      description: >-
+        Adds a creator to the viewer's watchlist. Calling it again is a no-op
+        that returns the existing item; `404` when the ticker is unknown, `409`
+        when the watchlist already holds 100 creators.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      responses:
+        '200':
+          description: The watchlist item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchlistItem'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    delete:
+      summary: Remove from watchlist
+      operationId: DeleteWatchlistItem
+      tags:
+        - Watchlist
+      description: >-
+        Removes a creator from the viewer's watchlist. Calling it for a creator
+        that isn't watched is a no-op; `404` when the ticker is unknown.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      responses:
+        '204':
+          description: Removed (or was not on the watchlist).
         '404':
           $ref: '#/components/responses/ProblemResponse'
         default:
@@ -220,6 +368,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProofsPage'
         '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/updates:
+    get:
+      summary: Creator updates
+      operationId: ListCreatorUpdates
+      tags:
+        - Creators
+      description: >-
+        Lists a creator's updates to holders, newest first, 25 per page. Use it
+        for the "View all" page behind the latest updates on the token page;
+        `404` when the ticker is unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Updates page (HTML) or one page of updates (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorUpdatesPage'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    post:
+      summary: Post a creator update
+      operationId: CreateCreatorUpdate
+      tags:
+        - Creators
+      description: >-
+        Posts a short plain-text update to holders. Only the creator's owner can
+        post, up to 5 per rolling 24 hours. Emits a `CREATOR_UPDATE` event for
+        the live feed and the corporate-actions timeline. Returns `201` with
+        the update for JSON callers and `204` for htmx, which refreshes the
+        update list.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCreatorUpdateRequest'
+      responses:
+        '201':
+          description: The new update.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorUpdate'
+        '204':
+          description: htmx request; the update list refreshes.
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '429':
           $ref: '#/components/responses/ProblemResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
@@ -293,6 +509,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/X402PaymentRequired'
         '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /portfolio:
+    get:
+      summary: Portfolio
+      operationId: GetPortfolio
+      tags:
+        - Portfolio
+      description: >-
+        Returns the signed-in viewer's portfolio: funds (wallet USDC and HBAR),
+        holdings with P&L, transactions (25 per page, newest first, `cursor`
+        pages them) and dividends received. HTML for a browser; signed out, the
+        page asks the visitor to connect a wallet and JSON callers get `401`.
+        `funds.status` is `UNAVAILABLE` in simulated chain mode or when the
+        chain read fails.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Portfolio page (HTML) or document (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Portfolio'
+        '401':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /portfolio/faucet:
+    post:
+      summary: Get test USDC
+      operationId: RequestTestUsdc
+      tags:
+        - Portfolio
+      description: >-
+        Mints a fixed amount of MockUSDC to the viewer's wallet through the
+        token's public faucet. One request per wallet per minute. `409` when
+        the chain is simulated or no USDC token is configured.
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: htmx request; the page reloads with the new balance.
+        '201':
+          description: The faucet transaction.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaucetResult'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        '429':
           $ref: '#/components/responses/ProblemResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
@@ -431,6 +706,34 @@ paths:
           $ref: '#/components/responses/ProblemResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/chain:
+    get:
+      summary: Creator onchain trading info
+      operationId: GetCreatorChain
+      tags:
+        - Creators
+      description: >-
+        Says how the browser trades this creator. `live` means the user's
+        wallet signs `approve` plus the swap or invest call and then posts the
+        `txHash` to `Trade` or `Invest`; `simulated` means the SQL pool path
+        (no `txHash`). Carries the contract addresses and a public RPC URL for
+        reads. `404` when the ticker is unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      responses:
+        '200':
+          description: Onchain trading info.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorChain'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /creators/{ticker}/investments:
     post:
       summary: Invest in a creator
@@ -440,8 +743,11 @@ paths:
       description: >-
         Buys creator tokens 1:1 with USDC at the IPO price from the primary
         market, capped at the remaining raise. Use it while the creator is
-        `LIVE`; `409` when the raise is full or closed. State commits
-        immediately and the onchain call is queued.
+        `LIVE`; `409` when the raise is full or closed. In simulated chain mode
+        send `usdcAmount`: state commits immediately and the onchain call is
+        queued. In live mode (see `GetCreatorChain`) the user signs `approve`
+        and `LiquidISA.invest` first, then sends the `txHash`; the server
+        verifies the receipt and records the exact `Invested` event.
       security:
         - BearerAuth: []
       parameters:
@@ -461,6 +767,50 @@ paths:
                 $ref: '#/components/schemas/Investment'
         '204':
           description: htmx request; the `HX-Trigger` header carries the result.
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/close-raise:
+    post:
+      summary: Close the raise early
+      operationId: CloseRaise
+      tags:
+        - Creators
+      description: >-
+        The creator ends the raise before it fills. Tranches resize to the
+        amount raised, tranche 0 releases and trading opens. Owner only; `409`
+        when the raise is closed or nothing was raised. In simulated chain mode
+        send no body. In live mode (see `GetCreatorChain`) the creator signs
+        `LiquidISA.closeRaise` first, then sends the `txHash`; the server
+        verifies the receipt.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseRaiseRequest'
+      responses:
+        '201':
+          description: The raise is closed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Uuid'
+        '204':
+          description: htmx request; the `HX-Trigger` header carries the result.
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
         '404':
           $ref: '#/components/responses/ProblemResponse'
         '409':
@@ -501,10 +851,13 @@ paths:
       tags:
         - Creators
       description: >-
-        Swaps against the simulated constant-product pool with a 0.3% fee.
-        `BUY` spends USDC (`amountIn`), `SELL` spends tokens. Use `minOut` as
-        the slippage guard; `409` when output falls below it, the creator is
-        defaulted, or the seller lacks balance.
+        Swaps against the constant-product pool with a 0.3% fee. In simulated
+        chain mode send `side` and `amountIn`: `BUY` spends USDC, `SELL` spends
+        tokens, `minOut` is the slippage guard; `409` when output falls below
+        it, the creator is defaulted, or the seller lacks balance. In live mode
+        (see `GetCreatorChain`) the user signs `approve` and the pool swap
+        first, then sends the `txHash`; the server verifies the receipt and
+        records the exact `Swap` event, once per hash.
       security:
         - BearerAuth: []
       parameters:
@@ -568,7 +921,8 @@ paths:
         Receives the proof Reclaim posts after a session. Public, because the
         caller is Reclaim; the proof signature is verified, so an unverifiable
         body is rejected. Verified proofs are audited and may approve a
-        milestone, exactly like `POST /api/audit-milestone`.
+        milestone, exactly like `POST /api/audit-milestone`. Demo fixtures are
+        never accepted here.
       security:
         - {}
       requestBody:
@@ -615,8 +969,11 @@ paths:
       description: >-
         Verifies a Reclaim proof, runs the 0G audit, then applies the SQL rules
         engine: approval creates the dividend and releases the next tranche.
-        Public, but the proof must verify (`400` otherwise). Use it for the
-        CRE workflow or manual runs; a duplicate proof returns `409`.
+        The proof must verify (`400` otherwise); a duplicate proof returns
+        `409`. Demo fixtures (`demo: true`, DEMO_MODE only) are accepted only
+        from the signed-in creator they name (`401` anonymous, `403` anyone
+        else), at most 3 per creator per hour (`429`). Real Reclaim proofs
+        need no sign-in.
       security:
         - {}
       requestBody:
@@ -642,6 +999,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuditResult'
         '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '401':
+          $ref: '#/components/responses/ProblemResponse'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '429':
           $ref: '#/components/responses/ProblemResponse'
         '409':
           $ref: '#/components/responses/ProblemResponse'
@@ -681,9 +1044,19 @@ paths:
       description: >-
         Demo only. Fast-forwards the creator's deadline and grace period, then
         liquidates: refunds locked escrow, slashes the stake, blacklists the
-        World ID. Returns `403` unless the server runs with `DEMO_MODE=1`.
+        World ID. Returns `403` unless the server runs with `DEMO_MODE=1` and
+        the request carries an `X-Admin-Key` header equal to the server's
+        `SMX_ADMIN_KEY` (unset disables the route).
       security:
         - {}
+      parameters:
+        - name: X-Admin-Key
+          in: header
+          required: false
+          description: Admin key (`SMX_ADMIN_KEY`).
+          schema:
+            type: string
+            maxLength: 200
       requestBody:
         required: true
         content:
@@ -935,8 +1308,8 @@ paths:
       tags:
         - Income
       description: >-
-        A fake bank statement page (simulates HDFC) with a hardcoded $5,000
-        deposit. Redirects to `/mock-bank/login` without the `smx_bank_session`
+        A fake bank statement page (simulates HDFC). The deposits follow the
+        scenario chosen at login ($5,000 by default). Redirects to `/mock-bank/login` without the `smx_bank_session`
         cookie. The page calls `GET /mock-bank/api/transactions`, which is what
         the Reclaim provider proves.
       security:
@@ -986,7 +1359,8 @@ paths:
       tags:
         - Income
       description: >-
-        Accepts any non-empty username and password, sets the httpOnly
+        Accepts any non-empty username and password and an optional income
+        `scenario`, sets the httpOnly
         `smx_bank_session` cookie and redirects to `/mock-bank`.
       security:
         - {}
@@ -1006,6 +1380,8 @@ paths:
                   type: string
                   minLength: 1
                   maxLength: 100
+                scenario:
+                  $ref: '#/components/schemas/MockBankScenario'
           application/json:
             schema:
               type: object
@@ -1019,6 +1395,8 @@ paths:
                   type: string
                   minLength: 1
                   maxLength: 100
+                scenario:
+                  $ref: '#/components/schemas/MockBankScenario'
       responses:
         '303':
           description: Signed in; redirect to the statement.
@@ -1279,7 +1657,13 @@ components:
             - tranches
             - escrow
             - chain
+            - proofCadence
+            - socialLinks
           properties:
+            proofCadence:
+              $ref: '#/components/schemas/ProofCadence'
+            socialLinks:
+              $ref: '#/components/schemas/SocialLinks'
             ownerWallet:
               $ref: '#/components/schemas/EvmAddress'
             termMonths:
@@ -1580,6 +1964,7 @@ components:
             - PROOF_VERIFIED
             - PROOF_REJECTED
             - TRANCHE_RELEASED
+            - STAKE_RETURNED
             - DIVIDEND_PAID
             - GRACE_STARTED
             - DEFAULTED
@@ -1587,6 +1972,7 @@ components:
             - ESCROW_FROZEN
             - ESCROW_UNFROZEN
             - STORAGE_CONFIRMED
+            - CREATOR_UPDATE
         payload:
           type: object
           description: Kind-specific details; always includes `ticker`.
@@ -1610,6 +1996,8 @@ components:
             - unlockNextTranche
             - distributeDividend
             - executeLiquidation
+            - closeRaise
+            - reclaimStake
         status:
           type: string
           enum: [QUEUED, SENT, CONFIRMED, FAILED, SIMULATED]
@@ -1661,7 +2049,7 @@ components:
             $ref: '#/components/schemas/OracleEvent'
     CreatorPage:
       type: object
-      required: [creator, chart, holders, trades, events, proofs, dividends, viewer]
+      required: [creator, chart, holders, trades, events, proofs, dividends, viewer, market]
       properties:
         creator:
           $ref: '#/components/schemas/Creator'
@@ -1695,11 +2083,19 @@ components:
           maxItems: 10
           items:
             $ref: '#/components/schemas/Dividend'
+        updates:
+          type: array
+          maxItems: 5
+          description: The latest creator updates, newest first.
+          items:
+            $ref: '#/components/schemas/CreatorUpdate'
         more:
           type: object
           description: >-
             Per list, true when its full page holds more rows than shown here.
           properties:
+            updates:
+              type: boolean
             holders:
               type: boolean
             trades:
@@ -1717,6 +2113,420 @@ components:
               $ref: '#/components/schemas/EvmAddress'
             holding:
               $ref: '#/components/schemas/Holding'
+        market:
+          $ref: '#/components/schemas/Market'
+    SignedDecimalString:
+      type: string
+      description: Exact decimal number that may be negative, as text.
+      pattern: ^-?[0-9]+(\.[0-9]+)?$
+      maxLength: 80
+    DepthLevel:
+      type: object
+      description: One rung of the pool-curve depth ladder.
+      required: [sizeUsdc, tokens, avgPrice, impactPct]
+      properties:
+        sizeUsdc:
+          $ref: '#/components/schemas/DecimalString'
+        tokens:
+          $ref: '#/components/schemas/DecimalString'
+          description: Tokens received (asks) or sold (bids).
+        avgPrice:
+          $ref: '#/components/schemas/DecimalString'
+        impactPct:
+          $ref: '#/components/schemas/SignedDecimalString'
+          description: >-
+            Average price vs the spot price in percent: positive for asks,
+            negative for bids.
+    PriceRange:
+      type: object
+      required: [low, high]
+      properties:
+        low:
+          $ref: '#/components/schemas/DecimalString'
+        high:
+          $ref: '#/components/schemas/DecimalString'
+    Market:
+      type: object
+      description: >-
+        Instrument-view data for one creator token: quote, day statistics, pool
+        depth, status, fundamentals, the viewer's position and corporate
+        actions.
+      required:
+        - quote
+        - ohlc24h
+        - dayRange
+        - sinceIpoRange
+        - volume24h
+        - vwap24h
+        - trades24h
+        - pool
+        - depth
+        - status
+        - fundamentals
+        - position
+        - corporateActions
+      properties:
+        quote:
+          type: object
+          required: [price, change24h, changePct24h]
+          properties:
+            price:
+              $ref: '#/components/schemas/DecimalString'
+            change24h:
+              $ref: '#/components/schemas/SignedDecimalString'
+            changePct24h:
+              $ref: '#/components/schemas/SignedDecimalString'
+        ohlc24h:
+          type: object
+          required: [open, high, low, close]
+          properties:
+            open:
+              $ref: '#/components/schemas/DecimalString'
+            high:
+              $ref: '#/components/schemas/DecimalString'
+            low:
+              $ref: '#/components/schemas/DecimalString'
+            close:
+              $ref: '#/components/schemas/DecimalString'
+        dayRange:
+          $ref: '#/components/schemas/PriceRange'
+        sinceIpoRange:
+          $ref: '#/components/schemas/PriceRange'
+        volume24h:
+          $ref: '#/components/schemas/DecimalString'
+        vwap24h:
+          description: Volume-weighted average price over 24 hours; null with no trades.
+          oneOf:
+            - $ref: '#/components/schemas/DecimalString'
+            - type: 'null'
+        trades24h:
+          type: integer
+          minimum: 0
+        pool:
+          type: object
+          required: [usdcReserve, tokenReserve, feeBps]
+          properties:
+            usdcReserve:
+              $ref: '#/components/schemas/DecimalString'
+            tokenReserve:
+              $ref: '#/components/schemas/DecimalString'
+            feeBps:
+              type: integer
+              minimum: 0
+        depth:
+          type: object
+          required: [bids, asks]
+          properties:
+            bids:
+              type: array
+              maxItems: 4
+              items:
+                $ref: '#/components/schemas/DepthLevel'
+            asks:
+              type: array
+              maxItems: 4
+              items:
+                $ref: '#/components/schemas/DepthLevel'
+        status:
+          type: object
+          required: [kind, label, tradingHalted]
+          properties:
+            kind:
+              type: string
+              enum: [LIVE, GRACE, FROZEN, DEFAULTED, COMPLETED]
+            label:
+              type: string
+              maxLength: 200
+            tradingHalted:
+              type: boolean
+        fundamentals:
+          type: object
+          required:
+            - marketCap
+            - supply
+            - shareBps
+            - termMonths
+            - termLeftMonths
+            - verifiedIncomeTotal
+            - dividendsPaidTotal
+            - nextProofDueAt
+            - holders
+          properties:
+            marketCap:
+              $ref: '#/components/schemas/DecimalString'
+            supply:
+              $ref: '#/components/schemas/DecimalString'
+            shareBps:
+              type: integer
+            termMonths:
+              type: integer
+            termLeftMonths:
+              type: integer
+              minimum: 0
+            verifiedIncomeTotal:
+              $ref: '#/components/schemas/DecimalString'
+            dividendsPaidTotal:
+              $ref: '#/components/schemas/DecimalString'
+            nextProofDueAt:
+              oneOf:
+                - $ref: '#/components/schemas/Timestamp'
+                - type: 'null'
+            holders:
+              type: integer
+              minimum: 0
+        position:
+          description: The signed-in viewer's holding; null when signed out or flat.
+          oneOf:
+            - type: object
+              required: [tokens, avgCost, value, pnl, pnlPct]
+              properties:
+                tokens:
+                  $ref: '#/components/schemas/DecimalString'
+                avgCost:
+                  $ref: '#/components/schemas/DecimalString'
+                value:
+                  $ref: '#/components/schemas/DecimalString'
+                pnl:
+                  $ref: '#/components/schemas/SignedDecimalString'
+                pnlPct:
+                  $ref: '#/components/schemas/SignedDecimalString'
+            - type: 'null'
+        corporateActions:
+          type: array
+          maxItems: 50
+          description: Newest first.
+          items:
+            type: object
+            required: [at, kind, label, amount]
+            properties:
+              at:
+                $ref: '#/components/schemas/Timestamp'
+              kind:
+                type: string
+                enum:
+                  - IPO
+                  - PROOF_VERIFIED
+                  - PROOF_REJECTED
+                  - TRANCHE_RELEASED
+                  - STAKE_RETURNED
+                  - DIVIDEND_PAID
+                  - ESCROW_FROZEN
+                  - ESCROW_UNFROZEN
+                  - DEFAULTED
+              label:
+                type: string
+                maxLength: 300
+              amount:
+                oneOf:
+                  - $ref: '#/components/schemas/DecimalString'
+                  - type: 'null'
+    Candle:
+      type: object
+      required: [t, o, h, l, c, v]
+      properties:
+        t:
+          $ref: '#/components/schemas/Timestamp'
+          description: Bucket start.
+        o:
+          $ref: '#/components/schemas/DecimalString'
+        h:
+          $ref: '#/components/schemas/DecimalString'
+        l:
+          $ref: '#/components/schemas/DecimalString'
+        c:
+          $ref: '#/components/schemas/DecimalString'
+        v:
+          $ref: '#/components/schemas/DecimalString'
+          description: USDC traded in the bucket.
+    Candles:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/Candle'
+    WatchlistItem:
+      description: A creator summary plus when the viewer added it.
+      allOf:
+        - $ref: '#/components/schemas/CreatorSummary'
+        - type: object
+          required: [addedAt]
+          properties:
+            addedAt:
+              $ref: '#/components/schemas/Timestamp'
+    Watchlist:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/WatchlistItem'
+    Funds:
+      type: object
+      required: [status, canRequestUsdc]
+      properties:
+        status:
+          type: string
+          enum: [OK, UNAVAILABLE]
+          description: '`UNAVAILABLE` in simulated chain mode or when the read fails.'
+        usdc:
+          $ref: '#/components/schemas/DecimalString'
+        hbar:
+          $ref: '#/components/schemas/DecimalString'
+        canRequestUsdc:
+          type: boolean
+          description: True when MockUSDC has a public faucet on the live chain.
+    PortfolioHolding:
+      type: object
+      required: [creatorId, ticker, displayName, tokens, avgCost, price, value, pnl, pnlPct, status]
+      properties:
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        displayName:
+          type: string
+          maxLength: 80
+        tokens:
+          $ref: '#/components/schemas/DecimalString'
+        avgCost:
+          $ref: '#/components/schemas/DecimalString'
+        price:
+          $ref: '#/components/schemas/DecimalString'
+        value:
+          $ref: '#/components/schemas/DecimalString'
+        pnl:
+          type: string
+          maxLength: 64
+          description: Signed decimal, USDC.
+        pnlPct:
+          type: string
+          maxLength: 32
+          description: Signed decimal percent.
+        status:
+          type: string
+          enum: [LIVE, GRACE, FROZEN, DEFAULTED, COMPLETED]
+        statusLabel:
+          type: string
+          maxLength: 120
+    PortfolioTotals:
+      type: object
+      required: [invested, value, pnl, pnlPct]
+      properties:
+        invested:
+          $ref: '#/components/schemas/DecimalString'
+        value:
+          $ref: '#/components/schemas/DecimalString'
+        pnl:
+          type: string
+          maxLength: 64
+        pnlPct:
+          type: string
+          maxLength: 32
+    DividendReceived:
+      type: object
+      required: [id, dividendId, creatorId, ticker, displayName, amount, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        dividendId:
+          $ref: '#/components/schemas/Uuid'
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        displayName:
+          type: string
+          maxLength: 80
+        amount:
+          $ref: '#/components/schemas/DecimalString'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    WalletTransaction:
+      type: object
+      required: [id, type, creatorId, ticker, displayName, tokenAmount, usdcAmount, price, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        type:
+          type: string
+          enum: [INVESTMENT, BUY, SELL]
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        displayName:
+          type: string
+          maxLength: 80
+        tokenAmount:
+          $ref: '#/components/schemas/DecimalString'
+        usdcAmount:
+          $ref: '#/components/schemas/DecimalString'
+        price:
+          $ref: '#/components/schemas/DecimalString'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    Portfolio:
+      type: object
+      required: [totals, holdings, transactions, dividends, funds]
+      properties:
+        wallet:
+          $ref: '#/components/schemas/EvmAddress'
+        funds:
+          $ref: '#/components/schemas/Funds'
+        totals:
+          $ref: '#/components/schemas/PortfolioTotals'
+        holdings:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/PortfolioHolding'
+        transactions:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/WalletTransaction'
+            nextPageCursor:
+              type: string
+              maxLength: 500
+              description: Pass as `cursor` for the next page. Absent on the last page.
+        dividends:
+          type: object
+          required: [total, count, items]
+          properties:
+            total:
+              $ref: '#/components/schemas/DecimalString'
+            count:
+              type: integer
+              minimum: 0
+            items:
+              type: array
+              maxItems: 25
+              description: The latest 25 payouts, newest first.
+              items:
+                $ref: '#/components/schemas/DividendReceived'
+        creator:
+          $ref: '#/components/schemas/CreatorRef'
+    FaucetResult:
+      type: object
+      required: [amount, txHash]
+      properties:
+        amount:
+          $ref: '#/components/schemas/DecimalString'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
     CreatorRef:
       type: object
       required: [ticker, displayName, status]
@@ -1851,6 +2661,11 @@ components:
               type: boolean
             events:
               type: boolean
+        updatesLeft:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: Updates the creator can still post in the next 24 hours.
         collateral:
           type: object
           required: [stakeAmount, atRisk]
@@ -1879,7 +2694,7 @@ components:
               type: integer
             trancheBps:
               type: array
-              maxItems: 12
+              maxItems: 5
               items:
                 type: integer
             minIncome:
@@ -1923,6 +2738,12 @@ components:
           $ref: '#/components/schemas/IncomeProof'
         dividend:
           $ref: '#/components/schemas/Dividend'
+    MockBankScenario:
+      type: string
+      description: >-
+        Income scenario stored in the bank session. Unknown or missing values
+        mean `salary`.
+      enum: [salary, low, big, several, none, late]
     MockBank:
       type: object
       required: [account, balance, transactions]
@@ -1984,11 +2805,107 @@ components:
           $ref: '#/components/schemas/Money'
         stakeAmount:
           $ref: '#/components/schemas/Money'
+        trancheSchedule:
+          $ref: '#/components/schemas/TrancheSchedule'
+        proofCadence:
+          $ref: '#/components/schemas/ProofCadence'
+        socialLinks:
+          $ref: '#/components/schemas/SocialLinks'
         worldIdProof:
           type: object
           description: Raw IDKit result from the browser; verified server-side.
           maxProperties: 50
           additionalProperties: true
+    TrancheSchedule:
+      type: string
+      description: >-
+        How escrow releases, as the percent of the raise per tranche. The first
+        tranche releases at launch; each approved income proof releases the
+        next.
+      enum: ['20-40-40', '50-50', '25-25-25-25', '20-20-20-20-20']
+      default: '20-40-40'
+    ProofCadence:
+      type: string
+      description: >-
+        How often income proofs are due: every 30 days (`MONTHLY`) or every 90
+        days (`QUARTERLY`). A 14-day grace period follows a missed deadline.
+      enum: [MONTHLY, QUARTERLY]
+      default: MONTHLY
+    SocialLinks:
+      type: object
+      description: >-
+        Optional profile links, at most one per network. Every link is https
+        and on the network's own host; `website` can be any https address.
+      additionalProperties: false
+      maxProperties: 4
+      properties:
+        x:
+          type: string
+          maxLength: 200
+          pattern: ^https://(www\.)?(x|twitter)\.com/[A-Za-z0-9_]{1,15}/?$
+          example: https://x.com/mushaheed
+        github:
+          type: string
+          maxLength: 200
+          pattern: ^https://(www\.)?github\.com/[A-Za-z0-9][A-Za-z0-9-]{0,38}(/[A-Za-z0-9._-]{1,100})?/?$
+          example: https://github.com/mushaheed
+        linkedin:
+          type: string
+          maxLength: 200
+          pattern: ^https://([a-z]{2,3}\.)?linkedin\.com/(in|company)/[A-Za-z0-9_%-]{3,100}/?$
+          example: https://www.linkedin.com/in/mushaheed
+        website:
+          type: string
+          maxLength: 300
+          pattern: ^https://[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+(:[0-9]{1,5})?(/[^\s<>"'`\\]*)?$
+          example: https://mushaheed.dev
+    CreatorUpdate:
+      type: object
+      required: [id, body, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Plain text. Render it escaped.
+        link:
+          type: string
+          maxLength: 300
+          description: Optional https link.
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    CreateCreatorUpdateRequest:
+      type: object
+      required: [body]
+      additionalProperties: false
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Plain text, 1 to 1,000 characters.
+        link:
+          type: string
+          maxLength: 300
+          pattern: ^(https://\S+)?$
+          description: Optional https link. Blank means no link.
+    CreatorUpdatesPage:
+      type: object
+      required: [creator, items]
+      properties:
+        creator:
+          $ref: '#/components/schemas/CreatorRef'
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/CreatorUpdate'
+        nextPageCursor:
+          type: string
+          maxLength: 500
+          description: Pass as `cursor` for the next page. Absent on the last page.
     CheckWorldIdRequest:
       type: object
       required: [worldIdProof]
@@ -2010,14 +2927,53 @@ components:
           description: True when the proof came from the demo simulator.
     InvestRequest:
       type: object
-      required: [usdcAmount]
+      description: >-
+        Either `usdcAmount` (simulated chain mode) or the `txHash` of the
+        user's signed `invest` transaction (live mode). The server rejects a body
+        with neither.
       properties:
         usdcAmount:
           $ref: '#/components/schemas/Money'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+    CloseRaiseRequest:
+      type: object
+      description: >-
+        Live chain mode only: the `txHash` of the creator's signed `closeRaise`
+        transaction.
+      properties:
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+    CreatorChain:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [live, simulated]
+        chainId:
+          type: integer
+        rpcUrl:
+          type: string
+          maxLength: 300
+          description: Public RPC URL for browser reads.
+        isa:
+          $ref: '#/components/schemas/EvmAddress'
+        token:
+          $ref: '#/components/schemas/EvmAddress'
+        pool:
+          $ref: '#/components/schemas/EvmAddress'
+        usdc:
+          $ref: '#/components/schemas/EvmAddress'
     TradeRequest:
       type: object
-      required: [side, amountIn]
+      description: >-
+        Either `side` and `amountIn` (simulated chain mode) or the `txHash` of
+        the user's signed swap transaction (live mode). The server rejects a body
+        with neither.
       properties:
+        txHash:
+          $ref: '#/components/schemas/TxHash'
         side:
           type: string
           enum: [BUY, SELL]

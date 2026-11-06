@@ -1,13 +1,15 @@
 import { escapeHtml } from '@kitajs/html'
-import { APP_NAME, BASE_PATH } from '../consts.ts'
+import { APP_NAME, assetUrl, BASE_PATH } from '../consts.ts'
 import { shortHex } from '../utils/money.ts'
+import { WatchlistPanel, WatchlistTrigger } from './instrument/Watchlist.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Icon, type IconName } from './Icon.tsx'
 import { navLink } from './nav-swap.ts'
 import { KeyExportDialog, WalletConnectDialog } from './WalletDialogs.tsx'
 
 /** The primary tab a page belongs to, set through `Layout`'s `nav` prop. */
-export type NavKey = 'exchange' | 'creators' | 'activity' | 'hub' | 'launch'
+export type NavKey = 'exchange' | 'creators' | 'activity'
+	| 'portfolio' | 'hub' | 'launch'
 
 type NavItem = {
 	key: NavKey
@@ -31,6 +33,13 @@ const NAV_ITEMS: NavItem[] = [
 		label: 'Activity',
 		href: `${BASE_PATH}activity`,
 		icon: 'activity',
+	},
+	{
+		key: 'portfolio',
+		label: 'Portfolio',
+		href: `${BASE_PATH}portfolio`,
+		icon: 'card',
+		auth: true,
 	},
 	{
 		key: 'hub',
@@ -84,11 +93,12 @@ export function Header({ viewer, nav }: HeaderProps) {
 				<a
 					class='rc-app-bar__brand'
 					{...navLink(BASE_PATH)}>
-					<span
+					<img
 						class='smx-brand-mark'
-						aria-hidden='true'>
-						SMX
-					</span>
+						src={assetUrl('logo-64.webp')}
+						alt=''
+						width='32'
+						height='30' />
 					<span class='smx-wordmark'>
 						{escapeHtml(`${APP_NAME} (SMX)`)}
 					</span>
@@ -125,6 +135,7 @@ export function Header({ viewer, nav }: HeaderProps) {
 							<Icon name='sun' />
 						</span>
 					</button>
+					{!!viewer && <WatchlistTrigger />}
 					<a
 						class='rc-button'
 						data-variant='primary'
@@ -148,6 +159,7 @@ export function Header({ viewer, nav }: HeaderProps) {
 				</div>
 			</header>
 			{!viewer && <WalletConnectDialog />}
+			{!!viewer && <WatchlistPanel items={[]} />}
 			<KeyExportDialog />
 			<nav
 				class='rc-bottom-tabs'

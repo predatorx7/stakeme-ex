@@ -1,10 +1,12 @@
 /// <reference lib="dom" />
 import { showToast } from '@reclaimprotocol/design/behaviors'
 import {
+	type Chain,
 	createWalletClient,
 	custom,
 	type EIP1193Provider,
 	type Hex,
+	http,
 	type WalletClient,
 } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
@@ -52,6 +54,11 @@ type Wallet = {
 	kind: WalletKind
 	/** Shown in the header, for example "1inch Wallet" or "Local wallet". */
 	label: string
+	/**
+	 * A viem client that signs and sends transactions as this wallet: locally
+	 * for a local key, through the wallet for an injected or WalletConnect one.
+	 */
+	txClient: (chain: Chain, rpcUrl: string) => WalletClient
 }
 
 declare global {
@@ -61,11 +68,20 @@ declare global {
 			connect: (
 				opts?: { burner?: boolean, kind?: WalletKind },
 			) => Promise<Wallet>
+			/** The signed-in address from this browser, if any. */
+			address: () => `0x${string}` | undefined
+			/** Reconnects the wallet used to sign in (for user-signed txs). */
+			current: () => Promise<Wallet>
 		}
 	}
 }
 
-window.smxWallet = { connect: connectWallet }
+window.smxWallet = {
+	connect: connectWallet,
+	// Cast: the stored value is the address the SIWE sign-in verified.
+	address: () => (readStorage(ADDRESS_KEY) ?? undefined) as Hex | undefined,
+	current: currentWallet,
+}
 
 /** The button that opened the dialog: carries the redirect and domain. */
 let pending: HTMLElement | undefined
@@ -379,7 +395,34 @@ async function connectWallet(
 		kind: 'burner',
 		label: readStorage(IMPORTED_KEY) ? 'Imported key' : 'Local wallet',
 		sign: (message) => account.signMessage({ message }),
+		txClient: (chain, rpcUrl) => createWalletClient({
+			account,
+			chain,
+			transport: http(rpcUrl),
+		}),
 	}
+}
+
+/**
+ * Reconnects the wallet kind that signed in, and checks it is still the
+ * signed-in account (the user may have switched accounts in the wallet).
+ */
+async function currentWallet() {
+	const kind = readStorage(KIND_KEY) as WalletKind | null
+	if(!kind) {
+		throw new Error('Connect a wallet first.')
+	}
+
+	const wallet = await connectWallet({ kind })
+	const signedIn = readStorage(ADDRESS_KEY)
+	if(signedIn && signedIn.toLowerCase() !== wallet.address.toLowerCase()) {
+		throw new Error(
+			`Switch your wallet back to ${signedIn.slice(0, 6)}…`
+			+ `${signedIn.slice(-4)}.`,
+		)
+	}
+
+	return wallet
 }
 
 /** Wraps any EIP-1193 provider (injected or WalletConnect) with viem. */
@@ -404,6 +447,11 @@ async function fromProvider(
 		kind,
 		label,
 		sign: (message) => client.signMessage({ account: address, message }),
+		txClient: (chain) => createWalletClient({
+			account: address,
+			chain,
+			transport: custom(provider),
+		}),
 	}
 }
 

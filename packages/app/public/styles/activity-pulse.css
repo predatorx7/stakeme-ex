@@ -1,0 +1,61 @@
+/* activity-pulse: new rows in [data-live-list] containers slide in with a
+   gold highlight; a sticky pill counts rows that arrived out of view. */
+
+[data-live-list] {
+	scroll-margin-top: 5rem;
+}
+
+[data-live-list] > .is-live-new {
+	animation:
+		smx-live-slide 300ms ease-out,
+		smx-live-highlight 1200ms ease-out;
+}
+
+@keyframes smx-live-slide {
+	from { opacity: 0; transform: translateY(-6px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes smx-live-highlight {
+	from { background-color: color-mix(in srgb, var(--smx-dw-gold, #b8860b) 22%, transparent); }
+	to { background-color: transparent; }
+}
+
+/* Zero-height sticky slot, so the pill never shifts the layout. */
+.smx-live-pill-slot {
+	block-size: 0;
+	inset-block-start: var(--rc-space-2, 0.5rem);
+	overflow: visible;
+	position: sticky;
+	text-align: center;
+	z-index: 5;
+}
+
+.smx-live-pill {
+	background: var(--smx-dw-gold, #b8860b);
+	border: 0;
+	border-radius: 999px;
+	color: #1a1200;
+	cursor: pointer;
+	font: inherit;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	padding: 0.25rem 0.75rem;
+	position: relative;
+}
+
+.smx-live-pill[hidden] {
+	display: none;
+}
+
+.smx-live-pill:focus-visible {
+	outline: 2px solid currentcolor;
+	outline-offset: 2px;
+}
+
+/* Reduced motion: no slide; the highlight holds, then steps off at the end. */
+@media (prefers-reduced-motion: reduce) {
+	[data-live-list] > .is-live-new {
+		animation: smx-live-highlight 1200ms steps(1, end);
+	}
+}

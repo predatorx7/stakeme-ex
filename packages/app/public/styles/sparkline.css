@@ -1,0 +1,16 @@
+/* 80x24 inline trend line; area fill is optional and faint. */
+.smx-spark {
+	block-size: 24px;
+	inline-size: 80px;
+	vertical-align: middle;
+}
+
+.smx-spark .smx-spark__area {
+	fill: currentcolor;
+	opacity: 0.08;
+	stroke: none;
+}
+
+.smx-watchlist .smx-spark {
+	inline-size: 64px;
+}

@@ -3,6 +3,10 @@ import { PreparedQuery } from '@pgtyped/runtime';
 
 export type chain_job_status = 'CONFIRMED' | 'FAILED' | 'QUEUED' | 'SENT' | 'SIMULATED';
 
+export type creator_status = 'COMPLETED' | 'DEFAULTED' | 'DRAFT' | 'GRACE' | 'LIVE';
+
+export type proof_cadence = 'MONTHLY' | 'QUARTERLY';
+
 export type reclaim_session_status = 'CANCELLED' | 'ERROR' | 'EXPIRED' | 'PENDING' | 'REJECTED' | 'SUCCESS';
 
 export type storage_upload_kind = 'AUDIT_LOG' | 'LISA_TERMS';
@@ -12,6 +16,8 @@ export type storage_upload_status = 'FAILED' | 'QUEUED' | 'SKIPPED' | 'UPLOADED'
 export type trade_side = 'BUY' | 'SELL';
 
 export type NumberOrString = number | string;
+
+export type numberArray = (number)[];
 
 /** 'ResolveViewerById' parameters type */
 export interface IResolveViewerByIdParams {
@@ -251,6 +257,73 @@ const listCreatorProofsIR: any = {"usedParamSet":{"ticker":true,"after_key":true
 export const listCreatorProofs = new PreparedQuery<IListCreatorProofsParams,IListCreatorProofsResult>(listCreatorProofsIR);
 
 
+/** 'ListCreatorUpdates' parameters type */
+export interface IListCreatorUpdatesParams {
+  after_id?: string | null | void;
+  after_key?: string | null | void;
+  limit: number;
+  ticker: string;
+}
+
+/** 'ListCreatorUpdates' return type */
+export interface IListCreatorUpdatesResult {
+  j: unknown | null;
+}
+
+/** 'ListCreatorUpdates' query type */
+export interface IListCreatorUpdatesQuery {
+  params: IListCreatorUpdatesParams;
+  result: IListCreatorUpdatesResult;
+}
+
+const listCreatorUpdatesIR: any = {"usedParamSet":{"ticker":true,"after_key":true,"after_id":true,"limit":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":133,"b":140}]},{"name":"after_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":143,"b":152}]},{"name":"after_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":155,"b":163}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":166,"b":172}]}],"statement":"-- One page of a creator's updates (404 for an unknown ticker).\n-- Route: ListCreatorUpdates.\nSELECT smx.creator_updates_page_json(\n\t:ticker!, :after_key, :after_id, :limit!::INTEGER\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One page of a creator's updates (404 for an unknown ticker).
+ * -- Route: ListCreatorUpdates.
+ * SELECT smx.creator_updates_page_json(
+ * 	:ticker!, :after_key, :after_id, :limit!::INTEGER
+ * ) AS j
+ * ```
+ */
+export const listCreatorUpdates = new PreparedQuery<IListCreatorUpdatesParams,IListCreatorUpdatesResult>(listCreatorUpdatesIR);
+
+
+/** 'CreateCreatorUpdate' parameters type */
+export interface ICreateCreatorUpdateParams {
+  body: string;
+  link?: string | null | void;
+  ticker: string;
+  viewer_id: string;
+}
+
+/** 'CreateCreatorUpdate' return type */
+export interface ICreateCreatorUpdateResult {
+  j: unknown | null;
+}
+
+/** 'CreateCreatorUpdate' query type */
+export interface ICreateCreatorUpdateQuery {
+  params: ICreateCreatorUpdateParams;
+  result: ICreateCreatorUpdateResult;
+}
+
+const createCreatorUpdateIR: any = {"usedParamSet":{"viewer_id":true,"ticker":true,"body":true,"link":true},"params":[{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":165,"b":175}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":178,"b":185}]},{"name":"body","required":true,"transform":{"type":"scalar"},"locs":[{"a":188,"b":193}]},{"name":"link","required":false,"transform":{"type":"scalar"},"locs":[{"a":196,"b":200}]}],"statement":"-- Owner-only post, 5 per rolling 24 hours; emits CREATOR_UPDATE.\n-- Route: CreateCreatorUpdate.\nSELECT smx.creator_update_json(u) AS j\nFROM smx.post_creator_update(:viewer_id!, :ticker!, :body!, :link) AS u"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Owner-only post, 5 per rolling 24 hours; emits CREATOR_UPDATE.
+ * -- Route: CreateCreatorUpdate.
+ * SELECT smx.creator_update_json(u) AS j
+ * FROM smx.post_creator_update(:viewer_id!, :ticker!, :body!, :link) AS u
+ * ```
+ */
+export const createCreatorUpdate = new PreparedQuery<ICreateCreatorUpdateParams,ICreateCreatorUpdateResult>(createCreatorUpdateIR);
+
+
 /** 'ListCreatorDividends' parameters type */
 export interface IListCreatorDividendsParams {
   after_id?: string | null | void;
@@ -349,6 +422,126 @@ const getCreatorPageIR: any = {"usedParamSet":{"ticker":true,"wallet":true},"par
 export const getCreatorPage = new PreparedQuery<IGetCreatorPageParams,IGetCreatorPageResult>(getCreatorPageIR);
 
 
+/** 'GetCreatorCandles' parameters type */
+export interface IGetCreatorCandlesParams {
+  interval: string;
+  ticker: string;
+}
+
+/** 'GetCreatorCandles' return type */
+export interface IGetCreatorCandlesResult {
+  j: unknown | null;
+}
+
+/** 'GetCreatorCandles' query type */
+export interface IGetCreatorCandlesQuery {
+  params: IGetCreatorCandlesParams;
+  result: IGetCreatorCandlesResult;
+}
+
+const getCreatorCandlesIR: any = {"usedParamSet":{"ticker":true,"interval":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":193,"b":200}]},{"name":"interval","required":true,"transform":{"type":"scalar"},"locs":[{"a":204,"b":213}]}],"statement":"-- OHLCV candles for one creator and chart interval (1H, 1D, 1W, ALL); raises\n-- 404 for an unknown ticker. Route: GetCreatorCandles.\nSELECT smx.creator_candles_json(\n\tsmx.creator_id_by_ticker(:ticker!), :interval!\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- OHLCV candles for one creator and chart interval (1H, 1D, 1W, ALL); raises
+ * -- 404 for an unknown ticker. Route: GetCreatorCandles.
+ * SELECT smx.creator_candles_json(
+ * 	smx.creator_id_by_ticker(:ticker!), :interval!
+ * ) AS j
+ * ```
+ */
+export const getCreatorCandles = new PreparedQuery<IGetCreatorCandlesParams,IGetCreatorCandlesResult>(getCreatorCandlesIR);
+
+
+/** 'GetWatchlist' parameters type */
+export interface IGetWatchlistParams {
+  viewer_id: string;
+}
+
+/** 'GetWatchlist' return type */
+export interface IGetWatchlistResult {
+  j: unknown | null;
+}
+
+/** 'GetWatchlist' query type */
+export interface IGetWatchlistQuery {
+  params: IGetWatchlistParams;
+  result: IGetWatchlistResult;
+}
+
+const getWatchlistIR: any = {"usedParamSet":{"viewer_id":true},"params":[{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":102,"b":112}]}],"statement":"-- The viewer's watchlist with each creator's summary. Route: GetWatchlist.\nSELECT smx.watchlist_json(:viewer_id!) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- The viewer's watchlist with each creator's summary. Route: GetWatchlist.
+ * SELECT smx.watchlist_json(:viewer_id!) AS j
+ * ```
+ */
+export const getWatchlist = new PreparedQuery<IGetWatchlistParams,IGetWatchlistResult>(getWatchlistIR);
+
+
+/** 'PutWatchlistItem' parameters type */
+export interface IPutWatchlistItemParams {
+  ticker: string;
+  viewer_id: string;
+}
+
+/** 'PutWatchlistItem' return type */
+export interface IPutWatchlistItemResult {
+  j: unknown | null;
+}
+
+/** 'PutWatchlistItem' query type */
+export interface IPutWatchlistItemQuery {
+  params: IPutWatchlistItemParams;
+  result: IPutWatchlistItemResult;
+}
+
+const putWatchlistItemIR: any = {"usedParamSet":{"viewer_id":true,"ticker":true},"params":[{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":111,"b":121}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":124,"b":131}]}],"statement":"-- Adds a creator to the viewer's watchlist (idempotent). Route:\n-- PutWatchlistItem.\nSELECT smx.watchlist_add(:viewer_id!, :ticker!) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Adds a creator to the viewer's watchlist (idempotent). Route:
+ * -- PutWatchlistItem.
+ * SELECT smx.watchlist_add(:viewer_id!, :ticker!) AS j
+ * ```
+ */
+export const putWatchlistItem = new PreparedQuery<IPutWatchlistItemParams,IPutWatchlistItemResult>(putWatchlistItemIR);
+
+
+/** 'DeleteWatchlistItem' parameters type */
+export interface IDeleteWatchlistItemParams {
+  ticker: string;
+  viewer_id: string;
+}
+
+/** 'DeleteWatchlistItem' return type */
+export interface IDeleteWatchlistItemResult {
+  removed: boolean | null;
+}
+
+/** 'DeleteWatchlistItem' query type */
+export interface IDeleteWatchlistItemQuery {
+  params: IDeleteWatchlistItemParams;
+  result: IDeleteWatchlistItemResult;
+}
+
+const deleteWatchlistItemIR: any = {"usedParamSet":{"viewer_id":true,"ticker":true},"params":[{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":122,"b":132}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":135,"b":142}]}],"statement":"-- Removes a creator from the viewer's watchlist (idempotent). Route:\n-- DeleteWatchlistItem.\nSELECT smx.watchlist_remove(:viewer_id!, :ticker!) AS removed"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Removes a creator from the viewer's watchlist (idempotent). Route:
+ * -- DeleteWatchlistItem.
+ * SELECT smx.watchlist_remove(:viewer_id!, :ticker!) AS removed
+ * ```
+ */
+export const deleteWatchlistItem = new PreparedQuery<IDeleteWatchlistItemParams,IDeleteWatchlistItemResult>(deleteWatchlistItemIR);
+
+
 /** 'GetCreatorHub' parameters type */
 export interface IGetCreatorHubParams {
   viewer_id: string;
@@ -415,7 +608,9 @@ export interface ILaunchIpoParams {
   headline: string;
   nullifier: string;
   owner: string;
+  proof_cadence: proof_cadence;
   share_bps: number;
+  social_links: unknown;
   stake_amount: string;
   target_raise: string;
   term_months: number;
@@ -423,6 +618,7 @@ export interface ILaunchIpoParams {
   terms_hash?: string | null | void;
   terms_ref?: string | null | void;
   ticker: string;
+  tranche_bps: numberArray;
   wallet: string;
 }
 
@@ -437,7 +633,7 @@ export interface ILaunchIpoQuery {
   result: ILaunchIpoResult;
 }
 
-const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":true,"display_name":true,"headline":true,"share_bps":true,"term_months":true,"target_raise":true,"stake_amount":true,"nullifier":true,"terms_ref":true,"terms_hash":true,"chain_id":true,"terms_document":true},"params":[{"name":"owner","required":true,"transform":{"type":"scalar"},"locs":[{"a":280,"b":286}]},{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":290,"b":297}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":301,"b":308}]},{"name":"display_name","required":true,"transform":{"type":"scalar"},"locs":[{"a":312,"b":325}]},{"name":"headline","required":true,"transform":{"type":"scalar"},"locs":[{"a":329,"b":338}]},{"name":"share_bps","required":true,"transform":{"type":"scalar"},"locs":[{"a":342,"b":352}]},{"name":"term_months","required":true,"transform":{"type":"scalar"},"locs":[{"a":356,"b":368}]},{"name":"target_raise","required":true,"transform":{"type":"scalar"},"locs":[{"a":372,"b":385}]},{"name":"stake_amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":389,"b":402}]},{"name":"nullifier","required":true,"transform":{"type":"scalar"},"locs":[{"a":406,"b":416}]},{"name":"terms_ref","required":false,"transform":{"type":"scalar"},"locs":[{"a":420,"b":429}]},{"name":"terms_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":433,"b":443}]},{"name":"chain_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":447,"b":455}]},{"name":"terms_document","required":false,"transform":{"type":"scalar"},"locs":[{"a":459,"b":473}]}],"statement":"-- Creates the L-ISA in one statement (creator, tranches, pool, tick, event,\n-- chain jobs, 0G Storage upload) and returns the creator document. The terms\n-- ref is `local:<sha256>` until the worker uploads. Route: LaunchIpo.\nSELECT smx.creator_json(c) AS j\nFROM smx.launch_ipo(\n\t:owner!,\n\t:wallet!,\n\t:ticker!,\n\t:display_name!,\n\t:headline!,\n\t:share_bps!,\n\t:term_months!,\n\t:target_raise!,\n\t:stake_amount!,\n\t:nullifier!,\n\t:terms_ref,\n\t:terms_hash,\n\t:chain_id,\n\t:terms_document::JSONB\n) AS c"};
+const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":true,"display_name":true,"headline":true,"share_bps":true,"term_months":true,"target_raise":true,"stake_amount":true,"nullifier":true,"terms_ref":true,"terms_hash":true,"chain_id":true,"terms_document":true,"tranche_bps":true,"proof_cadence":true,"social_links":true},"params":[{"name":"owner","required":true,"transform":{"type":"scalar"},"locs":[{"a":280,"b":286}]},{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":290,"b":297}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":301,"b":308}]},{"name":"display_name","required":true,"transform":{"type":"scalar"},"locs":[{"a":312,"b":325}]},{"name":"headline","required":true,"transform":{"type":"scalar"},"locs":[{"a":329,"b":338}]},{"name":"share_bps","required":true,"transform":{"type":"scalar"},"locs":[{"a":342,"b":352}]},{"name":"term_months","required":true,"transform":{"type":"scalar"},"locs":[{"a":356,"b":368}]},{"name":"target_raise","required":true,"transform":{"type":"scalar"},"locs":[{"a":372,"b":385}]},{"name":"stake_amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":389,"b":402}]},{"name":"nullifier","required":true,"transform":{"type":"scalar"},"locs":[{"a":406,"b":416}]},{"name":"terms_ref","required":false,"transform":{"type":"scalar"},"locs":[{"a":420,"b":429}]},{"name":"terms_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":433,"b":443}]},{"name":"chain_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":447,"b":455}]},{"name":"terms_document","required":false,"transform":{"type":"scalar"},"locs":[{"a":459,"b":473}]},{"name":"tranche_bps","required":true,"transform":{"type":"scalar"},"locs":[{"a":484,"b":496}]},{"name":"proof_cadence","required":true,"transform":{"type":"scalar"},"locs":[{"a":511,"b":525}]},{"name":"social_links","required":true,"transform":{"type":"scalar"},"locs":[{"a":548,"b":561}]}],"statement":"-- Creates the L-ISA in one statement (creator, tranches, pool, tick, event,\n-- chain jobs, 0G Storage upload) and returns the creator document. The terms\n-- ref is `local:<sha256>` until the worker uploads. Route: LaunchIpo.\nSELECT smx.creator_json(c) AS j\nFROM smx.launch_ipo(\n\t:owner!,\n\t:wallet!,\n\t:ticker!,\n\t:display_name!,\n\t:headline!,\n\t:share_bps!,\n\t:term_months!,\n\t:target_raise!,\n\t:stake_amount!,\n\t:nullifier!,\n\t:terms_ref,\n\t:terms_hash,\n\t:chain_id,\n\t:terms_document::JSONB,\n\t:tranche_bps!::INTEGER[],\n\t:proof_cadence!::smx.proof_cadence,\n\t:social_links!::JSONB\n) AS c"};
 
 /**
  * Query generated from SQL:
@@ -460,7 +656,10 @@ const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":tr
  * 	:terms_ref,
  * 	:terms_hash,
  * 	:chain_id,
- * 	:terms_document::JSONB
+ * 	:terms_document::JSONB,
+ * 	:tranche_bps!::INTEGER[],
+ * 	:proof_cadence!::smx.proof_cadence,
+ * 	:social_links!::JSONB
  * ) AS c
  * ```
  */
@@ -498,6 +697,36 @@ const investIR: any = {"usedParamSet":{"ticker":true,"wallet":true,"usdc_amount"
  * ```
  */
 export const invest = new PreparedQuery<IInvestParams,IInvestResult>(investIR);
+
+
+/** 'CloseRaise' parameters type */
+export interface ICloseRaiseParams {
+  ticker: string;
+  viewer_id?: string | null | void;
+}
+
+/** 'CloseRaise' return type */
+export interface ICloseRaiseResult {
+  id: string | null;
+}
+
+/** 'CloseRaise' query type */
+export interface ICloseRaiseQuery {
+  params: ICloseRaiseParams;
+  result: ICloseRaiseResult;
+}
+
+const closeRaiseIR: any = {"usedParamSet":{"ticker":true,"viewer_id":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":129,"b":136}]},{"name":"viewer_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":140,"b":149}]}],"statement":"-- Creator ends the raise early; releases tranche 0 and opens trading.\nSELECT c.id\nFROM smx.close_raise(smx.creator_id_by_ticker(:ticker!), :viewer_id) AS c"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Creator ends the raise early; releases tranche 0 and opens trading.
+ * SELECT c.id
+ * FROM smx.close_raise(smx.creator_id_by_ticker(:ticker!), :viewer_id) AS c
+ * ```
+ */
+export const closeRaise = new PreparedQuery<ICloseRaiseParams,ICloseRaiseResult>(closeRaiseIR);
 
 
 /** 'Trade' parameters type */
@@ -587,6 +816,7 @@ export interface ISubmitIncomeProofResult {
   id: string;
   min_income: string;
   period: number;
+  proof_cadence: proof_cadence;
   share_bps: number;
   terms_hash: string | null;
   terms_ref: string | null;
@@ -599,7 +829,7 @@ export interface ISubmitIncomeProofQuery {
   result: ISubmitIncomeProofResult;
 }
 
-const submitIncomeProofIR: any = {"usedParamSet":{"creator_id":true,"provider":true,"reclaim_proof_id":true,"amount":true,"raw":true,"reclaim_session_id":true},"params":[{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":324,"b":335}]},{"name":"provider","required":true,"transform":{"type":"scalar"},"locs":[{"a":345,"b":354}]},{"name":"reclaim_proof_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":358,"b":375}]},{"name":"amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":379,"b":386}]},{"name":"raw","required":false,"transform":{"type":"scalar"},"locs":[{"a":399,"b":402}]},{"name":"reclaim_session_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":420,"b":438}]}],"statement":"-- Stores a verified Reclaim proof as PENDING and returns what the auditor\n-- needs. Routes: AuditMilestone, ReclaimCallback.\nSELECT\n\tp.id AS \"id!\",\n\tp.period AS \"period!\",\n\tc.ticker AS \"ticker!\",\n\tc.share_bps AS \"share_bps!\",\n\tc.min_income::TEXT AS \"min_income!\",\n\tc.terms_hash,\n\tc.terms_ref\nFROM smx.submit_income_proof(\n\t:creator_id!::UUID,\n\t:provider!,\n\t:reclaim_proof_id!,\n\t:amount!::NUMERIC,\n\t:raw::JSONB,\n\tNULL,\n\t:reclaim_session_id\n) AS p\nJOIN smx.creators c ON c.id = p.creator_id"};
+const submitIncomeProofIR: any = {"usedParamSet":{"creator_id":true,"provider":true,"reclaim_proof_id":true,"amount":true,"raw":true,"reclaim_session_id":true},"params":[{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":362,"b":373}]},{"name":"provider","required":true,"transform":{"type":"scalar"},"locs":[{"a":383,"b":392}]},{"name":"reclaim_proof_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":396,"b":413}]},{"name":"amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":417,"b":424}]},{"name":"raw","required":false,"transform":{"type":"scalar"},"locs":[{"a":437,"b":440}]},{"name":"reclaim_session_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":458,"b":476}]}],"statement":"-- Stores a verified Reclaim proof as PENDING and returns what the auditor\n-- needs. Routes: AuditMilestone, ReclaimCallback.\nSELECT\n\tp.id AS \"id!\",\n\tp.period AS \"period!\",\n\tc.ticker AS \"ticker!\",\n\tc.share_bps AS \"share_bps!\",\n\tc.min_income::TEXT AS \"min_income!\",\n\tc.terms_hash,\n\tc.terms_ref,\n\tc.proof_cadence AS \"proof_cadence!\"\nFROM smx.submit_income_proof(\n\t:creator_id!::UUID,\n\t:provider!,\n\t:reclaim_proof_id!,\n\t:amount!::NUMERIC,\n\t:raw::JSONB,\n\tNULL,\n\t:reclaim_session_id\n) AS p\nJOIN smx.creators c ON c.id = p.creator_id"};
 
 /**
  * Query generated from SQL:
@@ -613,7 +843,8 @@ const submitIncomeProofIR: any = {"usedParamSet":{"creator_id":true,"provider":t
  * 	c.share_bps AS "share_bps!",
  * 	c.min_income::TEXT AS "min_income!",
  * 	c.terms_hash,
- * 	c.terms_ref
+ * 	c.terms_ref,
+ * 	c.proof_cadence AS "proof_cadence!"
  * FROM smx.submit_income_proof(
  * 	:creator_id!::UUID,
  * 	:provider!,
@@ -693,6 +924,47 @@ const getReclaimSessionIR: any = {"usedParamSet":{"id":true},"params":[{"name":"
  * ```
  */
 export const getReclaimSession = new PreparedQuery<IGetReclaimSessionParams,IGetReclaimSessionResult>(getReclaimSessionIR);
+
+
+/** 'GetDemoProofQuota' parameters type */
+export interface IGetDemoProofQuotaParams {
+  creator_id: string;
+  viewer_id: string;
+}
+
+/** 'GetDemoProofQuota' return type */
+export interface IGetDemoProofQuotaResult {
+  is_owner: boolean;
+  recent: number;
+}
+
+/** 'GetDemoProofQuota' query type */
+export interface IGetDemoProofQuotaQuery {
+  params: IGetDemoProofQuotaParams;
+  result: IGetDemoProofQuotaResult;
+}
+
+const getDemoProofQuotaIR: any = {"usedParamSet":{"creator_id":true,"viewer_id":true},"params":[{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":223,"b":234},{"a":363,"b":374}]},{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":258,"b":268}]}],"statement":"-- Whether the viewer owns the creator, and how many demo proofs it got in the\n-- last hour (the per-creator cap protects the 0G credit). Route: AuditMilestone.\nSELECT\n\tEXISTS(\n\t\tSELECT 1 FROM smx.creators c\n\t\tWHERE c.id = :creator_id! AND c.owner_user_id = :viewer_id!\n\t) AS \"is_owner!\",\n\t(\n\t\tSELECT count(*)::INT FROM smx.income_proofs p\n\t\tWHERE p.creator_id = :creator_id!\n\t\t\tAND p.provider = 'demo'\n\t\t\tAND p.created_at > now() - interval '1 hour'\n\t) AS \"recent!\""};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Whether the viewer owns the creator, and how many demo proofs it got in the
+ * -- last hour (the per-creator cap protects the 0G credit). Route: AuditMilestone.
+ * SELECT
+ * 	EXISTS(
+ * 		SELECT 1 FROM smx.creators c
+ * 		WHERE c.id = :creator_id! AND c.owner_user_id = :viewer_id!
+ * 	) AS "is_owner!",
+ * 	(
+ * 		SELECT count(*)::INT FROM smx.income_proofs p
+ * 		WHERE p.creator_id = :creator_id!
+ * 			AND p.provider = 'demo'
+ * 			AND p.created_at > now() - interval '1 hour'
+ * 	) AS "recent!"
+ * ```
+ */
+export const getDemoProofQuota = new PreparedQuery<IGetDemoProofQuotaParams,IGetDemoProofQuotaResult>(getDemoProofQuotaIR);
 
 
 /** 'GetOwnedReclaimSession' parameters type */
@@ -1492,5 +1764,213 @@ const completeStorageUploadIR: any = {"usedParamSet":{"id":true,"status":true,"r
  * ```
  */
 export const completeStorageUpload = new PreparedQuery<ICompleteStorageUploadParams,ICompleteStorageUploadResult>(completeStorageUploadIR);
+
+
+/** 'GetPortfolio' parameters type */
+export interface IGetPortfolioParams {
+  user_id: string;
+  wallet?: string | null | void;
+}
+
+/** 'GetPortfolio' return type */
+export interface IGetPortfolioResult {
+  j: unknown | null;
+}
+
+/** 'GetPortfolio' query type */
+export interface IGetPortfolioQuery {
+  params: IGetPortfolioParams;
+  result: IGetPortfolioResult;
+}
+
+const getPortfolioIR: any = {"usedParamSet":{"wallet":true,"user_id":true},"params":[{"name":"wallet","required":false,"transform":{"type":"scalar"},"locs":[{"a":137,"b":143}]},{"name":"user_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":146,"b":154}]}],"statement":"-- A wallet's holdings, totals and dividends received, plus the user's own IPO.\n-- Route: GetPortfolio.\nSELECT smx.wallet_portfolio_json(:wallet, :user_id!) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- A wallet's holdings, totals and dividends received, plus the user's own IPO.
+ * -- Route: GetPortfolio.
+ * SELECT smx.wallet_portfolio_json(:wallet, :user_id!) AS j
+ * ```
+ */
+export const getPortfolio = new PreparedQuery<IGetPortfolioParams,IGetPortfolioResult>(getPortfolioIR);
+
+
+/** 'ListWalletTransactions' parameters type */
+export interface IListWalletTransactionsParams {
+  after_id?: string | null | void;
+  after_key?: string | null | void;
+  limit: number;
+  wallet: string;
+}
+
+/** 'ListWalletTransactions' return type */
+export interface IListWalletTransactionsResult {
+  j: unknown | null;
+}
+
+/** 'ListWalletTransactions' query type */
+export interface IListWalletTransactionsQuery {
+  params: IListWalletTransactionsParams;
+  result: IListWalletTransactionsResult;
+}
+
+const listWalletTransactionsIR: any = {"usedParamSet":{"wallet":true,"after_key":true,"after_id":true,"limit":true},"params":[{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":126,"b":133}]},{"name":"after_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":136,"b":145}]},{"name":"after_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":148,"b":156}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":159,"b":165}]}],"statement":"-- One page of a wallet's investments and trades, newest first.\n-- Route: GetPortfolio.\nSELECT smx.wallet_transactions_json(\n\t:wallet!, :after_key, :after_id, :limit!::INTEGER\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One page of a wallet's investments and trades, newest first.
+ * -- Route: GetPortfolio.
+ * SELECT smx.wallet_transactions_json(
+ * 	:wallet!, :after_key, :after_id, :limit!::INTEGER
+ * ) AS j
+ * ```
+ */
+export const listWalletTransactions = new PreparedQuery<IListWalletTransactionsParams,IListWalletTransactionsResult>(listWalletTransactionsIR);
+
+
+/** 'GetCreatorChain' parameters type */
+export interface IGetCreatorChainParams {
+  ticker: string;
+}
+
+/** 'GetCreatorChain' return type */
+export interface IGetCreatorChainResult {
+  contract_address: string | null;
+  id: string;
+  pool_address: string | null;
+  status: creator_status;
+  token_address: string | null;
+}
+
+/** 'GetCreatorChain' query type */
+export interface IGetCreatorChainQuery {
+  params: IGetCreatorChainParams;
+  result: IGetCreatorChainResult;
+}
+
+const getCreatorChainIR: any = {"usedParamSet":{"ticker":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":221,"b":228}]}],"statement":"-- Onchain addresses of a creator (no row for an unknown ticker).\n-- Routes: Trade, Invest, GetCreatorChain.\nSELECT c.id, c.status, c.contract_address, c.token_address, c.pool_address\nFROM smx.creators c\nWHERE c.ticker = :ticker!"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Onchain addresses of a creator (no row for an unknown ticker).
+ * -- Routes: Trade, Invest, GetCreatorChain.
+ * SELECT c.id, c.status, c.contract_address, c.token_address, c.pool_address
+ * FROM smx.creators c
+ * WHERE c.ticker = :ticker!
+ * ```
+ */
+export const getCreatorChain = new PreparedQuery<IGetCreatorChainParams,IGetCreatorChainResult>(getCreatorChainIR);
+
+
+/** 'SetChainJobPool' parameters type */
+export interface ISetChainJobPoolParams {
+  job_id: string;
+  pool: string;
+}
+
+/** 'SetChainJobPool' return type */
+export interface ISetChainJobPoolResult {
+  id: string | null;
+}
+
+/** 'SetChainJobPool' query type */
+export interface ISetChainJobPoolQuery {
+  params: ISetChainJobPoolParams;
+  result: ISetChainJobPoolResult;
+}
+
+const setChainJobPoolIR: any = {"usedParamSet":{"job_id":true,"pool":true},"params":[{"name":"job_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":91,"b":98}]},{"name":"pool","required":true,"transform":{"type":"scalar"},"locs":[{"a":101,"b":106}]}],"statement":"-- Stores the pool a settled createISA job deployed. Worker.\nSELECT smx.set_chain_job_pool(:job_id!, :pool!) AS id"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Stores the pool a settled createISA job deployed. Worker.
+ * SELECT smx.set_chain_job_pool(:job_id!, :pool!) AS id
+ * ```
+ */
+export const setChainJobPool = new PreparedQuery<ISetChainJobPoolParams,ISetChainJobPoolResult>(setChainJobPoolIR);
+
+
+/** 'IngestOnchainSwap' parameters type */
+export interface IIngestOnchainSwapParams {
+  creator_id: string;
+  token_in: NumberOrString;
+  token_out: NumberOrString;
+  token_reserve: NumberOrString;
+  trader: string;
+  tx_hash: string;
+  usdc_in: NumberOrString;
+  usdc_out: NumberOrString;
+  usdc_reserve: NumberOrString;
+}
+
+/** 'IngestOnchainSwap' return type */
+export interface IIngestOnchainSwapResult {
+  j: unknown | null;
+}
+
+/** 'IngestOnchainSwap' query type */
+export interface IIngestOnchainSwapQuery {
+  params: IIngestOnchainSwapParams;
+  result: IIngestOnchainSwapResult;
+}
+
+const ingestOnchainSwapIR: any = {"usedParamSet":{"creator_id":true,"trader":true,"tx_hash":true,"usdc_in":true,"token_in":true,"usdc_out":true,"token_out":true,"usdc_reserve":true,"token_reserve":true},"params":[{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":134,"b":145}]},{"name":"trader","required":true,"transform":{"type":"scalar"},"locs":[{"a":148,"b":155}]},{"name":"tx_hash","required":true,"transform":{"type":"scalar"},"locs":[{"a":158,"b":166}]},{"name":"usdc_in","required":true,"transform":{"type":"scalar"},"locs":[{"a":169,"b":177}]},{"name":"token_in","required":true,"transform":{"type":"scalar"},"locs":[{"a":189,"b":198}]},{"name":"usdc_out","required":true,"transform":{"type":"scalar"},"locs":[{"a":211,"b":220}]},{"name":"token_out","required":true,"transform":{"type":"scalar"},"locs":[{"a":232,"b":242}]},{"name":"usdc_reserve","required":true,"transform":{"type":"scalar"},"locs":[{"a":254,"b":267}]},{"name":"token_reserve","required":true,"transform":{"type":"scalar"},"locs":[{"a":280,"b":294}]}],"statement":"-- Records a verified CreatorPool Swap event (base units). Route: Trade.\nSELECT smx.trade_json(t) AS j\nFROM smx.ingest_onchain_swap(\n\t:creator_id!, :trader!, :tx_hash!, :usdc_in!::NUMERIC, :token_in!::NUMERIC,\n\t:usdc_out!::NUMERIC, :token_out!::NUMERIC, :usdc_reserve!::NUMERIC,\n\t:token_reserve!::NUMERIC\n) AS t"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Records a verified CreatorPool Swap event (base units). Route: Trade.
+ * SELECT smx.trade_json(t) AS j
+ * FROM smx.ingest_onchain_swap(
+ * 	:creator_id!, :trader!, :tx_hash!, :usdc_in!::NUMERIC, :token_in!::NUMERIC,
+ * 	:usdc_out!::NUMERIC, :token_out!::NUMERIC, :usdc_reserve!::NUMERIC,
+ * 	:token_reserve!::NUMERIC
+ * ) AS t
+ * ```
+ */
+export const ingestOnchainSwap = new PreparedQuery<IIngestOnchainSwapParams,IIngestOnchainSwapResult>(ingestOnchainSwapIR);
+
+
+/** 'IngestOnchainInvest' parameters type */
+export interface IIngestOnchainInvestParams {
+  creator_id: string;
+  investor: string;
+  pool_tokens?: NumberOrString | null | void;
+  pool_usdc?: NumberOrString | null | void;
+  raise_closed: boolean;
+  shares: NumberOrString;
+  tx_hash: string;
+  usdc: NumberOrString;
+}
+
+/** 'IngestOnchainInvest' return type */
+export interface IIngestOnchainInvestResult {
+  j: unknown | null;
+}
+
+/** 'IngestOnchainInvest' query type */
+export interface IIngestOnchainInvestQuery {
+  params: IIngestOnchainInvestParams;
+  result: IIngestOnchainInvestResult;
+}
+
+const ingestOnchainInvestIR: any = {"usedParamSet":{"creator_id":true,"investor":true,"tx_hash":true,"usdc":true,"shares":true,"raise_closed":true,"pool_usdc":true,"pool_tokens":true},"params":[{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":144,"b":155}]},{"name":"investor","required":true,"transform":{"type":"scalar"},"locs":[{"a":158,"b":167}]},{"name":"tx_hash","required":true,"transform":{"type":"scalar"},"locs":[{"a":170,"b":178}]},{"name":"usdc","required":true,"transform":{"type":"scalar"},"locs":[{"a":181,"b":186}]},{"name":"shares","required":true,"transform":{"type":"scalar"},"locs":[{"a":198,"b":205}]},{"name":"raise_closed","required":true,"transform":{"type":"scalar"},"locs":[{"a":218,"b":231}]},{"name":"pool_usdc","required":false,"transform":{"type":"scalar"},"locs":[{"a":243,"b":252}]},{"name":"pool_tokens","required":false,"transform":{"type":"scalar"},"locs":[{"a":264,"b":275}]}],"statement":"-- Records a verified LiquidISA Invested event (base units). Route: Invest.\nSELECT smx.investment_json(i) AS j\nFROM smx.ingest_onchain_invest(\n\t:creator_id!, :investor!, :tx_hash!, :usdc!::NUMERIC, :shares!::NUMERIC,\n\t:raise_closed!::BOOLEAN, :pool_usdc::NUMERIC, :pool_tokens::NUMERIC\n) AS i"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Records a verified LiquidISA Invested event (base units). Route: Invest.
+ * SELECT smx.investment_json(i) AS j
+ * FROM smx.ingest_onchain_invest(
+ * 	:creator_id!, :investor!, :tx_hash!, :usdc!::NUMERIC, :shares!::NUMERIC,
+ * 	:raise_closed!::BOOLEAN, :pool_usdc::NUMERIC, :pool_tokens::NUMERIC
+ * ) AS i
+ * ```
+ */
+export const ingestOnchainInvest = new PreparedQuery<IIngestOnchainInvestParams,IIngestOnchainInvestResult>(ingestOnchainInvestIR);
 
 

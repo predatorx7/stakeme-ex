@@ -1,0 +1,158 @@
+/* proof-pipeline: three-step proof header (components/instrument/ProofPipeline.tsx). */
+.smx-pp {
+	--pp-gold: var(--smx-dw-gold, #b8860b);
+	--pp-red: var(--rc-color-status-danger, #d93a3a);
+	display: grid;
+	gap: var(--rc-space-3);
+	padding: var(--rc-space-3) var(--rc-space-4);
+	border: 1px solid var(--rc-color-border-subtle, rgb(128 128 128 / 0.25));
+	border-radius: var(--rc-radius-md, 8px);
+}
+
+.smx-pp__steps {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--rc-space-3);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.smx-pp__step {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--rc-space-2);
+	min-width: 0;
+	color: var(--rc-color-text-secondary);
+	transition: color 0.1s;
+}
+
+.smx-pp__step[data-state='active'],
+.smx-pp__step[data-state='done'] {
+	color: var(--rc-color-text-primary);
+}
+
+.smx-pp__step[data-state='denied'] {
+	color: var(--pp-red);
+}
+
+.smx-pp__mark {
+	flex: none;
+	inline-size: 1.25rem;
+	block-size: 1.25rem;
+	fill: none;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.smx-pp__ring {
+	stroke: currentcolor;
+	opacity: 0.35;
+}
+
+.smx-pp__tick,
+.smx-pp__cross {
+	stroke: var(--pp-gold);
+	stroke-dasharray: 1;
+	stroke-dashoffset: 1;
+}
+
+.smx-pp__cross {
+	stroke: var(--pp-red);
+}
+
+.smx-pp__step[data-state='done'] .smx-pp__ring {
+	stroke: var(--pp-gold);
+	opacity: 1;
+}
+
+.smx-pp__step[data-state='done'] .smx-pp__tick,
+.smx-pp__step[data-state='denied'] .smx-pp__cross {
+	stroke-dashoffset: 0;
+	transition: stroke-dashoffset 0.3s ease-out;
+}
+
+.smx-pp__step[data-state='denied'] .smx-pp__ring {
+	stroke: var(--pp-red);
+	opacity: 1;
+}
+
+.smx-pp__step[data-state='active'] .smx-pp__ring {
+	stroke: var(--pp-gold);
+	opacity: 1;
+	animation: pp-pulse 1.2s ease-in-out infinite;
+}
+
+.smx-pp__text {
+	display: grid;
+	gap: 0.125rem;
+	min-width: 0;
+	justify-items: start;
+}
+
+.smx-pp__text small {
+	color: var(--rc-color-text-secondary);
+	font-size: var(--rc-font-size-caption);
+}
+
+/* Step 2 swaps its title and shows the reason only when denied. */
+[data-pp-denied],
+.smx-pp__reason {
+	display: none;
+}
+
+.smx-pp__step[data-state='denied'] [data-pp-denied] {
+	display: block;
+}
+
+.smx-pp__step[data-state='denied'] [data-pp-ok] {
+	display: none;
+}
+
+.smx-pp__step[data-state='denied'] .smx-pp__reason:not(:empty) {
+	display: block;
+	color: var(--pp-red);
+}
+
+.smx-pp__amount {
+	margin: 0;
+	min-block-size: 1.5em;
+	color: var(--rc-color-text-secondary);
+	font-variant-numeric: tabular-nums;
+}
+
+.smx-pp__amount .smx-num {
+	color: var(--rc-color-text-primary);
+	font-variant-numeric: tabular-nums;
+}
+
+.smx-pp__sr {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+@keyframes pp-pulse {
+	50% { opacity: 0.35; }
+}
+
+@media (max-width: 40rem) {
+	.smx-pp__steps {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.smx-pp__step[data-state='done'] .smx-pp__tick,
+	.smx-pp__step[data-state='denied'] .smx-pp__cross {
+		transition: none;
+	}
+
+	.smx-pp__step[data-state='active'] .smx-pp__ring {
+		animation: none;
+	}
+}

@@ -14,5 +14,8 @@ export default function GetMockBank(req: ITypedExpressRequest<'GetMockBank'>) {
 		return
 	}
 
-	return <MockBankPage bank={buildStatement(session.holderName)} />
+	return (
+		<MockBankPage
+			bank={buildStatement(session.holderName, session.scenario)} />
+	)
 }

@@ -8,7 +8,7 @@ Solidity contracts for StakeMe Exchange (SMX), built with Hardhat 3, viem and
 
 ## Layout
 
-- `contracts/`: `MockUSDC`, `CreatorShareToken`, `LiquidISA`, `LiquidISAFactory`. The ISA and token are EIP-1167 clones: `initialize(...)` replaces constructors, no `immutable` config, implementations call `_disableInitializers()`.
+- `contracts/`: `MockUSDC` (open `mint`, capped `faucet`), `CreatorShareToken`, `LiquidISA`, `LiquidISAFactory`, `CreatorPool` (constant-product AMM, seeded by the ISA when the raise closes with protocol-provided demo liquidity; pool tokens are excluded from dividend/refund denominators). The ISA, token and pool are EIP-1167 clones: `initialize(...)` replaces constructors, no `immutable` config, implementations call `_disableInitializers()`.
 - `test/`: TypeScript `node:test` tests (core logic only).
 - `ignition/modules/Deploy.ts`: Ignition deploy for local, Sepolia and 0G.
 - `scripts/deploy-hedera.ts`: viem deploy for Hedera (explicit gas = estimate + 20%), writes `deployments/hedera-testnet.json` and the root `.env`.

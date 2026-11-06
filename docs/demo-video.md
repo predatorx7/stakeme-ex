@@ -161,8 +161,11 @@ voiceover, and the proof that a sponsor integration is real.
 
   ```sh
   curl -s -X POST http://localhost:4020/api/trigger-default \
-    -H 'content-type: application/json' -d '{"ticker":"RAHUL"}'
+    -H 'content-type: application/json' \
+    -H "X-Admin-Key: $SMX_ADMIN_KEY" -d '{"ticker":"RAHUL"}'
   ```
+
+  Requires `DEMO_MODE=1` and `SMX_ADMIN_KEY` set on the server; otherwise it returns `403`.
 
   The page reloads over SSE. A danger notice reports the default and the
   status badge reads Defaulted.

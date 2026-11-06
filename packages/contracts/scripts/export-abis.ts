@@ -8,6 +8,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const names = [
 	'LiquidISA',
 	'LiquidISAFactory',
+	'CreatorPool',
 	'CreatorShareToken',
 	'MockUSDC',
 ] as const

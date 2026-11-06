@@ -7,7 +7,9 @@ import { runIncomeAudit } from '../utils/income-audit.ts'
 export default async function AuditMilestone(
 	req: ITypedExpressRequest<'AuditMilestone'>,
 ) {
-	const out = await runIncomeAudit(req.pg, req.body)
+	const out = await runIncomeAudit(req.pg, req.body, {
+		demoViewerId: req.authMetadata?.id,
+	})
 	assert(
 		out.kind === 'audited' || out.kind === 'unavailable',
 		conflict('Session already finished'),

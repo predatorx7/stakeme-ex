@@ -1,0 +1,50 @@
+/* countdown: proof-due pill (see src/client/countdown.ts). */
+
+.proof-countdown {
+	--pc-fg: var(--rc-color-text-secondary, currentColor);
+	--pc-bg: var(--rc-color-surface-subtle, rgb(128 128 128 / 0.1));
+	display: inline-flex;
+	align-items: center;
+	padding: 0.2em 0.7em;
+	border-radius: 999px;
+	font-size: 0.8125rem;
+	line-height: 1.4;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	color: var(--pc-fg);
+	background: var(--pc-bg);
+}
+
+.proof-countdown[data-tone='warn'] {
+	--pc-fg: var(--rc-color-status-warning-text, #92400e);
+	--pc-bg: rgb(245 158 11 / 0.16);
+}
+
+.proof-countdown[data-tone='danger'] {
+	--pc-fg: var(--rc-color-status-danger-text, #b42318);
+	--pc-bg: rgb(217 58 58 / 0.14);
+}
+
+:root[data-theme='dark'] .proof-countdown[data-tone='warn'] {
+	--pc-fg: #ffc857;
+}
+
+:root[data-theme='dark'] .proof-countdown[data-tone='danger'] {
+	--pc-fg: #ff8a8a;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) .proof-countdown[data-tone='warn'] {
+		--pc-fg: #ffc857;
+	}
+
+	:root:not([data-theme='light']) .proof-countdown[data-tone='danger'] {
+		--pc-fg: #ff8a8a;
+	}
+}
+
+@media (max-width: 480px) {
+	.proof-countdown {
+		white-space: normal;
+	}
+}

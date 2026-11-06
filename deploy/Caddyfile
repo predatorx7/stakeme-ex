@@ -2,6 +2,23 @@
 {$SMX_DOMAIN} {
 	encode zstd gzip
 
+	# Cap request bodies (app JSON/urlencoded parsers allow 4mb).
+	request_body {
+		max_size 4MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "SAMEORIGIN"
+		-Server
+		-X-Powered-By
+		# Report-Only: the page uses inline scripts/styles and several wallet and
+		# identity SDK endpoints; enforce only after the report log is clean.
+		Content-Security-Policy-Report-Only `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https://www.gravatar.com https://secure.gravatar.com https:; font-src 'self' data: https:; connect-src 'self' https: wss:; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com https://id.worldcoin.org https://worldcoin.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'`
+	}
+
 	# Server-Sent Events (/events) must not be buffered.
 	reverse_proxy app:4020 {
 		flush_interval -1

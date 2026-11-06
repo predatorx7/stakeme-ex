@@ -20,8 +20,13 @@ contract CreatorShareToken is ERC20, Initializable {
 	mapping(address => int256) internal magnifiedDividendCorrections;
 	mapping(address => uint256) public withdrawnDividends;
 
+	/// @notice The AMM pool. Its balance is excluded from the dividend and refund
+	/// denominator (`circulatingSupply`), so holders get the full amount.
+	address public excluded;
+
 	error NotOwner();
 	error NoShares();
+	error AlreadyExcluded();
 
 	/// @dev Locks the implementation; clones are set up through `initialize`.
 	constructor() ERC20("", "") {
@@ -51,9 +56,20 @@ contract CreatorShareToken is ERC20, Initializable {
 		_mint(to, amount);
 	}
 
+	/// @notice Marks the pool whose tokens don't earn dividends or refunds. Once.
+	function setExcluded(address pool) external onlyOwner {
+		if (excluded != address(0)) revert AlreadyExcluded();
+		excluded = pool;
+	}
+
+	/// @notice Supply held outside the pool.
+	function circulatingSupply() public view returns (uint256) {
+		return totalSupply() - balanceOf(excluded);
+	}
+
 	/// @notice Adds `amount` of dividends to the accumulator. O(1).
 	function accrue(uint256 amount) external onlyOwner {
-		uint256 supply = totalSupply();
+		uint256 supply = circulatingSupply();
 		if (supply == 0) revert NoShares();
 		magnifiedDividendPerShare += (amount * MAGNITUDE) / supply;
 	}
@@ -65,6 +81,7 @@ contract CreatorShareToken is ERC20, Initializable {
 	}
 
 	function accumulativeDividendOf(address holder) public view returns (uint256) {
+		if (holder == excluded) return 0; // pool tokens earn nothing
 		int256 total = int256(magnifiedDividendPerShare * balanceOf(holder)) + magnifiedDividendCorrections[holder];
 		return uint256(total) / MAGNITUDE;
 	}

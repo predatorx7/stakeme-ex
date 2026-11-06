@@ -27,6 +27,7 @@ import {
 } from '../src/integrations/world-id.ts'
 import { LOGGER } from '../src/logger.ts'
 import {
+	closeRaise,
 	getCreatorIdByTicker,
 	invest,
 	launchIpo,
@@ -321,6 +322,9 @@ async function seedCreator(c: Creator, index: number) {
 			pg,
 		)
 	}
+
+	// Closing the raise releases tranche 0 and opens trading.
+	await closeRaise.run({ ticker: c.ticker, viewer_id: null }, pg)
 
 	if(c.proof) {
 		const [row] = await getCreatorIdByTicker.run({ ticker: c.ticker }, pg)

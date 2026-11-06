@@ -164,8 +164,11 @@ To demo the sad path, liquidate the overdue creator:
 
 ```bash
 curl -X POST localhost:4020/api/trigger-default \
-	-H 'Content-Type: application/json' -d '{"ticker":"RAHUL"}'
+	-H 'Content-Type: application/json' \
+	-H "X-Admin-Key: $SMX_ADMIN_KEY" -d '{"ticker":"RAHUL"}'
 ```
+
+Requires `DEMO_MODE=1` and `SMX_ADMIN_KEY` set on the server; otherwise it returns `403`.
 
 To use real Postgres (with `pg_cron`), run `npm run db:up` (host port 5442) and
 stop it with `npm run db:down`.

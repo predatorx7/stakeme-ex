@@ -1,0 +1,66 @@
+/* Creator page: main column plus a sticky order column on desktop. */
+.smx-creator-side {
+	align-self: start;
+	inset-block-start: calc(var(--rc-app-bar-height, 4rem) + var(--rc-space-3));
+	max-block-size: calc(100dvh - var(--rc-app-bar-height, 4rem) - var(--rc-space-4));
+	overflow-y: auto;
+	position: sticky;
+}
+
+.smx-creator-side > * {
+	min-inline-size: 0;
+}
+
+.smx-chart {
+	display: grid;
+	gap: var(--rc-space-2);
+	min-inline-size: 0;
+}
+
+@media (max-width: 56.25rem) {
+	.smx-creator-side {
+		max-block-size: none;
+		overflow: visible;
+		position: static;
+	}
+
+	/* One column: header and quote, then the order column, then the rest
+	   (chart, depth, history, events). */
+	.smx-layout > .smx-creator-main {
+		display: contents;
+	}
+
+	.smx-creator-main > #creator-top {
+		order: 1;
+	}
+
+	.smx-layout > .smx-creator-side {
+		order: 2;
+	}
+
+	.smx-creator-main > #smx-chart {
+		order: 3;
+	}
+
+	.smx-creator-main > #creator-live {
+		order: 4;
+	}
+
+	.smx-creator-main > :not(#creator-top, #smx-chart, #creator-live) {
+		order: 5;
+	}
+}
+
+/* Keep wide ladders inside their card. */
+.depth-ladder {
+	overflow-x: auto;
+}
+
+/* The main column is narrow beside the order column: stack sell over buy. */
+.smx-layout .depth-ladder {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.smx-chart-slot {
+	min-inline-size: 0;
+}

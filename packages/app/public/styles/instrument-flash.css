@@ -1,0 +1,65 @@
+/* instrument-flash: instrument view (see docs/instrument-view.md). */
+
+[data-price-flash] {
+	--flash-up: var(--rc-color-status-success, #1a9d5c);
+	--flash-down: var(--rc-color-status-danger, #d93a3a);
+	border-radius: 4px;
+}
+
+[data-price-flash].is-flash-up,
+[data-price-flash].is-flash-down {
+	animation: price-flash 600ms ease-out;
+}
+
+[data-price-flash].is-flash-up {
+	--flash: var(--flash-up);
+}
+
+[data-price-flash].is-flash-down {
+	--flash: var(--flash-down);
+}
+
+[data-price-flash].is-flash-up::after,
+[data-price-flash].is-flash-down::after {
+	display: inline-block;
+	margin-inline-start: 0.25em;
+	font-size: 0.7em;
+	color: var(--flash);
+	animation: price-glyph 600ms ease-out;
+}
+
+[data-price-flash].is-flash-up::after {
+	content: '\25B2';
+}
+
+[data-price-flash].is-flash-down::after {
+	content: '\25BC';
+}
+
+@keyframes price-flash {
+	from { background-color: color-mix(in srgb, var(--flash) 35%, transparent); }
+	to { background-color: transparent; }
+}
+
+@keyframes price-glyph {
+	from { transform: translateY(var(--nudge, 0.3em)); opacity: 0; }
+	40% { opacity: 1; }
+	to { transform: translateY(0); opacity: 1; }
+}
+
+[data-price-flash].is-flash-up::after { --nudge: 0.3em; }
+[data-price-flash].is-flash-down::after { --nudge: -0.3em; }
+
+/* Reduced motion: a plain tint for the flash window, no movement. */
+@media (prefers-reduced-motion: reduce) {
+	[data-price-flash].is-flash-up,
+	[data-price-flash].is-flash-down {
+		animation: none;
+		background-color: color-mix(in srgb, var(--flash) 25%, transparent);
+	}
+
+	[data-price-flash].is-flash-up::after,
+	[data-price-flash].is-flash-down::after {
+		animation: none;
+	}
+}

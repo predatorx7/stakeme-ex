@@ -205,7 +205,7 @@ Pages render HTML; the same handler returns JSON by content negotiation.
 | `GET /reclaim/sessions/{sessionId}` | `GetReclaimSessionStatus` | Polling fallback for the proof status. |
 | `POST /reclaim/callback` | `ReclaimCallback` | Reclaim posts the proof here. |
 | `POST /api/audit-milestone` | `AuditMilestone` | Accepts a Reclaim proof JSON, verifies, runs the 0G audit, calls `audit_income_proof`. |
-| `POST /api/trigger-default` | `TriggerDefault` | Demo only (`DEMO_MODE=1`): fast-forwards the deadline and liquidates. |
+| `POST /api/trigger-default` | `TriggerDefault` | Demo only (`DEMO_MODE=1` and an `X-Admin-Key` header equal to `SMX_ADMIN_KEY`; `403` otherwise): fast-forwards the deadline and liquidates. |
 | `POST /dividends/{dividendId}/payment-request` | `CreateDividendPaymentRequest` | Returns x402 payment requirements, one per holder, built from SQL. |
 | `POST /dividends/{dividendId}/payment` | `PayDividend` | Creator pays the dividend. An optional `paymentPayload` (the creator-signed transfer) is settled first. |
 | `GET /events` | `StreamEvents` | SSE stream of `oracle_events` via pgmb. |

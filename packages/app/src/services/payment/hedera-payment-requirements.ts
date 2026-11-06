@@ -13,8 +13,8 @@ import assert from 'node:assert'
  */
 
 export const X402_VERSION = 2
-/** Native tinybars per micro-USDC when paying in HBAR (1 USDC = 0.01 HBAR). */
-export const HBAR_TINYBARS_PER_MICRO = 1n
+const TINYBARS_PER_HBAR = 100_000_000n
+const MICRO_PER_USDC = 1_000_000n
 export const HBAR_ASSET = '0.0.0'
 
 export type PaySplit = { wallet: string, amount: string }
@@ -46,6 +46,12 @@ export type PaymentRequest = {
 	accepts: PaymentRequirement[]
 	/** Total in smallest units of `asset`. */
 	total: string
+	/** Dividend due in USD (USDC), decimal string. */
+	totalUsd: string
+	/** HBAR actually sent, decimal string; set when `asset` is HBAR. */
+	totalHbar?: string
+	/** Testnet conversion applied: HBAR per 1 USDC. */
+	hbarPerUsdc?: string
 	asset: string
 	network: string
 	dividendId: string
@@ -63,6 +69,11 @@ export type BuildRequirementsInput = {
 	asset: string
 	feePayer: string
 	maxTimeoutSeconds?: number
+	/**
+	 * HBAR per 1 USDC (decimal, up to 8 dp). Required for HBAR; ignored for
+	 * tokens, which pay 1:1.
+	 */
+	hbarPerUsdc?: string
 }
 
 /** Pure: decimal string (<= 6 dp) to micro units. */
@@ -77,6 +88,46 @@ export function toMicro(amount: string) {
 export function aliasAccount(wallet: string) {
 	assert(/^0x[0-9a-fA-F]{40}$/.test(wallet), badRequest('Bad holder wallet'))
 	return `0.0.${wallet.slice(2).toLowerCase()}`
+}
+
+/** Pure: HBAR-per-USDC decimal string to tinybars per 1 USDC. */
+export function parseHbarRate(rate: string) {
+	const match = /^(\d+)(?:\.(\d{1,8}))?$/.exec(rate.trim())
+	assert(match, badRequest(`Invalid HBAR rate "${rate}"`))
+	const tinybars = BigInt(match[1]) * TINYBARS_PER_HBAR
+		+ BigInt((match[2] ?? '').padEnd(8, '0'))
+	assert(tinybars > 0n, badRequest('HBAR rate must be positive'))
+	return tinybars
+}
+
+/** Pure: tinybars to an HBAR decimal string (trailing zeros trimmed). */
+export function formatHbar(tinybars: bigint) {
+	const whole = tinybars / TINYBARS_PER_HBAR
+	const frac = (tinybars % TINYBARS_PER_HBAR).toString().padStart(8, '0')
+		.replace(/0+$/, '')
+	return frac ? `${whole}.${frac}` : whole.toString()
+}
+
+/**
+ * Pure: converts per-holder micro-USDC to tinybars at `hbarPerUsdc`. The total
+ * is the rounded conversion of the whole dividend; each holder gets the floor
+ * of their share and the leftover tinybars go to the largest remainders, so
+ * the parts always sum exactly to the total.
+ */
+export function convertToTinybars(micro: bigint[], hbarPerUsdc: string) {
+	const rate = parseHbarRate(hbarPerUsdc)
+	const sum = micro.reduce((a, b) => a + b, 0n)
+	const total = (sum * rate + MICRO_PER_USDC / 2n) / MICRO_PER_USDC
+	const out = micro.map((m) => m * rate / MICRO_PER_USDC)
+	let left = total - out.reduce((a, b) => a + b, 0n)
+	const order = micro
+		.map((m, i) => ({ i, rem: m * rate % MICRO_PER_USDC }))
+		.sort((a, b) => (a.rem === b.rem ? a.i - b.i : a.rem > b.rem ? -1 : 1))
+	for(let k = 0; left > 0n; k = (k + 1) % order.length, left--) {
+		out[order[k].i]++
+	}
+
+	return out
 }
 
 /**
@@ -113,16 +164,25 @@ export function allocateSplits(amount: string, splits: PaySplit[]) {
 export function buildPaymentRequest(input: BuildRequirementsInput) {
 	const micro = allocateSplits(input.amount, input.splits)
 	const hbar = input.asset === HBAR_ASSET
-	const factor = hbar ? HBAR_TINYBARS_PER_MICRO : 1n
-	const accepts = input.splits.map((s, i): PaymentRequirement => ({
-		scheme: 'exact',
-		network: input.network,
-		asset: input.asset,
-		amount: (micro[i] * factor).toString(),
-		payTo: aliasAccount(s.wallet),
-		maxTimeoutSeconds: input.maxTimeoutSeconds ?? 120,
-		extra: { feePayer: input.feePayer, split: i, wallet: s.wallet },
-	}))
+	if(hbar) {
+		assert(input.hbarPerUsdc, badRequest('HBAR rate is required'))
+	}
+
+	const units = hbar ? convertToTinybars(micro, input.hbarPerUsdc!) : micro
+	// A holder whose share rounds to zero tinybars has nothing to receive.
+	const accepts = input.splits
+		.map((s, i): PaymentRequirement => ({
+			scheme: 'exact',
+			network: input.network,
+			asset: input.asset,
+			amount: units[i].toString(),
+			payTo: aliasAccount(s.wallet),
+			maxTimeoutSeconds: input.maxTimeoutSeconds ?? 120,
+			extra: { feePayer: input.feePayer, split: i, wallet: s.wallet },
+		}))
+		.filter((r) => BigInt(r.amount) > 0n)
+	assert(accepts.length > 0, badRequest('Dividend is too small to pay'))
+	const total = accepts.reduce((a, r) => a + BigInt(r.amount), 0n)
 	const request: PaymentRequest = {
 		x402Version: X402_VERSION,
 		resource: {
@@ -131,7 +191,12 @@ export function buildPaymentRequest(input: BuildRequirementsInput) {
 				`Dividend ${input.dividendId} paid to ${accepts.length} holders`,
 		},
 		accepts,
-		total: accepts.reduce((a, r) => a + BigInt(r.amount), 0n).toString(),
+		total: total.toString(),
+		totalUsd: input.amount,
+		...(hbar && {
+			totalHbar: formatHbar(total),
+			hbarPerUsdc: input.hbarPerUsdc,
+		}),
 		asset: input.asset,
 		network: input.network,
 		dividendId: input.dividendId,

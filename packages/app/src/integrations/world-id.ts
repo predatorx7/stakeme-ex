@@ -39,7 +39,7 @@ export function isWorldIdConfigured() {
 
 /**
  * Server half of the IDKit request: signs the RP context for the action.
- * Expose from a route (for example `POST /api/world-id/rp-signature`); the
+ * Expose from a route (for example `POST /api/rp-signature`); the
  * signing key never leaves the server. Without keys, returns `demo: true`.
  */
 export async function createWorldIdRequest(

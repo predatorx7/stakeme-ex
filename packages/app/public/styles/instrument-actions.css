@@ -1,0 +1,73 @@
+/* instrument-actions: instrument view (see docs/instrument-view.md). */
+.smx-actions {
+	display: grid;
+	gap: var(--rc-space-3);
+}
+
+.smx-actions ol {
+	display: grid;
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.smx-actions li {
+	position: relative;
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	align-items: center;
+	gap: var(--rc-space-1) var(--rc-space-3);
+	padding: 0 0 var(--rc-space-4) var(--rc-space-5);
+}
+
+/* Rail and dot. */
+.smx-actions li::before {
+	content: '';
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: 4px;
+	inline-size: 1px;
+	background: var(--rc-color-border-default);
+}
+
+.smx-actions li::after {
+	content: '';
+	position: absolute;
+	inset-block-start: 0.4em;
+	inset-inline-start: 0;
+	inline-size: 9px;
+	block-size: 9px;
+	border-radius: 50%;
+	background: var(--rc-color-border-strong);
+}
+
+.smx-actions li:last-child::before {
+	inset-block-end: auto;
+	block-size: 0.4em;
+}
+
+.smx-actions li[data-kind='PROOF_REJECTED']::after,
+.smx-actions li[data-kind='ESCROW_FROZEN']::after,
+.smx-actions li[data-kind='DEFAULTED']::after {
+	background: var(--rc-color-status-danger);
+}
+
+.smx-actions time {
+	grid-column: 1 / -1;
+	color: var(--rc-color-text-tertiary);
+	font-variant-numeric: tabular-nums;
+}
+
+.smx-actions li > span {
+	min-inline-size: 0;
+	overflow-wrap: anywhere;
+}
+
+.smx-actions strong {
+	font-family: var(--rc-font-family-mono);
+	font-variant-numeric: tabular-nums;
+}
+
+.smx-actions-empty {
+	color: var(--rc-color-text-tertiary);
+}

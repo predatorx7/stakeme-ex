@@ -18,6 +18,7 @@ import {
 	ATS_FACTORY_ADDRESS,
 	ATS_RESOLVER_ADDRESS,
 	CHAIN_RPC_URL,
+	HEDERA_NETWORK,
 	HEDERA_PRIVATE_KEY,
 	HEDERA_RPC_URL,
 } from '../consts.ts'
@@ -46,6 +47,9 @@ const EQUITY_CONFIG_ID: Hex =
 /** `ROLE_ISSUER` (v8 hash of `asset.tokenization.standard.role.Issuer`). */
 const ROLE_ISSUER: Hex =
 	'0x5eeaf5602c75bf26e73b5206d0bd6ee82f621166255e5fd73cc06bc7bd84a95f'
+/** Pre-v8 `ROLE_ISSUER`; the public testnet deployment predates v8. */
+const ROLE_ISSUER_V7: Hex =
+	'0x4be32e8849414d19186807008dabd451c1d87dae5f8e22f32f5ce94d486da842'
 const DEFAULT_ADMIN_ROLE: Hex = `0x${'00'.repeat(32)}`
 
 /* eslint-disable @stylistic/max-len -- one-line human-readable ABI structs */
@@ -83,15 +87,46 @@ export type MintEquityResult = {
 	tokenId: string
 	evmAddress: string
 	txId: string
+	/** Deploy tx hash (live only). */
+	deployTxHash?: string
+	/** HashScan link to the token (live only). */
+	hashscanUrl?: string
 	status: 'CONFIRMED' | 'SIMULATED'
 }
 
-/** True only when the ATS flag, operator key and both ATS contracts are set. */
+/**
+ * Public ATS reference deployment on Hedera testnet (hashgraph/asset-
+ * tokenization-studio, `deployments/hedera-testnet/newBlr-2026-06-12...json`).
+ * Factory proxy 0.0.9213391, BLR proxy 0.0.9212226, equity config v1.
+ * Used when `ATS_MODE=live` and no explicit addresses are set. Testnet may be
+ * reset and these contracts expire, so override with `ATS_*_ADDRESS`.
+ */
+const PUBLIC_TESTNET_FACTORY = '0xd1F118A40f3b02883D35909eF2517e7EDd78379d'
+const PUBLIC_TESTNET_BLR = '0xBA2D5FC2083A0b8f164c50e65d782087fBA18E0a'
+
+/** `ATS_MODE=live|simulated` (default simulated). `ATS_ENABLED=1` = live. */
+export function atsMode(): 'live' | 'simulated' {
+	return process.env.ATS_MODE === 'live' || ATS_ENABLED
+		? 'live'
+		: 'simulated'
+}
+
+export function atsFactoryAddress() {
+	return ATS_FACTORY_ADDRESS
+		|| (HEDERA_NETWORK === 'testnet' ? PUBLIC_TESTNET_FACTORY : '')
+}
+
+export function atsResolverAddress() {
+	return ATS_RESOLVER_ADDRESS
+		|| (HEDERA_NETWORK === 'testnet' ? PUBLIC_TESTNET_BLR : '')
+}
+
+/** True only in live mode with the operator key and both ATS contracts. */
 export function isAtsConfigured() {
-	return ATS_ENABLED
+	return atsMode() === 'live'
 		&& !!HEDERA_PRIVATE_KEY
-		&& !!ATS_FACTORY_ADDRESS
-		&& !!ATS_RESOLVER_ADDRESS
+		&& !!atsFactoryAddress()
+		&& !!atsResolverAddress()
 }
 
 /**
@@ -159,73 +194,21 @@ async function mintReal(input: MintEquityInput): Promise<MintEquityResult> {
 	const account = privateKeyToAccount(key)
 	const holder = getAddress(input.holder)
 	const supply = scaleSupply(input.supply, input.decimals)
-	const transport = http(CHAIN_RPC_URL || HEDERA_RPC_URL)
+	// Hashio is flaky: long timeout plus retries.
+	const transport = http(CHAIN_RPC_URL || HEDERA_RPC_URL, {
+		timeout: 90_000,
+		retryCount: 3,
+	})
 	const publicClient = createPublicClient({ transport })
 	const wallet = createWalletClient({ account, transport })
-	const factory = getAddress(ATS_FACTORY_ADDRESS)
+	const factory = getAddress(atsFactoryAddress())
 
 	const deployHash = await wallet.writeContract({
 		chain: null,
 		address: factory,
 		abi: atsFactoryAbi,
 		functionName: 'deployEquity',
-		args: [
-			{
-				security: {
-					resolver: getAddress(ATS_RESOLVER_ADDRESS),
-					maxSupply: supply,
-					resolverProxyConfiguration: {
-						key: EQUITY_CONFIG_ID,
-						version: BigInt(ATS_CONFIG_VERSION),
-					},
-					erc20MetadataInfo: {
-						name: input.name,
-						symbol: input.ticker,
-						isin: syntheticIsin(input.ticker),
-						decimals: input.decimals,
-					},
-					rbacs: [
-						{ role: DEFAULT_ADMIN_ROLE, members: [holder] },
-						// The operator mints; the holder is only the admin.
-						{ role: ROLE_ISSUER, members: [account.address] },
-					],
-					externalPauses: [],
-					externalControlLists: [],
-					externalKycLists: [],
-					compliance: zeroAddress,
-					identityRegistry: zeroAddress,
-					arePartitionsProtected: false,
-					isMultiPartition: false,
-					isControllable: true,
-					isWhiteList: false,
-					clearingActive: false,
-					internalKycActivated: false,
-					erc20VotesActivated: false,
-				},
-				equityDetails: {
-					votingRight: false,
-					informationRight: true,
-					liquidationRight: true,
-					subscriptionRight: false,
-					conversionRight: false,
-					redemptionRight: false,
-					putRight: false,
-					dividendRight: 2, // COMMON
-					currency: '0x555344', // "USD"
-					nominalValue: 1n,
-					nominalValueDecimals: 0,
-				},
-			},
-			{
-				regulationType: 0,
-				regulationSubType: 0,
-				additionalSecurityData: {
-					countriesControlListType: false,
-					listOfCountries: '',
-					info: 'StakeMe Exchange income-share equity',
-				},
-			},
-		],
+		args: buildDeployEquityArgs(input, account.address),
 	})
 	const deployReceipt = await publicClient.waitForTransactionReceipt({
 		hash: deployHash,
@@ -258,8 +241,78 @@ async function mintReal(input: MintEquityInput): Promise<MintEquityResult> {
 		tokenId: equity,
 		evmAddress: equity,
 		txId: mintHash,
+		deployTxHash: deployHash,
+		hashscanUrl: `https://hashscan.io/${HEDERA_NETWORK}/contract/${equity}`,
 		status: 'CONFIRMED',
 	}
+}
+
+/** Pure: `Factory.deployEquity` arguments. */
+export function buildDeployEquityArgs(
+	input: MintEquityInput,
+	issuer: Address,
+) {
+	const holder = getAddress(input.holder)
+	const supply = scaleSupply(input.supply, input.decimals)
+	return [
+		{
+			security: {
+				resolver: getAddress(atsResolverAddress()),
+				maxSupply: supply,
+				resolverProxyConfiguration: {
+					key: EQUITY_CONFIG_ID,
+					version: BigInt(ATS_CONFIG_VERSION || 1),
+				},
+				erc20MetadataInfo: {
+					name: input.name,
+					symbol: input.ticker,
+					isin: syntheticIsin(input.ticker),
+					decimals: input.decimals,
+				},
+				rbacs: [
+					{ role: DEFAULT_ADMIN_ROLE, members: [...new Set([holder, issuer])] },
+					// The operator mints; the holder is only an admin. Role hashes
+					// changed between ATS releases, so grant both ISSUER hashes.
+					{ role: ROLE_ISSUER, members: [issuer] },
+					{ role: ROLE_ISSUER_V7, members: [issuer] },
+				],
+				externalPauses: [],
+				externalControlLists: [],
+				externalKycLists: [],
+				compliance: zeroAddress,
+				identityRegistry: zeroAddress,
+				arePartitionsProtected: false,
+				isMultiPartition: false,
+				isControllable: true,
+				isWhiteList: false,
+				clearingActive: false,
+				internalKycActivated: false,
+				erc20VotesActivated: false,
+			},
+			equityDetails: {
+				votingRight: false,
+				informationRight: true,
+				liquidationRight: true,
+				subscriptionRight: false,
+				conversionRight: false,
+				redemptionRight: false,
+				putRight: false,
+				dividendRight: 2, // COMMON
+				currency: '0x555344', // "USD"
+				nominalValue: 1n,
+				nominalValueDecimals: 0,
+			},
+		},
+		{
+			regulationType: 2, // REG_D
+			regulationSubType: 1, // 506(b)
+			additionalSecurityData: {
+				countriesControlListType: false,
+				listOfCountries: '',
+				info: 'StakeMe Exchange income-share equity',
+			},
+		},
+	] as const
 }
 
 /** Pure: whole-share amount (decimal string) to base units. */

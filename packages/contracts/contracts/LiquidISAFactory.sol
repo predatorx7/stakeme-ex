@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {LiquidISA} from "./LiquidISA.sol";
 import {CreatorShareToken} from "./CreatorShareToken.sol";
+import {CreatorPool} from "./CreatorPool.sol";
 
 /// @notice Clones (EIP-1167) one LiquidISA and one CreatorShareToken per
 /// creator from two implementations deployed once, and enforces one ISA per World ID nullifier plus a default blacklist.
@@ -12,13 +13,16 @@ contract LiquidISAFactory {
 	address public immutable oracle;
 	address public immutable isaImplementation;
 	address public immutable tokenImplementation;
+	address public immutable poolImplementation;
 
 	mapping(bytes32 => address) public isaOfNullifier;
 	mapping(bytes32 => bool) public blacklisted;
 	mapping(address => bool) public isISA;
+	mapping(address => address) public poolOf;
 	address[] public allISAs;
 
 	event ISACreated(address indexed creator, address indexed isa, address token, string ticker);
+	event PoolCreated(address indexed isa, address indexed pool, address token);
 	event Blacklisted(bytes32 indexed nullifierHash);
 
 	error NotOracle();
@@ -26,11 +30,14 @@ contract LiquidISAFactory {
 	error NullifierBlacklisted();
 	error NullifierUsed();
 
-	constructor(address usdc_, address oracle_, address isaImplementation_, address tokenImplementation_) {
+	constructor(address usdc_, address oracle_, address isaImplementation_, address tokenImplementation_,
+		address poolImplementation_
+	) {
 		usdc = usdc_;
 		oracle = oracle_;
 		isaImplementation = isaImplementation_;
 		tokenImplementation = tokenImplementation_;
+		poolImplementation = poolImplementation_;
 	}
 
 	function createISA(
@@ -56,6 +63,8 @@ contract LiquidISAFactory {
 
 		isa = Clones.clone(isaImplementation);
 		token = Clones.clone(tokenImplementation);
+		address pool = Clones.clone(poolImplementation);
+		CreatorPool(pool).initialize(usdc, token, isa);
 		CreatorShareToken(token).initialize(name, ticker, isa);
 		LiquidISA(isa).initialize(
 			LiquidISA.Params({
@@ -69,11 +78,14 @@ contract LiquidISAFactory {
 				trancheBps: tranches,
 				worldIdNullifierHash: worldIdNullifierHash
 			}),
-			token
+			token,
+			pool
 		);
 		isaOfNullifier[worldIdNullifierHash] = isa;
 		isISA[isa] = true;
+		poolOf[isa] = pool;
 		allISAs.push(isa);
+		emit PoolCreated(isa, pool, token);
 		emit ISACreated(msg.sender, isa, token, ticker);
 	}
 

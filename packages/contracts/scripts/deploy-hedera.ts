@@ -72,11 +72,13 @@ if(newUsdc) {
 
 deployed.LiquidISA = await deploy('LiquidISA')
 deployed.CreatorShareToken = await deploy('CreatorShareToken')
+deployed.CreatorPool = await deploy('CreatorPool')
 deployed.LiquidISAFactory = await deploy('LiquidISAFactory', [
 	deployed.MockUSDC,
 	account.address,
 	deployed.LiquidISA,
 	deployed.CreatorShareToken,
+	deployed.CreatorPool,
 ])
 
 const endBalance = await pub.getBalance({ address: account.address })

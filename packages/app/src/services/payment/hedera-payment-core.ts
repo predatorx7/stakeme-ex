@@ -1,7 +1,9 @@
-import { badRequest } from '@hapi/boom'
+import { badRequest, serverUnavailable } from '@hapi/boom'
 import assert from 'node:assert'
 import {
+	DIVIDEND_HBAR_PER_USDC,
 	HEDERA_ACCOUNT_ID,
+	HEDERA_ALLOW_SIMULATED,
 	HEDERA_DIVIDEND_TOKEN_ID,
 	HEDERA_NETWORK,
 	HEDERA_PRIVATE_KEY,
@@ -32,6 +34,20 @@ export function isHederaRailLive() {
 	return !!(HEDERA_ACCOUNT_ID && HEDERA_PRIVATE_KEY)
 }
 
+/**
+ * Simulated receipts are a dev/demo escape only. Without operator keys in
+ * production they are refused (unless `HEDERA_ALLOW_SIMULATED=1`), so a
+ * misconfigured deploy fails loudly instead of faking payments.
+ */
+export function assertSimulatedAllowed(allowed = HEDERA_ALLOW_SIMULATED) {
+	assert(
+		allowed,
+		serverUnavailable(
+			'Hedera operator keys are not configured; simulated payments are off',
+		),
+	)
+}
+
 /** HTS dividend token when configured, else HBAR. */
 export function dividendAsset() {
 	return HEDERA_DIVIDEND_TOKEN_ID || HBAR_ASSET
@@ -42,37 +58,60 @@ export function createHederaPaymentRequest(input: {
 	dividendId: string
 	amount: string
 	splits: DividendSplit[]
+	/** Test seams; default to the env. */
+	live?: boolean
+	allowSimulated?: boolean
+	hbarPerUsdc?: string
 }): HederaPaymentRequest {
+	const live = input.live ?? isHederaRailLive()
+	if(!live) {
+		assertSimulatedAllowed(input.allowSimulated)
+	}
+
 	const request = buildPaymentRequest({
-		...input,
+		dividendId: input.dividendId,
+		amount: input.amount,
+		splits: input.splits,
+		hbarPerUsdc: input.hbarPerUsdc ?? DIVIDEND_HBAR_PER_USDC,
 		network: `hedera:${HEDERA_NETWORK}`,
 		asset: dividendAsset(),
 		feePayer: HEDERA_ACCOUNT_ID || '0.0.0',
 	})
-	return { ...request, mode: isHederaRailLive() ? 'live' : 'simulated' }
+	return { ...request, mode: live ? 'live' : 'simulated' }
 }
 
 /**
  * Settles the creator's signed transaction. The server rebuilds `request`
  * from the database; it never trusts amounts or payees from the client. It
  * checks the decoded transfers, adds the operator (fee payer) signature and
- * submits. Without an operator, or for `{ simulated: true }`, receipts are
- * SIMULATED.
+ * submits. Without an operator, receipts are SIMULATED. With one, a signed
+ * transfer is mandatory and `{ simulated: true }` is rejected.
  */
 export async function settleHederaPayment(input: {
 	request: HederaPaymentRequest
 	paymentPayload: Record<string, unknown> | undefined
+	/** Test seam; defaults to whether an operator is configured. */
+	live?: boolean
+	allowSimulated?: boolean
 }): Promise<DividendStreamResult> {
 	const { request, paymentPayload } = input
-	const transaction = extractTransaction(paymentPayload)
-	if(!isHederaRailLive() || !transaction) {
-		assert(
-			!isHederaRailLive() || paymentPayload?.simulated === true,
-			badRequest('paymentPayload.payload.transaction is required'),
-		)
-		LOGGER.warn('Hedera operator unset or demo payload: simulated payment')
+	const live = input.live ?? isHederaRailLive()
+	if(!live) {
+		assertSimulatedAllowed(input.allowSimulated)
+		LOGGER.warn('Hedera operator unset: simulated payment')
 		return simulatedResult(request)
 	}
+
+	// A simulated payload never settles on a live rail.
+	assert(
+		paymentPayload?.simulated !== true,
+		badRequest('Live Hedera payment required'),
+	)
+	const transaction = extractTransaction(paymentPayload)
+	assert(
+		transaction,
+		badRequest('Live Hedera payment required: signed transfer is missing'),
+	)
 
 	const sdk = await import('@hiero-ledger/sdk')
 	const bytes = Uint8Array.from(Buffer.from(transaction, 'base64'))
@@ -189,6 +228,7 @@ export async function payoutFromOperator(
 	request: HederaPaymentRequest,
 ): Promise<DividendStreamResult> {
 	if(!isHederaRailLive()) {
+		assertSimulatedAllowed()
 		LOGGER.warn('Hedera operator unset: simulated dividend payout')
 		return simulatedResult(request)
 	}
@@ -228,9 +268,6 @@ export async function payoutFromOperator(
 			status: 'CONFIRMED',
 			receipts: request.accepts.map((_, i) => `${txId}#${i}`),
 		}
-	} catch(err) {
-		LOGGER.error({ err }, 'Hedera payout failed: simulating')
-		return simulatedResult(request)
 	} finally {
 		client.close()
 	}

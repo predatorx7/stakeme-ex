@@ -26,6 +26,7 @@ import { field } from './util.ts'
 const MAX_PROOF_AGE_S = 15 * 60
 const MAX_FUTURE_SKEW_S = 5 * 60
 const AMOUNT_KEYS = ['amount', 'deposit_amount', 'depositAmount', 'income']
+const DATE_KEYS = ['date', 'deposit_date', 'depositDate']
 
 /** Callback events that end a session without a usable proof. */
 const FAILURE_EVENTS = {
@@ -178,6 +179,7 @@ export function mapResultToIncome(
 		proofId: first.proof.claimData.identifier || first.proof.identifier,
 		provider: RECLAIM_PROVIDER_ID,
 		amount,
+		depositDate: extractDepositDate(first.data.extractedParameters),
 		context: creatorId,
 		raw: result,
 	}
@@ -244,7 +246,14 @@ export function verifyDemoProof(proof: unknown): VerifiedIncome {
 		typeof context === 'string' && context && typeof id === 'string' && id,
 		badRequest('Demo proof needs context and id'),
 	)
-	return { proofId: id, provider: 'demo', amount, context, raw: proof }
+	return {
+		proofId: id,
+		provider: 'demo',
+		amount,
+		depositDate: extractDepositDate({ date: field(proof, 'date') }),
+		context,
+		raw: proof,
+	}
 }
 
 /**
@@ -269,6 +278,27 @@ export function extractIncomeAmount(extracted: unknown): string | null {
 	}
 
 	return null
+}
+
+/**
+ * Reads the deposit date from extracted parameters. Accepts `YYYY-MM-DD` or
+ * an ISO timestamp; returns `YYYY-MM-DD` (UTC), or `undefined` ("unknown")
+ * when absent or unreadable.
+ */
+export function extractDepositDate(extracted: unknown): string | undefined {
+	for(const key of DATE_KEYS) {
+		const raw = field(extracted, key)
+		if(typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(raw.trim())) {
+			continue
+		}
+
+		const ms = Date.parse(raw.trim())
+		if(!Number.isNaN(ms)) {
+			return new Date(ms).toISOString().slice(0, 10)
+		}
+	}
+
+	return undefined
 }
 
 let cached: ReturnType<typeof ReclaimVerification.create> | undefined

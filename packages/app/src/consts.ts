@@ -113,6 +113,12 @@ export const ORACLE_PRIVATE_KEY = process.env.ORACLE_PRIVATE_KEY || ''
 export const CHAIN_NULLIFIER_SALT = process.env.CHAIN_NULLIFIER_SALT || ''
 export const FACTORY_ADDRESS = process.env.FACTORY_ADDRESS || ''
 export const USDC_ADDRESS = process.env.USDC_ADDRESS || ''
+/**
+ * RPC the browser uses to read balances and send user-signed trades. PUBLIC:
+ * never put a keyed URL here. Defaults to Hashio on Hedera testnet.
+ */
+export const CHAIN_PUBLIC_RPC_URL = process.env.CHAIN_PUBLIC_RPC_URL
+	|| (CHAIN_ID === 296 ? 'https://testnet.hashio.io/api' : '')
 
 /** 0G Compute (audit LLM) + Storage (audit log). */
 export const ZG_RPC_URL =
@@ -148,6 +154,27 @@ export const HEDERA_DIVIDEND_TOKEN_ID =
 	process.env.HEDERA_DIVIDEND_TOKEN_ID || ''
 export const HEDERA_NETWORK: 'testnet' | 'mainnet' =
 	process.env.HEDERA_NETWORK === 'mainnet' ? 'mainnet' : 'testnet'
+/**
+ * Allows SIMULATED dividend receipts when no operator keys are set. Outside
+ * production it is always allowed; in production it needs an explicit `1`.
+ */
+export const HEDERA_ALLOW_SIMULATED = !IS_PRODUCTION
+	|| process.env.HEDERA_ALLOW_SIMULATED === '1'
+/**
+ * Lets the worker pay holders from the operator's own funds when the creator
+ * did not sign (the "Mark as paid" demo path). Off by default: it spends the
+ * platform's HBAR.
+ */
+export const HEDERA_OPERATOR_PAYOUT =
+	process.env.HEDERA_OPERATOR_PAYOUT === '1'
+/**
+ * Testnet conversion for dividends paid in HBAR: HBAR sent per 1 USDC due.
+ * Testnet HBAR is scarce, so the default is 0.0001 (a $250 dividend sends
+ * 0.025 HBAR). Mainnet defaults to 0.01. Not a market price. Up to 8 decimals.
+ */
+export const DIVIDEND_HBAR_PER_USDC =
+	process.env.DIVIDEND_HBAR_PER_USDC
+	|| (HEDERA_NETWORK === 'mainnet' ? '0.01' : '0.0001')
 
 /**
  * Hedera Asset Tokenization Studio (ATS) equity token. Behind a flag because
@@ -169,6 +196,19 @@ export const DEFAULT_SHARE_BPS = 500
 export const DEFAULT_TERM_MONTHS = 60
 /** Escrow schedule in bps of the target raise: tranche 0 releases at IPO. */
 export const DEFAULT_TRANCHE_BPS = [2000, 4000, 4000]
+/**
+ * Launch-time tranche presets, keyed by the API's `trancheSchedule`. SQL
+ * (`launch_ipo`) enforces 2 to 5 tranches summing to 10000 bps; this table is
+ * the only place the named shapes live.
+ */
+export const TRANCHE_PRESETS = {
+	'20-40-40': DEFAULT_TRANCHE_BPS,
+	'50-50': [5000, 5000],
+	'25-25-25-25': [2500, 2500, 2500, 2500],
+	'20-20-20-20-20': [2000, 2000, 2000, 2000, 2000],
+} as const satisfies Record<string, readonly number[]>
+/** Days between proof deadlines, keyed by the API's `proofCadence`. */
+export const PROOF_CADENCE_DAYS = { MONTHLY: 30, QUARTERLY: 90 } as const
 export const DEFAULT_MIN_INCOME = '1000.00'
 /** Chain id stored on a creator (Hedera testnet when none is configured). */
 export const DOMAIN_CHAIN_ID = CHAIN_ID || 296

@@ -237,13 +237,13 @@ Code: `packages/app/src/integrations/` (import from `index.ts`), browser hooks i
 | World ID | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION`, `WORLD_ENV` | Fixture proofs (`demo: true`), `DEMO_MODE=1` only. Deterministic nullifier; "Simulate Sybil" repeats it. |
 | Reclaim | `RECLAIM_ORG_SECRET`, `RECLAIM_PROVIDER_ID`, `RECLAIM_ORG_ETH_PRIVATE_KEY` (optional; org encryption is OFF) | `demoIncomeProof(context, amount)` fixture, `DEMO_MODE=1` only. Demo session links to `/mock-bank`. |
 | 0G | `ZG_PRIVATE_KEY`, `ZG_RPC_URL`, `ZG_INDEXER_URL`, `ZG_PROVIDER_ADDRESS`, `ZG_LEDGER_DEPOSIT` | Rules engine (`model: 'rules-engine'`), `logRef = local:<sha256>`. Also used when Compute errors. |
-| 0G Router | `ZG_ROUTER_API_KEY` (secret), `ZG_ROUTER_MODEL` (default `glm-5.2`), `ZG_ROUTER_TRUST_MODE` (`verified`\|`private`, default omitted), `ZG_ROUTER_BASE_URL` | Audit verdict runs on the Router first (`engine: '0g-router'`, log has `routerTrace`); any error (402, timeout) falls back to Compute (if enabled) then rules engine. Live with the funded Router key. |
+| 0G Router | `ZG_ROUTER_API_KEY` (secret), `ZG_ROUTER_MODEL` (default `0GM-1.0-35B-A3B,glm-5.3`, a preference list), `ZG_ROUTER_TRUST_MODE` (`verified`\|`private`, default omitted), `ZG_ROUTER_BASE_URL` | Audit verdict runs on the Router first (`engine: '0g-router'`, log has `routerTrace`); any error (402, timeout) leaves the proof `PENDING` (`AUDIT_UNAVAILABLE`) unless Compute is enabled or `ZG_ALLOW_RULES_FALLBACK=1`. Live with the funded Router key. |
 | Storage | `STORAGE_PROVIDER=0g\|local` (default `0g`), `ZG_*`, `ZG_STORAGE_MIN_BALANCE` | Uploads run in the worker (see "0G Storage outbox"). Without `ZG_PRIVATE_KEY`, with `local`, or below the floor: SKIPPED, ref stays `local:<sha256>`. |
 | Chain | `CHAIN_RPC_URL`, `CHAIN_ID`, `ORACLE_PRIVATE_KEY`, `FACTORY_ADDRESS` | `CHAIN_RPC_URL` unset: SIMULATED, tx hash = keccak256(job id), fake ISA/token addresses. |
 | Hedera | `HEDERA_OPERATOR_ID`/`HEDERA_ACCOUNT_ID`, `HEDERA_OPERATOR_KEY`/`HEDERA_PRIVATE_KEY`, `HEDERA_DIVIDEND_TOKEN_ID`, `HEDERA_NETWORK` | SIMULATED `sim:0x...` receipts. |
 
 Extra exports routes should use (all re-exported from `integrations/index.ts`, additive):
-- `createWorldIdRequest(signal)`: expose as `POST /api/world-id/rp-signature` (default URL the browser calls; read `signal` from the SIWE session wallet, never the body). Returns `{ rpContext, appId, action, environment, signal, demo }`.
+- `createWorldIdRequest(signal)`: expose as `POST /api/rp-signature` (default URL the browser calls; read `signal` from the SIWE session wallet, never the body). Returns `{ rpContext, appId, action, environment, signal, demo }`.
 - `demoIncomeProof(context, amount)`, `demoWorldIdProof(kind, nonce)`: fixtures (the browser builds identical ones).
 - `isWorldIdConfigured()` lives in `world-id.ts` (not re-exported): render `data-app-id` only when true.
 

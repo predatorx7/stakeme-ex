@@ -12,6 +12,19 @@ import { NumberedStep } from '../NumberedStep.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { SectionCard } from '../SectionCard.tsx'
 
+/** Keep in step with `TRANCHE_PRESETS` in consts.ts. The first is the default. */
+const TRANCHES = [
+	{ value: '20-40-40', label: '3 tranches', split: '20 / 40 / 40' },
+	{ value: '50-50', label: '2 tranches', split: '50 / 50' },
+	{ value: '25-25-25-25', label: '4 tranches', split: '25 each' },
+	{ value: '20-20-20-20-20', label: '5 tranches', split: '20 each' },
+]
+
+const CADENCES = [
+	{ value: 'MONTHLY', label: 'Monthly', hint: 'Every 30 days' },
+	{ value: 'QUARTERLY', label: 'Quarterly', hint: 'Every 90 days' },
+]
+
 /**
  * IPO form. Two gates: a signed-in wallet (the route needs a session) and a
  * World ID proof (`client/world-id.ts` fills `worldIdProof` and enables the
@@ -120,6 +133,86 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 									max={120}
 									value={String(defaults.termMonths)} />
 							</div>
+							<fieldset class='smx-choices'>
+								<legend>
+									Escrow release
+								</legend>
+								<small>
+									The first tranche releases at launch. Each approved income proof releases the next.
+								</small>
+								{
+									TRANCHES.map((t, i) => (
+										<label>
+											<input
+												type='radio'
+												name='trancheSchedule'
+												value={t.value}
+												checked={i === 0} />
+											{escapeText(t.label)}
+											<small>
+												{escapeText(t.split)}
+											</small>
+										</label>
+									))
+								}
+							</fieldset>
+							<fieldset class='smx-choices'>
+								<legend>
+									Income proof deadline
+								</legend>
+								<small>
+									A missed deadline freezes escrow and starts a 14-day grace period.
+								</small>
+								{
+									CADENCES.map((c, i) => (
+										<label>
+											<input
+												type='radio'
+												name='proofCadence'
+												value={c.value}
+												checked={i === 0} />
+											{escapeText(c.label)}
+											<small>
+												{escapeText(c.hint)}
+											</small>
+										</label>
+									))
+								}
+							</fieldset>
+							<fieldset class='smx-choices'>
+								<legend>
+									Profile links (optional)
+								</legend>
+								<small>
+									Shown on your token page.
+								</small>
+								<div class='smx-fields'>
+									<Field
+										name='social_x'
+										label='X'
+										type='url'
+										maxlength={200}
+										placeholder='https://x.com/yourhandle' />
+									<Field
+										name='social_github'
+										label='GitHub'
+										type='url'
+										maxlength={200}
+										placeholder='https://github.com/yourname' />
+									<Field
+										name='social_linkedin'
+										label='LinkedIn'
+										type='url'
+										maxlength={200}
+										placeholder='https://linkedin.com/in/yourname' />
+									<Field
+										name='social_website'
+										label='Website'
+										type='url'
+										maxlength={300}
+										placeholder='https://yoursite.com' />
+								</div>
+							</fieldset>
 							<section
 								class='smx-world'
 								aria-label='World ID verification'>

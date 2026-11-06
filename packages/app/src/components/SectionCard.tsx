@@ -11,6 +11,7 @@ export function SectionCard(
 		title,
 		level = 'h2',
 		count,
+		coinTarget,
 		context,
 		meta,
 		footer,
@@ -23,6 +24,8 @@ export function SectionCard(
 		/** Heading level; `h3` for a card that sits under a section heading. */
 		level?: 'h2' | 'h3'
 		count?: number
+		/** Marks the count as the coin trail destination. */
+		coinTarget?: boolean
 		/** A short sentence next to the title. */
 		context?: string
 		/** Short text or a link at the end of the header. */
@@ -49,7 +52,10 @@ export function SectionCard(
 				</Heading>
 				{
 					count !== undefined && (
-						<span class='rc-count'>
+						<span
+							class='rc-count'
+							data-coin-target={coinTarget ? '' : undefined}
+							data-holders={coinTarget ? String(count) : undefined}>
 							{escapeText(count.toLocaleString('en-US'))}
 						</span>
 					)

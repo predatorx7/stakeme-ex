@@ -3,8 +3,9 @@ import assert from 'node:assert'
 import {
 	DEFAULT_SHARE_BPS,
 	DEFAULT_TERM_MONTHS,
-	DEFAULT_TRANCHE_BPS,
 	DOMAIN_CHAIN_ID,
+	PROOF_CADENCE_DAYS,
+	TRANCHE_PRESETS,
 } from '../consts.ts'
 import { verifyWorldIdProof } from '../integrations/index.ts'
 import { LOGGER } from '../logger.ts'
@@ -18,7 +19,8 @@ import { respondMutation } from '../utils/mutation.ts'
  * terms document and its hash, then one SQL statement creates the IPO and
  * queues the 0G Storage upload (the worker swaps `local:<sha256>` for the root
  * hash later, so the request never waits on 0G). The SQL asserts every rule
- * (banned or reused nullifier, ticker, tranche sum).
+ * (banned or reused nullifier, ticker, tranche sum, social link hosts). The
+ * chosen tranche preset reaches the chain through the `createISA` job.
  */
 export default async function LaunchIpoRoute(
 	req: ITypedExpressRequest<'LaunchIpo'>,
@@ -29,6 +31,8 @@ export default async function LaunchIpoRoute(
 	const b = req.body
 	const shareBps = b.shareBps ?? DEFAULT_SHARE_BPS
 	const termMonths = b.termMonths ?? DEFAULT_TERM_MONTHS
+	const trancheBps = [...TRANCHE_PRESETS[b.trancheSchedule ?? '20-40-40']]
+	const proofCadence = b.proofCadence ?? 'MONTHLY'
 
 	let world: Awaited<ReturnType<typeof verifyWorldIdProof>>
 	try {
@@ -52,7 +56,8 @@ export default async function LaunchIpoRoute(
 		termMonths,
 		targetRaise: b.targetRaise,
 		stakeAmount: b.stakeAmount,
-		trancheBps: DEFAULT_TRANCHE_BPS,
+		trancheBps,
+		proofCadenceDays: PROOF_CADENCE_DAYS[proofCadence],
 		worldIdNullifier: world.nullifier,
 		creatorWallet: wallet,
 	})
@@ -73,6 +78,9 @@ export default async function LaunchIpoRoute(
 			terms_hash: stored.termsHash,
 			terms_document: stored.document,
 			chain_id: DOMAIN_CHAIN_ID,
+			tranche_bps: trancheBps,
+			proof_cadence: proofCadence,
+			social_links: b.socialLinks ?? {},
 		},
 		req.pg,
 	)

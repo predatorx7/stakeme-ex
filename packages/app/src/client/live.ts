@@ -21,6 +21,7 @@ type JobMessage = {
 
 const TOASTS: Record<string, [string, 'success' | 'info']> = {
 	'smx:invested': ['Investment recorded. Onchain call pending.', 'success'],
+	'smx:raise-closed': ['Raise closed. Trading is open.', 'success'],
 	'smx:traded': ['Trade filled.', 'success'],
 	'smx:dividend-paid': ['Dividend paid.', 'success'],
 	'smx:ipo-launched': ['IPO launched.', 'success'],

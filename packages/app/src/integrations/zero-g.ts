@@ -70,6 +70,8 @@ export const AUDIT_SYSTEM_PROMPT = [
 	'You audit income share agreements (L-ISA) for a creator.',
 	'Decide whether the verified bank deposit is acceptable income.',
 	'Approve only when the deposit amount is at least minIncome.',
+	'Deny when deposit.date is outside window (from..to, inclusive), with the',
+	'reason "Deposit is outside the reporting period". Ignore a null date.',
 	'verified_amount is the income you accept (USDC), at most the deposit.',
 	'Reply with ONE JSON object and nothing else, with exactly these keys:',
 	'{"approved": boolean, "verified_amount": string, "reasoning": string}',
@@ -85,8 +87,10 @@ export function buildAuditPrompt(input: IncomeAuditInput) {
 		minIncome: input.minIncome,
 		period: input.period,
 		termsHash: input.termsHash,
+		window: input.window ?? null,
 		deposit: {
 			amount: input.income.amount,
+			date: input.income.depositDate ?? null,
 			provider: input.income.provider,
 			proofId: input.income.proofId,
 		},
@@ -150,8 +154,44 @@ export function parseAuditResponse(
 	}
 }
 
+const DAY_MS = 86_400_000
+const OUT_OF_PERIOD = 'Deposit is outside the reporting period'
+
+/**
+ * Pure: the reporting window for a proof submitted at `now`: the last
+ * `cadenceDays` days, up to tomorrow (UTC) for clock skew.
+ */
+export function reportingWindow(cadenceDays: number, now = Date.now()) {
+	const day = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+	return { from: day(now - cadenceDays * DAY_MS), to: day(now + DAY_MS) }
+}
+
+/**
+ * Pure: a denial when the deposit date is known and outside the window, else
+ * `null` (unknown date or no window: nothing to enforce).
+ */
+export function windowPreCheck(input: IncomeAuditInput): AuditVerdict | null {
+	const date = input.income.depositDate
+	const { window } = input
+	if(!date || !window || (date >= window.from && date <= window.to)) {
+		return null
+	}
+
+	return {
+		approved: false,
+		verifiedAmount: '0.00',
+		reasoning: `${OUT_OF_PERIOD}: ${date} is not within `
+			+ `${window.from}..${window.to}.`,
+	}
+}
+
 /** Pure: the deterministic fallback (approve when amount >= minIncome). */
 export function rulesAudit(input: IncomeAuditInput): AuditVerdict {
+	const denied = windowPreCheck(input)
+	if(denied) {
+		return denied
+	}
+
 	const amount = toMicro(input.income.amount)
 	const min = toMicro(input.minIncome)
 	const approved = amount >= min

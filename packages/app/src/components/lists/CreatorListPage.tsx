@@ -97,7 +97,7 @@ export function HoldersListPage(props: Shared & {
 			{...props}
 			title='Holders'
 			hasItems={props.items.length > 0}
-			empty={{ title: 'No holders yet', hint: 'Invest to become the first.' }}>
+			empty={{ title: 'No holders yet', hint: 'Be the first at the IPO.' }}>
 			<DataTable
 				caption='Holders'
 				bodyId={LIST_BODY_ID}
@@ -215,7 +215,12 @@ export function ProofsListPage(props: Shared & { items: IncomeProof[] }) {
 			{...props}
 			title='Income proofs'
 			hasItems={props.items.length > 0}
-			empty={{ title: 'No proofs yet' }}>
+			empty={
+				{
+					title: 'No income proofs yet',
+					hint: 'Proofs appear after each income period.',
+				}
+			}>
 			<DataTable
 				caption='Income proofs'
 				bodyId={LIST_BODY_ID}
@@ -261,8 +266,8 @@ export function DividendsListPage(props: Shared & { items: Dividend[] }) {
 			hasItems={props.items.length > 0}
 			empty={
 				{
-					title: 'No dividends yet',
-					hint: 'Paid after the first approved proof.',
+					title: 'No dividends paid yet',
+					hint: 'Dividends follow the first approved proof.',
 				}
 			}>
 			<DataTable

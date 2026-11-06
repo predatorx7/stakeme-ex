@@ -4,6 +4,7 @@ import { after, before, describe, it } from 'node:test'
 import type { IncomeAuditInput } from '../src/integrations/types.ts'
 import {
 	getRouterBalance,
+	reportingWindow,
 	runAuditVerdict,
 	ZeroGAuditUnavailable,
 } from '../src/integrations/zero-g.ts'
@@ -209,6 +210,10 @@ describe('0G audit unavailable', () => {
 				'ZGT', 'ZGT', '', 500, 60, 10000, 1000, '9001', 'local:x', 'x', 296)`,
 			[u.id],
 		)
+		await db.query(
+			'SELECT record_investment($1, \'0x00000000000000000000000000000000000000b1\', 100)', [c.id],
+		)
+		await db.query('SELECT close_raise($1)', [c.id])
 		const submit = () => db.query<{ id: string, status: string }>(
 			'SELECT id, status FROM submit_income_proof($1, \'bank\', \'p-1\', 5000, \'{}\')',
 			[c.id],
@@ -226,5 +231,58 @@ describe('0G audit unavailable', () => {
 		assert.strictEqual(again.id, first.id)
 		const { rows: divs } = await db.query('SELECT 1 FROM dividends')
 		assert.strictEqual(divs.length, 0, 'no dividend without a 0G audit')
+	})
+})
+
+describe('deposit date window', () => {
+	const NOW = Date.parse('2026-11-07T12:00:00Z')
+	const window = reportingWindow(30, NOW)
+	const approving = () => {
+		const calls: string[] = []
+		const fetchMock = ((url: string) => {
+			calls.push(url)
+			return Promise.resolve(jsonRes(200, {
+				id: 'c1',
+				model: 'glm-5.2',
+				choices: [{ message: { content: JSON.stringify({
+					approved: true, verified_amount: '5000.00', reasoning: 'ok',
+				}) } }],
+			}))
+		}) as unknown as typeof fetch
+		return { calls, agent: new ZeroGravityAgent({ fetch: fetchMock, router: ROUTER }) }
+	}
+
+	const withDate = (depositDate?: string) => ({
+		...INPUT,
+		window,
+		income: { ...INPUT.income, depositDate },
+	}) as IncomeAuditInput
+
+	it('approves a deposit inside the window via 0G', async() => {
+		const { calls, agent } = approving()
+		const audit = await agent.audit(withDate('2026-11-01'))
+		assert.strictEqual(audit.approved, true)
+		assert.strictEqual(audit.engine, '0g-router')
+		assert.strictEqual(calls.length, 1)
+	})
+
+	it('denies a stale deposit by pre-check without calling 0G', async() => {
+		const { calls, agent } = approving()
+		const audit = await agent.audit(withDate('2026-09-28'))
+		assert.strictEqual(audit.approved, false)
+		assert.strictEqual(audit.engine, 'pre-check')
+		assert.match(audit.reasoning, /outside the reporting period/)
+		assert.strictEqual(calls.length, 0)
+		const doc = audit.logDocument as Record<string, unknown>
+		const data = (doc.data ?? doc) as Record<string, unknown>
+		assert.strictEqual(data.engine, 'pre-check')
+		assert.ok(audit.logRef?.startsWith('local:'))
+	})
+
+	it('keeps today\'s behavior when the date is unknown (demo)', async() => {
+		const { calls, agent } = approving()
+		const audit = await agent.audit(withDate(undefined))
+		assert.strictEqual(audit.approved, true)
+		assert.strictEqual(calls.length, 1)
 	})
 })

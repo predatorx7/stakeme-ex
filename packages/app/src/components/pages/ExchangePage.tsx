@@ -63,7 +63,7 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 							? (
 								<EmptyState
 									title='No creators yet'
-									hint='Launched IPOs appear here.'>
+									hint='Launched IPOs show up here.'>
 									<a
 										class='rc-button'
 										data-variant='primary'
@@ -107,7 +107,11 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 														</span>
 													</a>
 												</td>
-												<td data-align='end'>
+												<td
+													data-align='end'
+													data-price-flash
+													data-price={c.price}
+													data-price-key={`exchange:${c.ticker}`}>
 													{escapeText(formatUsdc(c.price, 4))}
 												</td>
 												<td data-align='end'>
@@ -116,7 +120,8 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 												<td data-col='spark'>
 													<Sparkline
 														points={c.sparkline}
-														name={c.ticker} />
+														name={c.ticker}
+														area />
 												</td>
 												<td data-col='status'>
 													<CreatorStatusBadge
@@ -186,6 +191,7 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 					context='Proof audits and trades, as they happen.'>
 					<ul
 						class='smx-feed'
+						data-live-list='exchange-feed'
 						aria-live='polite'
 						hx-ext='sse'
 						{...{ 'sse-connect': '/events', 'sse-swap': 'oracle-event' }}

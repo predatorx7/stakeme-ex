@@ -1,0 +1,56 @@
+/* portfolio: GET /portfolio (funds, holdings, transactions, dividends). */
+.smx-portfolio {
+	display: grid;
+	gap: var(--rc-space-4);
+}
+
+.smx-funds-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--rc-space-3);
+	padding: var(--rc-space-3) var(--rc-space-4);
+}
+
+.smx-funds-actions .hx-form {
+	display: flex;
+	align-items: center;
+	gap: var(--rc-space-3);
+}
+
+.smx-funds-note {
+	margin: 0;
+	color: var(--rc-color-text-secondary);
+	font-size: var(--rc-font-size-caption);
+}
+
+.smx-asset {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--rc-space-2);
+}
+
+.smx-portfolio [data-dir='up'] {
+	color: var(--rc-color-status-success);
+}
+
+.smx-portfolio [data-dir='down'] {
+	color: var(--rc-color-status-danger);
+}
+
+.smx-portfolio td[data-align='end'],
+.smx-portfolio th[data-align='end'] {
+	font-variant-numeric: tabular-nums;
+}
+
+.smx-portfolio tr[data-total] td {
+	font-weight: 600;
+	border-top: 1px solid var(--rc-color-border-default);
+}
+
+.smx-portfolio__more {
+	margin: 0;
+	padding: var(--rc-space-3) var(--rc-space-4);
+	color: var(--rc-color-text-secondary);
+	font-size: var(--rc-font-size-caption);
+}

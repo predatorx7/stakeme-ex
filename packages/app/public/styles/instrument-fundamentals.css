@@ -1,0 +1,31 @@
+/* instrument-fundamentals: instrument view (see docs/instrument-view.md). */
+.smx-fundamentals {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+	gap: var(--rc-space-2) var(--rc-space-4);
+	padding: var(--rc-space-3) var(--rc-space-4);
+	margin: 0;
+}
+
+.smx-fundamentals__row {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: var(--rc-space-2);
+}
+
+.smx-fundamentals dt {
+	color: var(--rc-color-text-secondary);
+	font-size: var(--rc-font-size-caption);
+	cursor: help;
+}
+
+.smx-fundamentals dd {
+	margin: 0;
+	text-align: end;
+	font-variant-numeric: tabular-nums;
+}
+
+.smx-fundamentals__row[data-overdue] dd {
+	color: var(--rc-color-status-danger);
+}

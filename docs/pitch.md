@@ -96,7 +96,7 @@ Say this out loud if a judge asks.
 | Hedera factory and `MockUSDC` | Deployed on testnet (chain 296). The factory address may change on redeploy; see `packages/contracts/deployments/hedera-testnet.json`. |
 | World ID v4 | Real proof from the Simulator, verified through the v4 API. |
 | 0G Storage | Real uploads on Galileo, in the background. Until one finishes, the ref is `local:<sha256>`. |
-| 0G Compute audit | Opt-in. It needs a 3 0G ledger deposit, so the demo audit uses the rules engine. 0G Router credits are pending. |
+| 0G audit | Runs on 0G Private Computer through the 0G Router, with a request ID shown per proof. 0G is required for approval: if the Router fails, the proof stays pending. The rules engine runs only behind `ZG_ALLOW_RULES_FALLBACK=1` and is labelled in the UI. The Router returned no TEE attestation field in live calls, so the UI shows "Private routing (TEE provider)", not "TEE verified". |
 | Bank | The mock bank stands in for a real bank. |
 | Reclaim end-to-end callback | Pending a stable host for the mock bank. |
 | Dividend payout | The creator signs the transfer, but live settlement needs Hedera operator keys; otherwise it is simulated. |

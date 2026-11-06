@@ -1,4 +1,5 @@
 export {
+	creatorPoolAbi,
 	creatorShareTokenAbi,
 	liquidISAAbi,
 	liquidISAFactoryAbi,

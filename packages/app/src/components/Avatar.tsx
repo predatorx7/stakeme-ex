@@ -23,6 +23,8 @@ type Props = {
 	shape?: 'square'
 	/** Extra class for layout, such as grid placement. */
 	class?: string
+	/** Marks the origin of the coin trail (`client/coin-trail.ts`). */
+	coinSource?: boolean
 }
 
 const PX = { sm: 22, lg: 56 } as const
@@ -46,6 +48,7 @@ export function Avatar(props: Props) {
 			data-shape={props.shape}
 			data-tone={props.tone}
 			data-image={src ? '' : undefined}
+			data-coin-source={props.coinSource ? '' : undefined}
 			aria-hidden='true'>
 			{escapeHtml(initial)}
 			{

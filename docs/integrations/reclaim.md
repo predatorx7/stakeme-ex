@@ -53,10 +53,30 @@ otherwise.
 | `GET /mock-bank/login` | Login form; any non-empty username and password. |
 | `POST /mock-bank/login` | Sets the httpOnly `smx_bank_session` cookie, redirects to `/mock-bank`. |
 | `GET /mock-bank` | Statement page; calls the API below with `fetch`. |
-| `GET /mock-bank/api/transactions` | JSON statement with a $5,000.00 "Acme Studio freelance income" deposit. `401` without the cookie. |
+| `GET /mock-bank/api/transactions` | JSON statement for the chosen scenario (see below). `401` without the cookie. |
+
+The provider proves `$.transactions[0].amount` and `$.transactions[0].date`,
+so the first row is always the proven deposit. Pick a scenario to test the
+auditor:
+
+| Scenario | First row |
+| --- | --- |
+| Salary on time | $5,000.00 deposit dated today. |
+| Low | $800.00 deposit, below the minimum income. |
+| Big | $25,000.00 deposit. |
+| Several deposits | A $5,000.00 row with the month's total, then the separate deposits. |
+| None | $0.00, no income. |
+| Late | $5,000.00 deposit dated 40 days ago. |
+
+The auditor denies a deposit dated outside the reporting period (the last 30
+days for monthly creators, 90 for quarterly) with "Deposit is outside the
+reporting period". SMX checks this before calling 0G, so the audit log shows
+engine `pre-check`. A proof with no date (demo fixtures) skips the check.
 
 The amount parameter name the provider extracts may be `amount`,
-`deposit_amount`, `depositAmount` or `income` (`extractIncomeAmount`).
+`deposit_amount`, `depositAmount` or `income` (`extractIncomeAmount`). The
+date parameter may be `date`, `deposit_date` or `depositDate`
+(`extractDepositDate`).
 
 ## Gotchas
 

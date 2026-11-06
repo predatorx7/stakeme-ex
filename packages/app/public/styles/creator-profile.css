@@ -1,0 +1,98 @@
+/* Creator profile: social links, update list, and the launch-form choices. */
+
+.smx-social {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--rc-space-2);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.smx-social .rc-chip {
+	align-items: center;
+	display: inline-flex;
+	gap: var(--rc-space-1);
+}
+
+.smx-social svg {
+	block-size: 1em;
+	inline-size: 1em;
+}
+
+.smx-updates {
+	display: grid;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.smx-update {
+	border-block-start: 1px solid var(--rc-color-border-default);
+	display: grid;
+	gap: var(--rc-space-1);
+	padding: var(--rc-space-3) var(--rc-space-4);
+}
+
+.smx-update:first-child {
+	border-block-start: 0;
+}
+
+.smx-update time {
+	color: var(--rc-color-text-tertiary);
+	font-size: var(--rc-font-size-caption);
+}
+
+.smx-update p {
+	margin: 0;
+	overflow-wrap: anywhere;
+	white-space: pre-line;
+}
+
+.smx-update a {
+	overflow-wrap: anywhere;
+}
+
+/* Radio groups on the launch form: one bordered row per choice. */
+.smx-choices {
+	border: 0;
+	display: grid;
+	gap: var(--rc-space-2);
+	margin: 0;
+	min-inline-size: 0;
+	padding: 0;
+}
+
+.smx-choices legend {
+	font-weight: 600;
+	padding: 0;
+}
+
+.smx-choices > small {
+	color: var(--rc-color-text-tertiary);
+}
+
+.smx-choices label {
+	align-items: center;
+	border: 1px solid var(--rc-color-border-default);
+	cursor: pointer;
+	display: flex;
+	gap: var(--rc-space-2);
+	min-block-size: 44px;
+	padding: var(--rc-space-2) var(--rc-space-3);
+	transition: border-color 0.1s;
+}
+
+.smx-choices label:has(input:checked) {
+	border-color: var(--rc-color-action-primary);
+}
+
+.smx-choices label:has(input:focus-visible) {
+	outline: 2px solid var(--rc-color-action-primary);
+	outline-offset: 2px;
+}
+
+.smx-choices label small {
+	color: var(--rc-color-text-tertiary);
+	margin-inline-start: auto;
+}

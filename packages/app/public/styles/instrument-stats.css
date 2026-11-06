@@ -1,0 +1,110 @@
+/* instrument-stats: instrument view (see docs/instrument-view.md). */
+.instrument-stats {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.instrument-quote {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.25rem 0.75rem;
+}
+
+.instrument-quote__price {
+	font-family: var(--rc-font-family-mono);
+	font-size: 2rem;
+	line-height: 1.1;
+	font-variant-numeric: tabular-nums;
+}
+
+.instrument-quote__change {
+	font-family: var(--rc-font-family-mono);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.instrument-quote__change[data-dir='up'] {
+	color: var(--rc-color-status-success);
+}
+
+.instrument-quote__change[data-dir='down'] {
+	color: var(--rc-color-status-danger);
+}
+
+.instrument-quote > span:last-child {
+	margin-inline-start: auto;
+}
+
+.instrument-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+	gap: 0.75rem 1rem;
+	margin: 0;
+}
+
+.instrument-grid__item {
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+}
+
+.instrument-grid dt {
+	color: var(--rc-color-text-tertiary);
+	font-size: 0.75rem;
+}
+
+.instrument-grid dd {
+	margin: 0;
+	font-family: var(--rc-font-family-mono);
+	font-variant-numeric: tabular-nums;
+}
+
+.instrument-range {
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	grid-template-areas:
+		'title title title'
+		'low bar high';
+	align-items: center;
+	gap: 0.25rem 0.75rem;
+	font-family: var(--rc-font-family-mono);
+	font-size: 0.8125rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.instrument-range__title {
+	grid-area: title;
+	color: var(--rc-color-text-tertiary);
+	font-family: inherit;
+	font-size: 0.75rem;
+}
+
+.instrument-range__low {
+	grid-area: low;
+}
+
+.instrument-range__high {
+	grid-area: high;
+}
+
+.instrument-range__bar {
+	grid-area: bar;
+	position: relative;
+	height: 0.375rem;
+	border-radius: 999px;
+	background: var(--rc-color-border-default);
+}
+
+.instrument-range__marker {
+	position: absolute;
+	top: 50%;
+	width: 0.75rem;
+	height: 0.75rem;
+	border-radius: 50%;
+	background: var(--rc-color-action-primary);
+	border: 2px solid var(--rc-color-surface-default, Canvas);
+	transform: translate(-50%, -50%);
+}

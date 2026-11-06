@@ -1,6 +1,7 @@
 /* eslint-disable @stylistic/max-len -- deeply nested JSX copy */
 import type { Children } from '@kitajs/html'
 import { DEMO_MODE } from '../../consts.ts'
+import { BANK_SCENARIOS } from '../../services/mock-bank.ts'
 import type { CreatorHub } from '../../types/index.ts'
 import { formatDate } from '../../utils/dates.ts'
 import { escapeText } from '../../utils/escape.ts'
@@ -9,18 +10,20 @@ import { Badge } from '../Badge.tsx'
 import { BlockingWarning } from '../BlockingWarning.tsx'
 import { ChainJobBadge, PendingChainBadge } from '../ChainJobBadge.tsx'
 import { Countdown } from '../Countdown.tsx'
+import { UpdateComposer } from '../creator/UpdateComposer.tsx'
 import { CreatorStatusBadge, isEscrowFrozen } from '../CreatorStatus.tsx'
 import { DataTable } from '../DataTable.tsx'
+import { DividendCard, DividendReceiptCell } from '../DividendCard.tsx'
 import { EmptyState } from '../EmptyState.tsx'
-import { FormError } from '../forms/FormError.tsx'
 import { HxForm } from '../forms/HxForm.tsx'
+import { ProofCountdown } from '../instrument/ProofCountdown.tsx'
+import { pickTranche, ProofPipeline } from '../instrument/ProofPipeline.tsx'
 import { ViewAll } from '../lists/ViewAll.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { LinearProgress } from '../Progress.tsx'
 import { ProofAudit } from '../ProofAudit.tsx'
 import { SectionCard } from '../SectionCard.tsx'
 import { TxLink } from '../TxLink.tsx'
-import { HederaSignerDialog } from '../WalletDialogs.tsx'
 import { ZeroGBalance } from '../ZeroGBalance.tsx'
 
 const FN_LABEL = {
@@ -30,6 +33,8 @@ const FN_LABEL = {
 	unlockNextTranche: 'Release tranche',
 	distributeDividend: 'Pay dividend',
 	executeLiquidation: 'Liquidate',
+	closeRaise: 'Close raise',
+	reclaimStake: 'Reclaim stake',
 } as const
 
 const PROOF_TONE = {
@@ -46,7 +51,7 @@ function Live({ id, children }: { id: string, children: Children }) {
 			class='smx-page'
 			hx-get='/hub'
 			hx-trigger={
-				'smx:dividend-paid from:body, '
+				'smx:dividend-paid from:body, smx:raise-closed from:body, '
 				+ 'smx:oracle-event[detail.kind!=\'TRADE\'] from:body delay:1s'
 			}
 			hx-select={`#${id}`}
@@ -141,6 +146,23 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 						</BlockingWarning>
 					)
 				}
+				{
+					c.status === 'LIVE' && Number(c.raised) > 0
+					&& c.tranches[0]?.status === 'LOCKED' && (
+						<HxForm
+							action={`/creators/${c.ticker}/close-raise`}
+							ext='json-enc'
+							class='smx-actions'>
+							<button
+								type='submit'
+								class='rc-button'
+								data-variant='primary'>
+								Close raise now
+							</button>
+							<span class='form-error' />
+						</HxForm>
+					)
+				}
 				<div class='rc-kpi-grid'>
 					<article class='rc-kpi smx-dw-hub-time'>
 						<span class='rc-kpi__label'>
@@ -160,7 +182,13 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 						<strong class='rc-kpi__value'>
 							{
 								nextDue
-									? <Countdown until={nextDue} />
+									? c.status === 'GRACE'
+										? <Countdown until={nextDue} />
+										: (
+											<ProofCountdown
+												dueAt={nextDue}
+												status={c.status === 'DRAFT' ? 'LIVE' : c.status} />
+										)
 									: escapeText('—')
 							}
 						</strong>
@@ -189,44 +217,11 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 							{
 								due
 									? (
-										<>
-											<p>
-												{
-													escapeText(
-														`Proven income: ${formatUsdc(income)}. `
-														+ `You owe ${formatUsdc(due.amountDue)} USDC.`,
-													)
-												}
-											</p>
-											<div class='smx-actions'>
-												<button
-													type='button'
-													class='rc-button'
-													data-variant='primary'
-													data-dw-sparkle
-													data-hedera-pay={`/dividends/${due.id}/payment-request`}
-													data-hedera-settle={`/dividends/${due.id}/payment`}>
-													{escapeText(`Pay ${formatUsdc(due.amountDue)} USDC on Hedera`)}
-												</button>
-												<output data-hedera-pay-status />
-											</div>
-											<HederaSignerDialog />
-											{
-												DEMO_MODE && (
-													<HxForm
-														action={`/dividends/${due.id}/payment`}
-														class='smx-form'>
-														<button
-															type='submit'
-															class='rc-button'
-															data-variant='inline'>
-															Mark as paid (demo)
-														</button>
-														<FormError />
-													</HxForm>
-												)
-											}
-										</>
+										<DividendCard
+											dividendId={due.id}
+											amountDue={due.amountDue}
+											income={income}
+											shareBps={c.shareBps} />
 									)
 									: (
 										<p>
@@ -269,6 +264,10 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 					</SectionCard>
 				</div>
 			</Live>
+			<ProofPipeline
+				ticker={c.ticker}
+				latestProof={proofs[0]}
+				nextTranche={pickTranche(c.tranches, proofs[0])} />
 			<div class='smx-page'>
 				<SectionCard
 					title='Web2 income verification'
@@ -298,17 +297,33 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 							</button>
 							{
 								DEMO_MODE && (
-									<button
-										type='button'
-										class='rc-button'
-										data-reclaim-demo='/api/audit-milestone'
-										data-reclaim-demo-context={c.id}
-										data-reclaim-demo-amount='5000.00'
-										data-reclaim-demo-field='proof'
-										data-reclaim-body={JSON.stringify({ ticker: c.ticker, period })}
-										disabled={c.status === 'DEFAULTED'}>
-										Simulate $5,000 deposit
-									</button>
+									<>
+										<select
+											class='rc-select'
+											aria-label='Demo income scenario'
+											data-reclaim-demo-scenario>
+											{
+												BANK_SCENARIOS.filter((s) => s.demoAmount).map((s) => (
+													<option
+														value={s.demoAmount!}
+														selected={s.id === 'salary'}>
+														{escapeText(`${s.label} (${formatUsdc(s.demoAmount!)})`)}
+													</option>
+												))
+											}
+										</select>
+										<button
+											type='button'
+											class='rc-button'
+											data-reclaim-demo='/api/audit-milestone'
+											data-reclaim-demo-context={c.id}
+											data-reclaim-demo-amount='5000.00'
+											data-reclaim-demo-field='proof'
+											data-reclaim-body={JSON.stringify({ ticker: c.ticker, period })}
+											disabled={c.status === 'DEFAULTED'}>
+											Simulate deposit
+										</button>
+									</>
 								)
 							}
 						</div>
@@ -487,7 +502,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 													</Badge>
 												</td>
 												<td>
-													{d.paidTxHash ? <TxLink hash={d.paidTxHash} /> : '—'}
+													{d.paidTxHash ? <TxLink hash={d.paidTxHash} /> : <DividendReceiptCell dividendId={d.id} />}
 												</td>
 											</tr>
 										))
@@ -498,6 +513,9 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 				</SectionCard>
 			</Live>
 			<div class='smx-page'>
+				<UpdateComposer
+					ticker={c.ticker}
+					updatesLeft={hub.updatesLeft} />
 				<SectionCard
 					title='Oracle events'
 					meta={
@@ -509,6 +527,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 					}>
 					<ul
 						class='smx-feed'
+						data-live-list='hub-events'
 						aria-live='polite'
 						hx-ext='sse'
 						{

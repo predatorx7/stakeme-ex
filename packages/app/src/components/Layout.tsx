@@ -10,9 +10,11 @@ import {
 } from '../consts.ts'
 import { clientAssets } from '../utils/client-assets.ts'
 import { jsonForScript } from '../utils/escape.ts'
+import { tickerItems } from '../utils/ticker-feed.ts'
 import { Header, type NavKey } from './Header.tsx'
 import { PAGE_SHELL_ID } from './nav-swap.ts'
 import { PublicShell } from './PublicShell.tsx'
+import { TickerStrip } from './TickerStrip.tsx'
 
 /**
  * Per-page SEO + social-card metadata. Every public route fills this
@@ -153,11 +155,54 @@ export function Layout(props: LayoutProps) {
 					<meta
 						name='twitter:description'
 						content={description} />
+					{
+						!seo.image && (
+							<>
+								<meta
+									property='og:image'
+									content={`${canonicalOrigin()}${assetUrl('icon-512.png')}`} />
+								<meta
+									property='og:image:width'
+									content='512' />
+								<meta
+									property='og:image:height'
+									content='512' />
+								<meta
+									name='twitter:card'
+									content='summary' />
+								<meta
+									name='twitter:image'
+									content={`${canonicalOrigin()}${assetUrl('icon-512.png')}`} />
+							</>
+						)
+					}
+					<meta
+						name='theme-color'
+						content='#040A20' />
 					<link
 						rel='icon'
-						type='image/svg+xml'
-						sizes='64x64'
-						href={assetUrl('icon.svg')}
+						href={assetUrl('favicon.ico')}
+						sizes='any'
+					/>
+					<link
+						rel='icon'
+						type='image/png'
+						sizes='192x192'
+						href={assetUrl('icon-192.png')}
+					/>
+					<link
+						rel='icon'
+						type='image/png'
+						sizes='512x512'
+						href={assetUrl('icon-512.png')}
+					/>
+					<link
+						rel='apple-touch-icon'
+						href={assetUrl('apple-touch-icon.png')}
+					/>
+					<link
+						rel='manifest'
+						href={assetUrl('site.webmanifest')}
 					/>
 					<link
 						rel='stylesheet'
@@ -171,7 +216,7 @@ export function Layout(props: LayoutProps) {
 								data-name={APP_NAME}
 								data-description={APP_DESCRIPTION}
 								data-url={canonicalOrigin()}
-								data-icon={`${canonicalOrigin()}${assetUrl('icon.svg')}`} />
+								data-icon={`${canonicalOrigin()}${assetUrl('icon-192.png')}`} />
 						)
 					}
 					{
@@ -200,6 +245,7 @@ export function Layout(props: LayoutProps) {
 										nav={nav} />
 								)
 							}
+							{!bare && <TickerStrip items={tickerItems()} />}
 							{
 								// A bare page brings its own landmarks.
 								bare ? children : (

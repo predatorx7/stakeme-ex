@@ -48,6 +48,8 @@ describe('exchange_json totals', () => {
 		await db.query('SELECT record_investment($1, $2, 600)', [one, B])
 		await db.query('SELECT record_investment($1, $2, 400)', [two, B])
 		await db.query('SELECT record_investment($1, $2, 250)', [two, C])
+		await db.query('SELECT close_raise($1)', [one])
+		await db.query('SELECT close_raise($1)', [two])
 		// Pay one dividend; an unpaid (DUE) one must not count.
 		const { rows: [p] } = await db.query<{ id: string }>(
 			'SELECT id FROM submit_income_proof($1, \'bank\', \'tot-1\', 5000, \'{}\', 0)', [one],
