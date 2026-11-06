@@ -1,0 +1,110 @@
+/* Diwali theme tokens (owner: tokens agent). See docs/diwali-theme.md.
+   Selectors mirror @reclaimprotocol/design: the theme toggle and the
+   prefers-color-scheme init both set data-theme on [data-theme-root], so
+   matching [data-theme] covers both. This file lives in @layer app, so it
+   wins over the rc-tokens layer without raising specificity.
+
+   Only accents are retuned; canvas, panels, text, noise and the guilloche
+   geometry stay the design system's. Contrast on the design system canvases
+   (light #F7F7FB, dark #040A20), computed:
+   Light  action #B45309 as text 4.8; white on action 5.0
+   Dark   action #FFB020 as text 11.3; #1A0F00 on action 10.3
+   Focus ring and status colors (danger stays red) are the design defaults.
+   The design tokens are unlayered, so the --rc-* overrides use !important
+   (important layered declarations beat unlayered normal ones).
+   The guilloche ink token is retinted to faint warm gold; nothing else. */
+
+:root,
+[data-theme='light'] {
+	/* Festive palette */
+	--smx-dw-gold: #b8860b;
+	--smx-dw-marigold: #c2620a;
+	--smx-dw-saffron: #d97706;
+	--smx-dw-maroon: #7a1f2b;
+	--smx-dw-rose: #c2417a;
+	--smx-dw-glow:
+		0 0 0 1px rgb(184 134 11 / 0.28), 0 4px 18px rgb(217 119 6 / 0.2);
+	--smx-dw-hairline: linear-gradient(
+		90deg,
+		transparent,
+		rgb(184 134 11 / 0.75) 30%,
+		rgb(217 119 6 / 0.75) 70%,
+		transparent
+	);
+	/* Contract hooks kept defined but unused: the page background is the
+	   design system's own. */
+	--smx-dw-canvas: none;
+	--smx-dw-rangoli: none;
+
+	/* Saffron accent. */
+	/* Guilloche ink: the behavior reads this on <html> and strokes its 26 rings
+	   with it, so only the color changes; scroll linking is untouched. */
+	--rc-color-surface-guilloche: rgb(194 98 10 / 0.05) !important;
+	--rc-color-action-primary: #b45309 !important;
+	--rc-color-action-primary-hover: #92400e !important;
+	--rc-color-action-selected: rgb(180 83 9 / 0.08) !important;
+	--rc-color-action-subtle: rgb(180 83 9 / 0.08) !important;
+	--rc-color-border-interactive: #b45309 !important;
+}
+
+[data-theme='dark'],
+:root:has([data-theme-root][data-theme='dark']) {
+	--smx-dw-gold: #f5c451;
+	--smx-dw-marigold: #ffb020;
+	--smx-dw-saffron: #ff8a1f;
+	--smx-dw-maroon: #7a1f3d;
+	--smx-dw-rose: #ff7eb3;
+	--smx-dw-glow:
+		0 0 0 1px rgb(245 196 81 / 0.3), 0 0 22px rgb(255 176 32 / 0.22);
+	--smx-dw-hairline: linear-gradient(
+		90deg,
+		transparent,
+		rgb(245 196 81 / 0.8) 30%,
+		rgb(255 138 31 / 0.8) 70%,
+		transparent
+	);
+	--smx-dw-canvas: none;
+	--smx-dw-rangoli: none;
+
+	--rc-color-surface-guilloche: rgb(245 196 81 / 0.04) !important;
+	/* Marigold fills need dark text: white on #FFB020 is only 2.1:1. */
+	--rc-color-text-on-action: #1a0f00 !important;
+	--rc-color-action-primary: #ffb020 !important;
+	--rc-color-action-primary-hover: #ffc857 !important;
+	--rc-color-action-selected: rgb(255 176 32 / 0.13) !important;
+	--rc-color-action-subtle: rgb(255 176 32 / 0.13) !important;
+	--rc-color-border-interactive: #ffb020 !important;
+}
+
+/* Lantern motif (jali): violet and magenta join gold as accents, with a
+   tileable leaf-and-vine lattice (inline SVG) for lit-from-behind surfaces.
+   The page canvas, noise and guilloche are untouched. Rules live in
+   diwali-jali.css. */
+:root,
+[data-theme='light'] {
+	--smx-dw-violet: #5b21b6;
+	--smx-dw-magenta: #a21caf;
+	--smx-dw-violet-glow: radial-gradient(
+		ellipse at 30% 40%,
+		rgb(162 28 175 / 0.1),
+		rgb(91 33 182 / 0.07) 45%,
+		transparent 75%
+	);
+	--smx-dw-jali: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88' fill='none' stroke='%23b8860b'%3E%3Cg stroke-width='0.7' stroke-opacity='0.9' stroke-linecap='round'%3E%3Cpath d='M0 44C22 22 66 66 88 44'/%3E%3Cpath d='M44 0C22 22 66 66 44 88'/%3E%3Ccircle cx='44' cy='44' r='3.2'/%3E%3Ccircle cx='44' cy='44' r='7' stroke-opacity='.5'/%3E%3C/g%3E%3Cg stroke-width='0.7' stroke-opacity='0.9' fill='%23b8860b' fill-opacity='0.08'%3E%3Cpath transform='translate(11 26) rotate(-50) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(11 26) rotate(-50) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(55 12) rotate(40) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(55 12) rotate(40) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(25 70) rotate(-130) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(25 70) rotate(-130) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(69 62) rotate(140) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(69 62) rotate(140) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(66 24) rotate(-20) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(66 24) rotate(-20) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(14 52) rotate(25) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(14 52) rotate(25) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3C/g%3E%3C/svg%3E");
+	--smx-dw-jali-size: 88px;
+	--smx-dw-jali-alpha: 0.55;
+}
+
+[data-theme='dark'],
+:root:has([data-theme-root][data-theme='dark']) {
+	--smx-dw-violet: #2e1065;
+	--smx-dw-magenta: #c026d3;
+	--smx-dw-violet-glow: radial-gradient(
+		ellipse at 30% 40%,
+		rgb(192 38 211 / 0.3),
+		rgb(109 40 217 / 0.2) 42%,
+		transparent 75%
+	);
+	--smx-dw-jali: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88' fill='none' stroke='%23f5c451'%3E%3Cg stroke-width='0.8' stroke-opacity='0.95' stroke-linecap='round'%3E%3Cpath d='M0 44C22 22 66 66 88 44'/%3E%3Cpath d='M44 0C22 22 66 66 44 88'/%3E%3Ccircle cx='44' cy='44' r='3.2'/%3E%3Ccircle cx='44' cy='44' r='7' stroke-opacity='.5'/%3E%3C/g%3E%3Cg stroke-width='0.8' stroke-opacity='0.95' fill='%23f5c451' fill-opacity='0.1'%3E%3Cpath transform='translate(11 26) rotate(-50) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(11 26) rotate(-50) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(55 12) rotate(40) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(55 12) rotate(40) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(25 70) rotate(-130) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(25 70) rotate(-130) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(69 62) rotate(140) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(69 62) rotate(140) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(66 24) rotate(-20) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(66 24) rotate(-20) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3Cpath transform='translate(14 52) rotate(25) scale(.8)' d='M0 0C5-9 15-9 22 0C15 9 5 9 0 0Z'/%3E%3Cpath transform='translate(14 52) rotate(25) scale(.8)' d='M2 0H20' stroke-opacity='.5'/%3E%3C/g%3E%3C/svg%3E");
+	--smx-dw-jali-alpha: 0.7;
+}

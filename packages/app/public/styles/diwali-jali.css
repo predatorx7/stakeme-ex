@@ -1,0 +1,131 @@
+/* diwali-jali: lantern motif (gold leaf-and-vine lattice lit by violet and
+   magenta). Accent surfaces only; tokens live at the end of diwali-tokens.css.
+   Decorative layers sit behind content (z-index -1 in an isolated stacking
+   context), carry low opacity and fade out with a mask, so text contrast is
+   unchanged. No animation; images are inline SVG only. */
+
+/* Page header bands: glow behind the title, lattice fading to the edges. */
+.rc-page-header {
+	isolation: isolate;
+	position: relative;
+}
+
+.rc-page-header::after {
+	background:
+		var(--smx-dw-jali) 0 0 / var(--smx-dw-jali-size, 88px),
+		var(--smx-dw-violet-glow);
+	content: '';
+	inset-block: -1.25rem;
+	inset-inline-start: -1.5rem;
+	inline-size: min(46rem, calc(100% + 3rem));
+	-webkit-mask-image: radial-gradient(ellipse 50% 70% at 42% 30%, #000 0, transparent 100%);
+	mask-image: radial-gradient(ellipse 50% 70% at 42% 30%, #000 0, transparent 100%);
+	pointer-events: none;
+	position: absolute;
+	opacity: 0.6;
+	z-index: -1;
+}
+
+[data-theme='light'] .rc-page-header::after {
+	opacity: 0.55;
+}
+
+/* Feature cards: glow and lattice from the top-right corner. */
+.rc-chart-frame,
+.rc-card:has([data-hedera-pay]) {
+	isolation: isolate;
+	overflow: hidden;
+}
+
+.rc-chart-frame::before,
+.rc-card:has([data-hedera-pay])::before {
+	background:
+		var(--smx-dw-jali) 100% 0 / var(--smx-dw-jali-size, 88px),
+		var(--smx-dw-violet-glow);
+	background-position: 100% 0, 100% 0;
+	background-repeat: repeat, no-repeat;
+	background-size: var(--smx-dw-jali-size, 88px), 100% 100%;
+	block-size: 11rem;
+	content: '';
+	inline-size: min(22rem, 100%);
+	inset-block-start: 0;
+	inset-inline: auto 0;
+	-webkit-mask-image: radial-gradient(circle at 100% 0, #000 0, transparent 72%);
+	mask-image: radial-gradient(circle at 100% 0, #000 0, transparent 72%);
+	opacity: var(--smx-dw-jali-alpha, 0.6);
+	pointer-events: none;
+	position: absolute;
+	z-index: -1;
+}
+
+/* Dialogs and the profile menu: very faint lattice in the top band only. */
+.rc-dialog,
+.rc-profile-menu {
+	isolation: isolate;
+}
+
+.rc-dialog::before,
+.rc-profile-menu::before {
+	background: var(--smx-dw-jali) 50% 0 / var(--smx-dw-jali-size, 88px);
+	block-size: 4.5rem;
+	content: '';
+	inset-block-start: 0;
+	inset-inline: 0;
+	-webkit-mask-image: linear-gradient(180deg, #000, transparent);
+	mask-image: linear-gradient(180deg, #000, transparent);
+	opacity: calc(var(--smx-dw-jali-alpha, 0.6) * 0.55);
+	pointer-events: none;
+	position: absolute;
+	z-index: -1;
+}
+
+/* KPI tiles: faint violet glow under the gold hairline on hover. */
+.rc-kpi {
+	isolation: isolate;
+}
+
+.rc-kpi::after {
+	background: radial-gradient(
+		ellipse 80% 100% at 50% 0,
+		color-mix(in srgb, var(--smx-dw-magenta, #c026d3) 22%, transparent),
+		transparent 75%
+	);
+	content: '';
+	inset: 0;
+	opacity: 0;
+	pointer-events: none;
+	position: absolute;
+	transition: opacity 0.2s ease;
+	z-index: -1;
+}
+
+.rc-kpi:hover::after,
+.rc-kpi:focus-within::after {
+	opacity: 1;
+}
+
+/* Light theme: gentler violet, the gold carries the motif. */
+[data-theme='light'] .rc-kpi::after {
+	background: radial-gradient(
+		ellipse 80% 100% at 50% 0,
+		color-mix(in srgb, var(--smx-dw-violet, #5b21b6) 9%, transparent),
+		transparent 75%
+	);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.rc-kpi::after {
+		transition: none;
+	}
+}
+
+@media (forced-colors: active) {
+	.rc-page-header::after,
+	.rc-chart-frame::before,
+	.rc-card:has([data-hedera-pay])::before,
+	.rc-dialog::before,
+	.rc-profile-menu::before,
+	.rc-kpi::after {
+		display: none;
+	}
+}

@@ -203,9 +203,16 @@ export function Layout(props: LayoutProps) {
 							{
 								// A bare page brings its own landmarks.
 								bare ? children : (
-									<main class='public-main'>
-										{children}
-									</main>
+									<>
+										<main class='public-main'>
+											{children}
+										</main>
+										<footer class='smx-dw-footer'>
+											<small>
+												{escapeHtml(APP_NAME)}
+											</small>
+										</footer>
+									</>
 								)
 							}
 						</PublicShell>

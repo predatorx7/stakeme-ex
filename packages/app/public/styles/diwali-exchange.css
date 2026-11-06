@@ -1,0 +1,100 @@
+/* diwali-exchange: Diwali theme layer (see docs/diwali-theme.md). */
+
+/* Page header: warm eyebrow and a faint diya-light glow behind the title. */
+.smx-xc > .rc-page-header {
+	isolation: isolate;
+	position: relative;
+}
+
+.smx-xc > .rc-page-header::before {
+	background: radial-gradient(
+		closest-side,
+		color-mix(in srgb, var(--smx-dw-gold, #d9a441) 22%, transparent),
+		transparent
+	);
+	content: '';
+	inline-size: 22rem;
+	block-size: 9rem;
+	inset-block-start: -2.5rem;
+	inset-inline-start: -4rem;
+	max-inline-size: 100%;
+	opacity: 0.7;
+	pointer-events: none;
+	position: absolute;
+	z-index: -1;
+}
+
+.smx-xc > .rc-page-header .rc-eyebrow {
+	color: var(--smx-dw-marigold, #c2570c);
+}
+
+/* KPI tiles: gold hairline and warm hover glow, from the shared tokens. */
+.smx-xc-kpis .rc-kpi {
+	position: relative;
+	transition: box-shadow 0.2s ease;
+}
+
+.smx-xc-kpis .rc-kpi::before {
+	background: var(
+		--smx-dw-hairline,
+		linear-gradient(90deg, transparent, #d9a441, transparent)
+	);
+	block-size: 1px;
+	content: '';
+	inset-block-start: 0;
+	inset-inline: 0;
+	pointer-events: none;
+	position: absolute;
+}
+
+.smx-xc-kpis .rc-kpi:is(:hover, :focus-within) {
+	box-shadow: var(--smx-dw-glow, 0 0 18px rgb(217 164 65 / 0.25));
+}
+
+/* Trending humans: rank 1 gets a quiet gold accent. */
+.smx-trending[data-rank='1'] > td:first-child {
+	box-shadow: inset 2px 0 0 var(--smx-dw-gold, #d9a441);
+}
+
+.smx-trending[data-rank='1'] {
+	background: linear-gradient(
+		90deg,
+		color-mix(in srgb, var(--smx-dw-gold, #d9a441) 10%, transparent),
+		transparent 60%
+	);
+}
+
+.smx-trending[data-rank='1'] .smx-ticker {
+	color: var(--smx-dw-marigold, inherit);
+}
+
+/* Live oracle events: title accent and diya dot. */
+.smx-xc-feed .rc-card__header h2 {
+	align-items: center;
+	display: inline-flex;
+	gap: var(--rc-space-2, 0.5rem);
+}
+
+.smx-xc-feed .rc-card__header h2::before {
+	background: var(--smx-dw-gold, #d9a441);
+	block-size: 0.5rem;
+	border-radius: 50%;
+	box-shadow: 0 0 8px 1px var(--smx-dw-marigold, #e8892b);
+	content: '';
+	inline-size: 0.5rem;
+}
+
+.smx-xc-feed .smx-event:first-child {
+	background: linear-gradient(
+		90deg,
+		color-mix(in srgb, var(--smx-dw-gold, #d9a441) 8%, transparent),
+		transparent 70%
+	);
+}
+
+@media (max-width: 35rem) {
+	.smx-xc > .rc-page-header::before {
+		inset-inline-start: -2rem;
+		inline-size: 16rem;
+	}
+}

@@ -1,0 +1,83 @@
+/* diwali-launch: Diwali theme layer (see docs/diwali-theme.md). */
+
+/* Eyebrow: warm, understated. */
+.smx-page > .rc-page-header .rc-eyebrow,
+.smx-page .rc-eyebrow {
+	color: var(--smx-dw-marigold, #c2570c);
+}
+
+/* Form card: gold hairline, warm glow on focus-within. */
+.rc-card:has(#launch-form) {
+	position: relative;
+	transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.rc-card:has(#launch-form)::before {
+	content: '';
+	position: absolute;
+	inset: 0 0 auto 0;
+	height: 1px;
+	background: var(--smx-dw-hairline, linear-gradient(90deg, transparent, #f5b942, transparent));
+	pointer-events: none;
+	border-radius: inherit;
+}
+.rc-card:has(#launch-form):focus-within {
+	box-shadow: var(--smx-dw-glow, 0 0 0 1px rgb(245 185 66 / 0.35), 0 4px 22px rgb(245 140 40 / 0.2));
+}
+
+/* World ID step: a card with a small diya accent. */
+.smx-world {
+	position: relative;
+	padding: var(--rc-space-3, 0.75rem) var(--rc-space-4, 1rem);
+	padding-inline-start: calc(var(--rc-space-4, 1rem) + 1.25rem);
+	border: 1px solid var(--rc-color-border-default, rgb(128 128 128 / 0.3));
+	border-radius: var(--rc-radius-md, 8px);
+}
+.smx-world::before {
+	content: '';
+	position: absolute;
+	inset-inline-start: var(--rc-space-4, 1rem);
+	inset-block-start: calc(var(--rc-space-3, 0.75rem) + 0.5rem);
+	inline-size: 0.5rem;
+	block-size: 0.5rem;
+	border-radius: 50%;
+	background: var(--rc-color-border-default, rgb(128 128 128 / 0.5));
+	transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Lit: success status (:has) or the verified pill (fallback, no :has needed). */
+.smx-world:has([data-world-id-status][data-tone='success'])::before,
+.smx-world:has([data-world-id-verified]:not([hidden]))::before {
+	background: var(--smx-dw-gold, #f5b942);
+	box-shadow: 0 0 8px 2px var(--smx-dw-marigold, #f28c28);
+}
+.smx-world:has([data-world-id-status][data-tone='success']) {
+	border-color: var(--smx-dw-gold, #f5b942);
+	box-shadow: var(--smx-dw-glow, 0 0 0 1px rgb(245 185 66 / 0.3), 0 2px 16px rgb(245 140 40 / 0.18));
+}
+@media (prefers-reduced-motion: no-preference) {
+	.smx-world:has([data-world-id-status][data-tone='success'])::before {
+		animation: smx-dw-flicker 2.7s ease-in-out infinite;
+	}
+}
+
+/* Rejections stay clearly red; the diya stays unlit. */
+.smx-world:has([data-world-id-status][data-tone='danger']) {
+	border-color: var(--rc-color-status-danger, #c62828);
+}
+.smx-world:has([data-world-id-status][data-tone='danger'])::before {
+	background: var(--rc-color-status-danger, #c62828);
+	box-shadow: none;
+}
+
+/* Submit: marigold gradient, only while enabled. */
+#launch-form button[data-world-id-submit]:not(:disabled) {
+	background: linear-gradient(135deg, var(--smx-dw-gold, #f5b942), var(--smx-dw-marigold, #f28c28));
+	color: #2a1200;
+	border-color: transparent;
+	transition: box-shadow 0.15s ease, filter 0.15s ease;
+}
+#launch-form button[data-world-id-submit]:not(:disabled):hover,
+#launch-form button[data-world-id-submit]:not(:disabled):focus-visible {
+	filter: brightness(1.05);
+	box-shadow: var(--smx-dw-glow, 0 0 0 1px rgb(245 185 66 / 0.35), 0 4px 22px rgb(245 140 40 / 0.25));
+}

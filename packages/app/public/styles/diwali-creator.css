@@ -1,0 +1,87 @@
+/* diwali-creator: Diwali theme layer (see docs/diwali-theme.md). */
+
+/* Price header: warm glow behind the price and ticker. */
+#creator-live .smx-price strong {
+	text-shadow: 0 0 1.25rem color-mix(in srgb, var(--smx-dw-gold, #e8b04a) 45%, transparent);
+}
+
+#creator-live .rc-page-header,
+#creator-live > header:first-child {
+	background-image: radial-gradient(
+		ellipse 28rem 9rem at 0% 0%,
+		color-mix(in srgb, var(--smx-dw-marigold, #f08a24) 14%, transparent),
+		transparent 70%
+	);
+}
+
+/* L-ISA terms card: gold hairline across the top. */
+.rc-card:has(> .smx-terms),
+.rc-card:has(.smx-terms) {
+	position: relative;
+}
+
+.rc-card:has(.smx-terms)::before {
+	background: var(--smx-dw-hairline, linear-gradient(90deg, transparent, #e8b04a, transparent));
+	block-size: 1px;
+	content: '';
+	inset-block-start: 0;
+	inset-inline: 0;
+	pointer-events: none;
+	position: absolute;
+}
+
+/* Escrow tranches: a row of diyas. */
+.smx-tranches li > span:first-child::before {
+	background: transparent;
+	border: 1.5px solid var(--smx-dw-gold, #c8962e);
+	border-radius: 50% 50% 45% 45%;
+	content: '';
+	display: inline-block;
+	block-size: 0.75rem;
+	inline-size: 0.75rem;
+	margin-inline-end: var(--rc-space-2, 0.5rem);
+	vertical-align: -0.05rem;
+}
+
+.smx-tranches li[data-status='released'] > span:first-child::before {
+	animation: smx-dw-creator-lit 3.2s ease-in-out infinite;
+	background: radial-gradient(circle at 50% 35%, #fff3c4, var(--smx-dw-gold, #e8b04a) 60%);
+	border-color: var(--smx-dw-gold, #e8b04a);
+	box-shadow: 0 0 0.5rem 0.1rem color-mix(in srgb, var(--smx-dw-gold, #e8b04a) 70%, transparent);
+}
+
+.smx-tranches li[data-status='locked'] > span:first-child::before {
+	background: transparent;
+	opacity: 0.8;
+}
+
+.smx-tranches li[data-status='refunded'] > span:first-child::before {
+	background: var(--smx-dw-maroon, #6b1d2a);
+	border-color: var(--smx-dw-maroon, #6b1d2a);
+	opacity: 0.55;
+}
+
+@keyframes smx-dw-creator-lit {
+	50% {
+		box-shadow: 0 0 0.7rem 0.2rem color-mix(in srgb, var(--smx-dw-gold, #e8b04a) 55%, transparent);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.smx-tranches li[data-status='released'] > span:first-child::before {
+		animation: none;
+	}
+}
+
+/* Warm row hover for holders, proofs and dividends. */
+#creator-live .rc-table tbody tr,
+.smx-tranches li {
+	transition: background-color 0.1s;
+}
+
+#creator-live .rc-table tbody tr:hover,
+.smx-tranches li:hover {
+	background-color: color-mix(in srgb, var(--smx-dw-marigold, #f08a24) 9%, transparent);
+}
+
+/* Danger and frozen notices stay serious: no festive styling is applied. */

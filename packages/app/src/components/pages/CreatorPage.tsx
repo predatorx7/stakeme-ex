@@ -516,6 +516,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 											class='rc-button'
 											data-variant='primary'
 											type='submit'
+											data-dw-sparkle
 											disabled={!open}>
 											Invest
 										</button>
@@ -589,6 +590,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 											class='rc-button'
 											data-variant='primary'
 											type='submit'
+											data-dw-sparkle
 											disabled={!trading}>
 											Place trade
 										</button>

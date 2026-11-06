@@ -1,0 +1,232 @@
+/* diwali-components: Diwali theme layer (see docs/diwali-theme.md).
+   Shared components only. Tokens and hooks come from other files, so every
+   var() carries a fallback. Corners stay 2px, no resting shadow. */
+
+/* KPI tiles: gold hairline on top, warm figure, glow without lift. */
+.rc-kpi {
+	overflow: hidden;
+	transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.rc-kpi::before {
+	background: var(
+		--smx-dw-hairline,
+		linear-gradient(90deg, transparent, #e8b44c, transparent)
+	);
+	block-size: 1px;
+	content: '';
+	inset-block-start: 0;
+	inset-inline: 0;
+	pointer-events: none;
+	position: absolute;
+}
+
+.rc-kpi__value {
+	color: color-mix(
+		in srgb,
+		var(--smx-dw-marigold, #f08a1c) 28%,
+		var(--rc-color-text-primary)
+	);
+}
+
+.rc-kpi:hover,
+.rc-card[data-tile]:hover {
+	border-color: color-mix(
+		in srgb,
+		var(--smx-dw-gold, #e8b44c) 55%,
+		var(--rc-component-card-border)
+	);
+	box-shadow: var(--smx-dw-glow, 0 0 18px rgb(240 160 40 / 22%));
+}
+
+/* Cards: faint rangoli corner accent. */
+.rc-card {
+	position: relative;
+}
+
+.rc-card::after {
+	background:
+		radial-gradient(
+			circle at 100% 0,
+			color-mix(in srgb, var(--smx-dw-marigold, #f08a1c) 16%, transparent) 0,
+			transparent 62%
+		),
+		repeating-conic-gradient(
+			from 0deg at 100% 0,
+			color-mix(in srgb, var(--smx-dw-gold, #e8b44c) 14%, transparent) 0 6deg,
+			transparent 6deg 18deg
+		);
+	block-size: 3.25rem;
+	content: '';
+	inline-size: 3.25rem;
+	inset-block-start: 0;
+	inset-inline-end: 0;
+	mask-image: radial-gradient(circle at 100% 0, #000 0, transparent 72%);
+	opacity: 0.7;
+	pointer-events: none;
+	position: absolute;
+}
+
+.rc-card:hover {
+	border-color: color-mix(
+		in srgb,
+		var(--smx-dw-gold, #e8b44c) 35%,
+		var(--rc-component-card-border)
+	);
+}
+
+.rc-card[data-tone='danger']::after,
+.rc-card[data-spec]::after {
+	display: none;
+}
+
+/* Primary buttons: marigold to saffron, dark ink for contrast. */
+.rc-button[data-variant='primary'],
+.rc-button--primary {
+	background: linear-gradient(135deg, #ffc247, #ffa128 55%, #f58a14);
+	border-color: transparent;
+	color: #2a1100;
+}
+
+.rc-button[data-variant='primary']:hover,
+.rc-button--primary:hover {
+	background: linear-gradient(135deg, #f0a92e, #e68a12 55%, #d96a0a);
+	color: #1f0c00;
+}
+
+.rc-button[data-variant='primary'][disabled],
+.rc-button[data-variant='primary'][aria-disabled='true'] {
+	filter: saturate(0.5);
+}
+
+/* Pills: live stays green, frozen leans maroon-amber, failed stays red. */
+.rc-pill[data-tone='verified'] {
+	box-shadow: inset 0 0 0 1px
+		color-mix(in srgb, var(--smx-dw-saffron, #f47b12) 28%, transparent);
+}
+
+.rc-pill[data-tone='pending'][title^='Escrow frozen'] {
+	background: color-mix(
+		in srgb,
+		var(--smx-dw-maroon, #7a1f2b) 22%,
+		var(--rc-color-pill-pending-background)
+	);
+	box-shadow: inset 0 0 0 1px
+		color-mix(in srgb, var(--smx-dw-maroon, #7a1f2b) 45%, transparent);
+}
+
+/* Progress: diya-gold fill with a soft glow. */
+.rc-progress {
+	overflow: visible;
+}
+
+.rc-progress:not([data-tone]) > span {
+	background: linear-gradient(
+		90deg,
+		var(--smx-dw-marigold, #f08a1c),
+		var(--smx-dw-gold, #e8b44c)
+	);
+	box-shadow: 0 0 8px
+		color-mix(in srgb, var(--smx-dw-gold, #e8b44c) 55%, transparent);
+}
+
+.rc-circular-progress:not([data-tone]) .rc-circular-progress__value {
+	stroke: var(--smx-dw-gold, #e8b44c);
+}
+
+/* Price change: green and red keep their meaning. */
+.smx-change[data-dir='up'],
+.smx-spark[data-dir='up'] {
+	color: color-mix(
+		in srgb,
+		var(--rc-color-status-success) 90%,
+		var(--smx-dw-saffron, #f47b12)
+	);
+}
+
+/* Tables: warm header, warm row hover. */
+table.rc-table th,
+.rc-table__header {
+	background: color-mix(
+		in srgb,
+		var(--smx-dw-gold, #e8b44c) 9%,
+		var(--rc-color-surface-panel-subtle)
+	);
+	border-block-end-color: color-mix(
+		in srgb,
+		var(--smx-dw-gold, #e8b44c) 35%,
+		var(--rc-color-border-default)
+	);
+}
+
+table.rc-table tbody tr:hover,
+.rc-table__row:hover {
+	background: color-mix(
+		in srgb,
+		var(--smx-dw-marigold, #f08a1c) 9%,
+		transparent
+	);
+}
+
+/* Oracle feed: a small diya dot leads each event. */
+.smx-event {
+	position: relative;
+}
+
+.smx-event::before {
+	background: var(--smx-dw-gold, #e8b44c);
+	block-size: 5px;
+	border-radius: 50%;
+	box-shadow: 0 0 6px var(--smx-dw-marigold, #f08a1c);
+	content: '';
+	inline-size: 5px;
+	inset-block-start: 50%;
+	inset-inline-start: 4px;
+	margin-block-start: -2.5px;
+	pointer-events: none;
+	position: absolute;
+}
+
+.smx-event[data-kind='PROOF_REJECTED']::before,
+.smx-event[data-kind='DEFAULTED']::before {
+	background: var(--rc-color-status-danger);
+	box-shadow: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.smx-event:first-child::before {
+		animation: smx-dw-diya-flicker 2.6s ease-in-out infinite;
+	}
+}
+
+@keyframes smx-dw-diya-flicker {
+	50% {
+		opacity: 0.55;
+	}
+}
+
+/* Charts: marigold line, soft gold area. */
+.rc-chart-frame:not([data-tone]) .rc-area-chart__line,
+.rc-area-chart__line {
+	stroke: var(--smx-dw-marigold, #f08a1c);
+}
+
+.rc-area-chart__fill {
+	fill: color-mix(in srgb, var(--smx-dw-gold, #e8b44c) 20%, transparent);
+}
+
+.rc-bar-list__bar > span:not([data-tone]),
+.rc-bar-chart > li > span:not([data-tone]) {
+	background: var(--smx-dw-marigold, #f08a1c);
+}
+
+/* Dialogs: gold hairline on top. */
+.rc-dialog {
+	border-block-start-color: var(--smx-dw-gold, #e8b44c);
+}
+
+/* Forms: warm focus ring only where it holds 3:1; otherwise defaults stay. */
+.rc-input-group:focus-within,
+.rc-tag-input:focus-within {
+	border-color: var(--smx-dw-marigold, #f08a1c);
+}

@@ -74,8 +74,8 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 					eyebrow='Creator hub'
 					title='Creator hub' />
 				<EmptyState
-					title='You have not launched an IPO'
-					hint='Launch one to raise funds against your future income.'>
+					title='Ready to launch your first IPO?'
+					hint='Raise funds against your future income. It only takes a few minutes.'>
 					<a
 						class='rc-button'
 						data-variant='primary'
@@ -142,7 +142,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 					)
 				}
 				<div class='rc-kpi-grid'>
-					<article class='rc-kpi'>
+					<article class='rc-kpi smx-dw-hub-time'>
 						<span class='rc-kpi__label'>
 							Time left
 						</span>
@@ -203,6 +203,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 													type='button'
 													class='rc-button'
 													data-variant='primary'
+													data-dw-sparkle
 													data-hedera-pay={`/dividends/${due.id}/payment-request`}
 													data-hedera-settle={`/dividends/${due.id}/payment`}>
 													{escapeText(`Pay ${formatUsdc(due.amountDue)} USDC on Hedera`)}
@@ -289,6 +290,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 								type='button'
 								class='rc-button'
 								data-variant='primary'
+								data-dw-sparkle
 								data-reclaim-start={`/creators/${c.ticker}/reclaim-sessions`}
 								data-reclaim-body={JSON.stringify({ period })}
 								disabled={c.status === 'DEFAULTED'}>
@@ -330,8 +332,8 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 					<ol class='smx-tranches'>
 						{
 							c.tranches.map((t) => (
-								<li>
-									<span>
+								<li data-tranche={t.status}>
+									<span class='smx-dw-tranche'>
 										{escapeText(`Tranche ${t.idx + 1}`)}
 									</span>
 									<span class='smx-num'>

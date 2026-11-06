@@ -12,6 +12,7 @@ import './wallet.ts'
 import './world-id.ts'
 import './reclaim.ts'
 import './live.ts'
+import './diwali-effects.ts'
 import './launch-form.ts'
 import './hedera-pay.ts'
 

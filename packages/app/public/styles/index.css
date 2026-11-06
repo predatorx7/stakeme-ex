@@ -2,3 +2,17 @@
 @import './app.css';
 @import './public.css';
 @import './smx.css';
+/* Diwali theme: tokens first, then shared effects, then per-surface files.
+   Each file has one owner; see docs/diwali-theme.md. */
+@import './diwali-tokens.css';
+@import './diwali-effects.css';
+@import './diwali-components.css';
+@import './diwali-shell.css';
+@import './diwali-exchange.css';
+@import './diwali-creator.css';
+@import './diwali-hub.css';
+@import './diwali-launch.css';
+/* Motifs from the reference images, layered last so they can accent the
+   surfaces above without each page restyling them. */
+@import './diwali-jali.css';
+@import './diwali-lights.css';

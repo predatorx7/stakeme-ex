@@ -185,6 +185,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 								data-variant='primary'
 								data-size='lg'
 								disabled
+								data-dw-sparkle
 								data-world-id-submit>
 								Launch IPO
 							</button>
