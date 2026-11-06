@@ -16,7 +16,7 @@ investors.
 | `MockUSDC` | Six-decimal test token with a public `mint`. |
 | `CreatorShareToken` | ERC-20 share token with built-in dividend accounting. |
 | `LiquidISA` | One per creator. Holds escrow, stake and dividends. |
-| `LiquidISAFactory` | Deploys ISAs and tracks World ID nullifiers. |
+| `LiquidISAFactory` | Deploys ISAs, maps each World ID nullifier to its ISA and keeps the default blacklist. |
 
 ## Lifecycle
 
@@ -34,6 +34,8 @@ investors.
    last tranche sweeps any rounding remainder.
 6. Anyone calls `distributeDividend(amount)`. Holders call `claim()`.
 7. After the term ends without a default, the creator calls `reclaimStake()`.
+8. The oracle can call `freezeEscrow()` and `unfreezeEscrow()` at any time (see
+   [Safe-stop](#safe-stop)).
 
 ## Dividend math
 
@@ -68,10 +70,34 @@ Only the oracle can call `executeLiquidation()`. The contract:
 
 If no shares exist, the stake returns to the creator.
 
+## Safe-stop
+
+`freezeEscrow()` and `unfreezeEscrow()` are oracle-only. They set the `frozen`
+flag and emit `EscrowFrozen(by)` and `EscrowUnfrozen(by)`. The 0G agent freezes
+the escrow when a creator misses a proof deadline and unfreezes it after a late
+approved proof.
+
+While `frozen` is true:
+
+- `unlockNextTranche()` and `reclaimStake()` revert with `EscrowFrozenError`.
+- A raise that fills (or `closeRaise()`) still closes but doesn't release tranche
+  0. The oracle releases it with `unlockNextTranche()` after unfreezing.
+- Investing, claiming, dividends and `executeLiquidation()` keep working, so a
+  freeze never traps investor money.
+
+## Hedera ATS equity token
+
+`setAtsToken(address)` (oracle-only, once) records the Hedera Asset
+Tokenization Studio equity token minted for the ISA and emits `AtsTokenSet`.
+`CreatorShareToken` stays the source of truth for escrow and dividend math; the
+ATS token is the regulated registry mirror. See
+[Hedera integration](integrations/hedera.md#mint-a-creator-equity-token-with-ats).
+
 ## Nullifiers
 
 `createISA` reverts with `NullifierUsed` if the nullifier already has an ISA and
-with `NullifierBlacklisted` if it is blacklisted. The oracle can also call
+with `NullifierBlacklisted` if it is blacklisted. The factory stores the
+mapping in `isaOfNullifier`. The oracle can also call
 `blacklist(nullifier)` on the factory directly.
 
 ## Build and test
@@ -96,7 +122,7 @@ npx hardhat vars set OG_PRIVATE_KEY
 Then deploy to a network:
 
 ```bash
-npm run deploy:hedera   # chain 296, https://testnet.hashio.io/api
+npm run deploy:hedera   # default target: Hedera testnet, chain 296, https://testnet.hashio.io/api
 npm run deploy:sepolia
 npm run deploy:0g       # 0G Galileo, chain 16602, https://evmrpc-testnet.0g.ai
 ```

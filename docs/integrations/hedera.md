@@ -1,14 +1,32 @@
 # Hedera integration
 
-Verified against docs.hedera.com and npm on 2026-11-06.
+Verified against npm, the Asset Tokenization Studio (ATS) packages, and
+docs.hedera.com on 2026-11-06.
 
-**Status:** implemented (see [Implementation notes](README.md#implementation-notes)).
+**Status:** implemented with SIMULATED fallbacks. The live ATS mint and the live
+x402 settlement are typechecked and unit-tested for their pure logic, but not
+run against Hedera testnet in this repository (no operator key in CI).
 
-SMX deploys `LiquidISA`, `CreatorShareToken`, and `MockUSDC` to Hedera testnet
-through the JSON-RPC relay, using `viem`. For "gasless dividend streaming" SMX
-uses the x402 payment protocol, with a limit you must know: Hedera's x402
-scheme pays in HBAR or HTS tokens through native Hedera transactions, not EVM
-transactions.
+SMX uses three Hedera features, all with native Hedera transactions:
+
+| Feature | What it does | Code |
+| --- | --- | --- |
+| Hedera EVM | Hosts `LiquidISAFactory`, `LiquidISA`, `CreatorShareToken` and `MockUSDC` (chain `296`). | `packages/contracts`, `integrations/chain.ts` |
+| Asset Tokenization Studio | Mints the creator's equity token (for example `$MUSH`). | `integrations/hedera-ats.ts` |
+| x402 dividend loop | The creator's wallet signs one Hedera transfer that pays every holder. | `services/payment/hedera-*.ts`, `client/hedera-pay.ts` |
+
+```mermaid
+flowchart LR
+	A["0G agent approves income"] --> B["Dividend DUE"]
+	B --> C["Creator clicks Pay on the Hub"]
+	C --> D["x402 payment request"]
+	D --> E["Wallet signs one Hedera transfer"]
+	E --> F["Server settles on Hedera"]
+	F --> G["Holders receive micro-streams"]
+	H["IPO: createISA"] --> I["ATS equity token minted"]
+	H --> J["LiquidISA escrow on Hedera EVM"]
+	K["Missed proof deadline"] --> L["freezeEscrow"]
+```
 
 ## Network facts
 
@@ -19,10 +37,11 @@ transactions.
 | JSON-RPC relay (Hashio) | `https://testnet.hashio.io/api` |
 | Native currency | HBAR (18 decimals on the EVM side, 8 on the native side: tinybars) |
 | Explorer | [HashScan](https://hashscan.io/testnet) |
-| Faucet | [portal.hedera.com/faucet](https://portal.hedera.com/faucet) (EVM address or account id). See also the [faucet docs](https://docs.hedera.com/learn/getting-started/testnet-faucet.md). |
+| Faucet | [portal.hedera.com/faucet](https://portal.hedera.com/faucet) (EVM address or account id) |
+| Mirror node | `https://testnet.mirrornode.hedera.com/api/v1` |
 
-Hashio is for development and testing only. It has no documented rate limits
-and can throttle during a hackathon. Keep a fallback relay URL in `.env`.
+Hashio is for development only and can throttle. Keep a fallback relay URL in
+`.env`.
 
 ### HashScan URLs
 
@@ -31,215 +50,219 @@ and can throttle during a hackathon. Keep a fallback relay URL in `.env`.
 - Contract: `https://hashscan.io/testnet/contract/<0x-address>`
 - Token: `https://hashscan.io/testnet/token/<0.0.id>`
 
-## Packages and versions
-
-| Package | Version | Use |
-| --- | --- | --- |
-| `viem` | 2.57.16 | EVM client for contracts (browser and server). |
-| `@x402/core` | 2.30.0 | x402 client and resource-server core. |
-| `@x402/hedera` | 2.30.0 | Hedera `exact` scheme (client and server). |
-| `@x402/express` | 2.30.0 | Express paywall middleware (Express 5 compatible not verified). |
-| `@hiero-ledger/sdk` | 2.90.1 | Hedera native SDK (JS). Replaces `@hashgraph/sdk`. Needed only for x402 signing and token setup. |
-
-```bash
-npm install viem
-npm install @x402/core @x402/hedera @hiero-ledger/sdk   # only for the x402 step
-```
-
 ## Environment variables
 
 | Variable | Secret | Description |
 | --- | --- | --- |
-| `CHAIN_RPC_URL` | No | `https://testnet.hashio.io/api`. Unset means simulated chain mode. |
+| `HEDERA_OPERATOR_ID` | No | `0.0.x` operator account. It pays network fees for dividend payments (the x402 fee payer). Legacy alias: `HEDERA_ACCOUNT_ID`. |
+| `HEDERA_OPERATOR_KEY` | Yes | ECDSA key of the operator, raw `0x` hex or Hedera DER hex. Legacy alias: `HEDERA_PRIVATE_KEY`. Create an ECDSA account in the [Hedera portal](https://portal.hedera.com). |
+| `HEDERA_NETWORK` | No | `testnet` (default) or `mainnet`. |
+| `HEDERA_DIVIDEND_TOKEN_ID` | No | HTS token id for the dividend asset (a testnet USDC, 6 decimals). Unset means HBAR. |
+| `HEDERA_RPC_URL` | No | JSON-RPC relay for ATS calls when `CHAIN_RPC_URL` is unset. Default Hashio. |
+| `CHAIN_RPC_URL` | No | `https://testnet.hashio.io/api`. Unset means a simulated chain. |
 | `CHAIN_ID` | No | `296`. |
-| `ORACLE_PRIVATE_KEY` | Yes | ECDSA key (0x hex) of the oracle/deployer. Fund it from the faucet. |
-| `HEDERA_X402_FACILITATOR_URL` | No | `https://x402.org/facilitator`. |
-| `HEDERA_ACCOUNT_ID` | No | `0.0.x` account used for x402 payments. |
-| `HEDERA_PRIVATE_KEY` | Yes | Key for that account (x402 signer). |
-| `HEDERA_DIVIDEND_TOKEN_ID` | No | HTS token id used as the payment asset (for example a testnet USDC). |
+| `ORACLE_PRIVATE_KEY` | Yes | ECDSA key (0x hex) of the oracle and deployer. Fund it from the faucet. |
+| `FACTORY_ADDRESS` | No | Deployed `LiquidISAFactory`. |
+| `ATS_ENABLED` | No | `1` turns on the live ATS mint. |
+| `ATS_FACTORY_ADDRESS` | No | ATS `Factory` proxy (EVM address) on the target network. |
+| `ATS_RESOLVER_ADDRESS` | No | ATS Business Logic Resolver (BLR) proxy (EVM address). |
+| `ATS_CONFIG_VERSION` | No | Resolver configuration version. `0` (default) means latest. |
 
-## viem chain config
+With no `HEDERA_OPERATOR_*` variables every path returns SIMULATED results and
+logs a warning, so the demo runs with no keys.
 
-```ts
-import { defineChain, createPublicClient, createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+## Mint a creator equity token with ATS
 
-export const hederaTestnet = defineChain({
-	id: 296,
-	name: 'Hedera Testnet',
-	nativeCurrency: { name: 'HBAR', symbol: 'HBAR', decimals: 18 },
-	rpcUrls: { default: { http: [process.env.CHAIN_RPC_URL ?? 'https://testnet.hashio.io/api'] } },
-	blockExplorers: { default: { name: 'HashScan', url: 'https://hashscan.io/testnet' } },
-	testnet: true,
-});
+[Asset Tokenization Studio](https://github.com/hashgraph/asset-tokenization-studio)
+(ATS) deploys regulated securities (ERC-1400 and ERC-3643 style) as diamond
+proxies, created by an on-chain `Factory` that points at a Business Logic
+Resolver.
 
-export const publicClient = createPublicClient({ chain: hederaTestnet, transport: http() });
-export const oracle = privateKeyToAccount(process.env.ORACLE_PRIVATE_KEY as `0x${string}`);
-export const walletClient = createWalletClient({ account: oracle, chain: hederaTestnet, transport: http() });
+### Decision: call the ATS Factory, not the SDK
+
+`@hashgraph/asset-tokenization-sdk` 8.0.0 is the official client, but it can't
+be driven from Node with an operator key:
+
+- Its `Network.connect` supports WalletConnect, MetaMask, DFNS, Fireblocks and
+  AWS KMS. There is no private-key signer.
+- The ESM build uses extensionless imports that Node can't load, and the
+  package pulls Reown and WalletConnect.
+
+The SDK is a thin wrapper over the ATS contracts, so SMX calls the same
+contracts directly: `Factory.deployEquity(...)`, then `Equity.mint(...)`, with
+`viem` through the Hedera relay. The ABI subset is in `hedera-ats.ts` (copied
+from `@hashgraph/asset-tokenization-contracts` 8.0.0).
+
+### Design: ATS mirrors the cap table
+
+`LiquidISA` keeps `CreatorShareToken` as the source of truth for escrow and
+dividends. An ATS token has its own corporate-action logic and can't reuse the
+ISA's O(1) dividend accounting, so SMX doesn't let `LiquidISA` use it as the
+share token. Instead:
+
+1. `createISA` on the factory deploys `LiquidISA` and `CreatorShareToken`.
+2. The chain worker calls `mintCreatorEquityToken` for the same ticker. The
+   supply equals the raise (1 USDC raised = 1 share, 18 decimals) and goes to
+   the oracle treasury.
+3. The oracle calls `LiquidISA.setAtsToken(atsToken)` once. The address is
+   stored and emitted as `AtsTokenSet`, so HashScan links the two.
+
+```mermaid
+sequenceDiagram
+	participant W as "Chain worker"
+	participant F as "LiquidISAFactory"
+	participant A as "ATS Factory"
+	participant I as "LiquidISA"
+	W->>F: "createISA(...)"
+	F-->>W: "ISACreated(isa, token)"
+	W->>A: "deployEquity(EquityData, RegulationData)"
+	A-->>W: "EquityDeployed(equity)"
+	W->>A: "equity.mint(treasury, supply)"
+	W->>I: "setAtsToken(equity)"
 ```
 
-Browser: wire the same chain to `window.ethereum` (MetaMask or HashPack EVM).
-Call `wallet_addEthereumChain` with chain id `0x128`.
+### Prerequisites and limits
+
+- ATS isn't deployed for you. Deploy the BLR, Factory and facets with the
+  scripts in `@hashgraph/asset-tokenization-contracts` (`scripts/README.md`),
+  then set `ATS_FACTORY_ADDRESS` and `ATS_RESOLVER_ADDRESS`. The README's
+  reference deployment on testnet predates v1.17 and role hashes changed in v8,
+  so don't reuse its addresses.
+- `deployEquity` validates an ISIN with a checksum. SMX generates a synthetic
+  one (`XS` plus nine hex characters plus the ISO 6166 check digit).
+- Roles use the v8 hashes: `ROLE_ISSUER` goes to the operator so it can mint.
+- This path is behind `ATS_ENABLED=1` and wasn't run against a live ATS
+  deployment. On any error SMX logs and falls back to a SIMULATED token, so an
+  IPO never fails because of ATS.
 
 ```ts
-await window.ethereum.request({
-	method: 'wallet_addEthereumChain',
-	params: [{
-		chainId: '0x128',
-		chainName: 'Hedera Testnet',
-		nativeCurrency: { name: 'HBAR', symbol: 'HBAR', decimals: 18 },
-		rpcUrls: ['https://testnet.hashio.io/api'],
-		blockExplorerUrls: ['https://hashscan.io/testnet'],
-	}],
-});
+import { mintCreatorEquityToken } from './integrations/index.ts'
+
+const { tokenId, txId, status } = await mintCreatorEquityToken({
+	ticker: 'MUSH',
+	name: 'Mushroom Labs',
+	supply: '100000',
+	decimals: 18,
+	holder: '0xTreasuryEvmAddress',
+})
 ```
 
-## Hardhat 3 network
+## Contracts on Hedera EVM
 
-```ts
-hederaTestnet: {
-	type: 'http',
-	chainType: 'l1',
-	url: 'https://testnet.hashio.io/api',
-	chainId: 296,
-	accounts: [configVariable('HEDERA_PRIVATE_KEY')],
-},
+Deploy with Hardhat Ignition (`npm run deploy:hedera -w packages/contracts`).
+Use an ECDSA key, because only ECDSA keys map to an EVM address. See
+[Smart contracts](../contracts.md) for the lifecycle, the safe-stop and the
+nullifier registry.
+
+### Safe-stop: freeze the escrow
+
+When a creator misses a proof deadline, the 0G agent calls `freezeEscrow()`
+(chain job `freezeEscrow`). While frozen, `unlockNextTranche`, `reclaimStake`
+and the automatic tranche release on a full raise all revert or wait.
+Investors can still claim, and the oracle can still liquidate. A late approved
+proof calls `unfreezeEscrow()`.
+
+```mermaid
+stateDiagram-v2
+	[*] --> Live
+	Live --> Frozen: "freezeEscrow (oracle)"
+	Frozen --> Live: "unfreezeEscrow (oracle)"
+	Frozen --> Liquidated: "executeLiquidation (oracle)"
+	Live --> Liquidated: "executeLiquidation (oracle)"
 ```
 
-## Account and key setup
+## x402 dividend loop
 
-1. Create an ECDSA account in the [Hedera portal](https://portal.hedera.com).
-   Use an ECDSA key, not ED25519. Only ECDSA keys map to an EVM address.
-2. Copy the 0x private key into your Hardhat configuration variable. Don't
-   commit it.
-3. Fund the EVM address from the faucet.
-4. Deploy with Ignition. Verify on HashScan. HashScan can verify contracts
-   through Sourcify.
+x402 is an HTTP payment protocol built on status `402 Payment Required`. The
+server states what to pay, the client signs, and the server settles. SMX uses
+x402 v2 shapes (`accepts[]` of `exact` requirements, CAIP-2 network
+`hedera:testnet`) over native Hedera `TransferTransaction`s.
 
-## What x402 means for SMX
+### Why SMX settles itself
 
-x402 is an HTTP payment protocol built on status `402 Payment Required`. A
-server answers an unpaid request with payment requirements. The client signs a
-payment, retries with the payload in a header, and a facilitator verifies and
-settles it. In x402 v2 the scheme is `exact`, and networks use CAIP-2 ids
-(`hedera:testnet`).
+The `exact` Hedera scheme in `@x402/hedera` 2.30.0 verifies one transfer to one
+`payTo`, with the facilitator as fee payer. A dividend pays many holders, and
+asking each holder to sign a separate payment would be many wallet prompts. So
+SMX keeps the x402 requirement format but:
 
-What Hedera provides today:
+- Lists one requirement per holder in `accepts` (a micro-stream each).
+- Has the creator sign **one** multi-transfer transaction.
+- Verifies and submits it on the server with `@hiero-ledger/sdk`, using the
+  operator as fee payer. That's the same gasless model the facilitator gives.
 
-- `@x402/hedera` implements the `exact` scheme for **native** Hedera
-  `TransferTransaction`s of HBAR (`0.0.0`) or an HTS fungible token. The client
-  signs a partial transaction. A **facilitator is the `feePayer`**, so the
-  payer needs no HBAR for fees. This is the gasless part.
-- The official facilitator `https://x402.org/facilitator` advertises
-  `hedera:testnet` with no API key. `GET /supported` confirms it. Launa also
-  hosts an open testnet facilitator at `https://testnet.facilitator.launa.dev`.
-- The x402 Hedera scheme does **not** call EVM contracts. It moves HBAR or HTS
-  tokens between Hedera accounts.
+`@x402/core` and `@x402/hedera` are installed for the single-payee flows
+(`x402.org/facilitator`, `hedera:testnet`) if you add a paywalled endpoint
+later. The dividend loop doesn't call the facilitator.
 
-Consequence: the USDC in `LiquidISA` (an ERC-20 on the EVM side) is not the
-asset x402 pays. SMX must pick one of the plans below.
+### Flow
 
-## Plan: gasless dividend streaming
-
-Goal for the demo: after the creator pays a dividend, holders see small
-payments arrive with no gas from the creator or holders.
-
-### Option A (recommended): HTS token as the dividend rail
-
-1. Create an HTS fungible token on testnet that stands for dividend USDC
-   (`HEDERA_DIVIDEND_TOKEN_ID`, 6 decimals). Use the Hedera portal or
-   `TokenCreateTransaction` from `@hiero-ledger/sdk`. Associate holder
-   accounts with it.
-2. Keep onchain accounting in `LiquidISA` as designed (`distributeDividend`,
-   `claim`). It remains the source of truth.
-3. For the "stream" in the demo, the server worker exposes a paywalled
-   resource and a creator-side x402 client pays holders pro rata:
-   - `smx.pay_dividend` already computes the per-holder split in
-     `oracle_events.payload`.
-   - For each holder with a Hedera account id (optional field on the wallet
-     profile), the worker runs one x402 `exact` payment of that holder's share
-     through the facilitator.
-4. Show each payment on HashScan. Label the demo "x402 stream on Hedera
-   testnet (HTS)".
-
-Minimal client code (creator-side payer):
-
-```ts
-import { x402Client } from '@x402/core/client';
-import { createClientHederaSigner } from '@x402/hedera';
-import { ExactHederaScheme } from '@x402/hedera/exact/client';
-import { PrivateKey } from '@hiero-ledger/sdk';
-
-const signer = createClientHederaSigner(
-	process.env.HEDERA_ACCOUNT_ID!,
-	PrivateKey.fromStringECDSA(process.env.HEDERA_PRIVATE_KEY!),
-	{ network: 'hedera:testnet' },
-);
-export const x402 = new x402Client().register('hedera:*', new ExactHederaScheme(signer));
+```mermaid
+sequenceDiagram
+	participant B as "Creator browser"
+	participant S as "SMX server"
+	participant H as "Hedera testnet"
+	B->>S: "POST /dividends/{id}/payment-request"
+	S-->>B: "x402 requirements (one per holder), feePayer"
+	B->>B: "Sign ONE TransferTransaction (payer to all holders)"
+	B->>S: "POST /dividends/{id}/payment { paymentPayload }"
+	S->>S: "Rebuild requirements from SQL, check transfers match"
+	S->>H: "Add fee payer signature, execute"
+	H-->>S: "SUCCESS receipt"
+	S-->>B: "Dividend PAID, receipts tx#i"
 ```
 
-Minimal resource server (a "claim" endpoint that gates on payment). The pay-to
-account receives funds:
+### Rules the server enforces
 
-```ts
-import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
-import { ExactHederaScheme } from '@x402/hedera/exact/server';
+1. It rebuilds the requirements from the database. It never trusts amounts or
+   payees from the client.
+2. The signed transaction's fee payer must be `HEDERA_OPERATOR_ID`, its max fee
+   must be at most 3 HBAR, and the transfers must equal the requirements
+   exactly (one payer, no extra movement, total matches).
+3. Rounding: the SQL split floors each holder. The builder adds the leftover
+   micro units to the largest holder so the total equals the dividend.
+4. Hedera rejects a repeated transaction id, which blocks replay.
 
-const facilitator = new HTTPFacilitatorClient({ url: process.env.HEDERA_X402_FACILITATOR_URL! });
-export const resourceServer = new x402ResourceServer(facilitator).register(
-	'hedera:*',
-	new ExactHederaScheme({
-		defaultAssets: { 'hedera:testnet': { asset: process.env.HEDERA_DIVIDEND_TOKEN_ID!, decimals: 6 } },
-	}),
-);
-```
+### Assets and units
 
-`HTTPFacilitatorClient` is exported by `@x402/core/server` (2.30.0) and takes
-`{ url }` (optional `timeout`). The Hedera docs only show `facilitatorClient`
-as a variable, so we checked the package types for the class name.
+| Mode | Asset | Units |
+| --- | --- | --- |
+| HBAR (default, no token id) | `0.0.0` | 1 micro-USDC = 1 tinybar, so 1 USDC = 0.01 HBAR. Cheap for faucet funds. |
+| HTS token | `HEDERA_DIVIDEND_TOKEN_ID` | 6 decimals, 1:1 with USDC. The payer must hold the token and holders must be associated (or have auto-association slots). |
 
-### Option B: simulate
+Holders are addressed by EVM alias (`0.0.<40 hex>`), which creates the account
+on first receipt for HBAR.
 
-Skip HTS. The worker marks the dividend `PAID` with a SIMULATED hash and the
-UI animates a "stream" of per-holder payments (SSE ticks) from the
-`DIVIDEND_PAID` event. Be explicit in the UI that it's simulated. This is the
-no-keys default.
+### Demo wallet and HashPack
 
-### Option C: x402-gated API only
-
-Use x402 to charge for something small (for example, the `/api/audit-milestone`
-report download). It proves the protocol without moving dividends. Pick this
-only if A fails.
-
-Do not claim that x402 pays EVM ERC-20 dividends on Hedera. It doesn't.
+The browser module signs with a throwaway ECDSA key in `localStorage`. Fund its
+EVM address from the faucet once; the module finds the account id from the
+mirror node. HashPack through `@hashgraph/hedera-wallet-connect` isn't wired:
+the 2.1.3 package pins `@hiero-ledger/sdk` to `2.79.0` (SMX uses 2.90), needs a
+WalletConnect project id, and adds Reown dependencies. See
+[Frontend hooks](../frontend-hooks.md#hedera-dividend-payment-hedera-payts).
 
 ## Demo fallback
 
-With `CHAIN_RPC_URL` unset the app runs in simulated chain mode (see the
-product spec). With no `HEDERA_*` x402 keys, use Option B.
+- `CHAIN_RPC_URL` unset: simulated chain, fake ISA, token and ATS addresses.
+- `HEDERA_OPERATOR_*` unset: `payment-request` answers `mode: "simulated"`, the
+  browser skips signing, and receipts are `sim:0x...`.
+- `ATS_ENABLED` unset: simulated ATS token ids.
 
 ## Gotchas
 
 - Use ECDSA keys. ED25519 accounts have no EVM address.
-- Hedera EVM native value uses 18 decimals in JSON-RPC but tinybars (8) in
-  native APIs. Convert carefully.
-- HTS token transfers require the receiver to be **associated** with the token.
-- Gas price is set by the network. The relay quotes it. Let viem estimate and
-  add 20% headroom for contract deploys.
-- Hashio can return slow or 5xx errors under load. Retry with backoff in the
-  worker.
-- JS SDK package renamed: use `@hiero-ledger/sdk`, not `@hashgraph/sdk`
-  (the latter still exists at 2.81.0 but is no longer where releases ship).
-- Hedera's docs say not to call Hedera a "blockchain". Use "public ledger" in
-  user-facing copy if a Hedera judge is listening.
-- Ask at the Hedera booth (pitch playbook): do they recommend a bridge to an
-  EVM testnet for an AMM pool? SMX's AMM is simulated in Postgres, so it is not
-  blocking.
+- EVM native value uses 18 decimals in JSON-RPC but tinybars (8) natively.
+- HTS token transfers need the receiver associated with the token.
+- Hedera bills the gas limit minus a capped refund, so don't over-set gas.
+- Hashio can return slow or 5xx errors. Retry with backoff.
+- The JS SDK is `@hiero-ledger/sdk`, not `@hashgraph/sdk`.
+- In user-facing copy, say "public ledger", not "blockchain".
 
 ## Sources
 
+- [Asset Tokenization Studio](https://github.com/hashgraph/asset-tokenization-studio)
+- [`@hashgraph/asset-tokenization-sdk`](https://www.npmjs.com/package/@hashgraph/asset-tokenization-sdk)
+- [`@hashgraph/asset-tokenization-contracts`](https://www.npmjs.com/package/@hashgraph/asset-tokenization-contracts)
 - [Accept x402 on Hedera](https://docs.hedera.com/solutions/ai/x402/merchant-integration.md)
-- [Pay with x402 on Hedera](https://docs.hedera.com/solutions/ai/x402/pay-with-x402.md)
-- [x402 facilitators](https://docs.hedera.com/solutions/ai/x402/facilitators.md)
 - [Hedera exact scheme](https://docs.hedera.com/solutions/ai/x402/exact-scheme.md)
 - [JSON-RPC relay](https://docs.hedera.com/hedera/core-concepts/smart-contracts/json-rpc-relay)

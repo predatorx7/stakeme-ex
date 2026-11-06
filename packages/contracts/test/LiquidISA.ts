@@ -143,4 +143,32 @@ describe('LiquidISA', async() => {
 		)
 		assert.equal(getAddress(await isa.read.oracle()), getAddress(oracle.account.address))
 	})
+
+	it('freezes the escrow: blocks tranche unlocks, oracle only, then resumes', async() => {
+		const { isa } = await setup()
+		await isa.write.initializeIPO({ account: creator.account })
+		await isa.write.invest([usdc(1000)], { account: alice.account })
+		assert.equal(await isa.read.nextTranche(), 1n)
+
+		await viem.assertions.revertWithCustomError(
+			isa.write.freezeEscrow({ account: creator.account }),
+			isa,
+			'NotOracle',
+		)
+		await viem.assertions.emitWithArgs(
+			isa.write.freezeEscrow({ account: oracle.account }),
+			isa,
+			'EscrowFrozen',
+			[getAddress(oracle.account.address)],
+		)
+		await viem.assertions.revertWithCustomError(
+			isa.write.unlockNextTranche({ account: oracle.account }),
+			isa,
+			'EscrowFrozenError',
+		)
+
+		await isa.write.unfreezeEscrow({ account: oracle.account })
+		await isa.write.unlockNextTranche({ account: oracle.account })
+		assert.equal(await isa.read.nextTranche(), 2n)
+	})
 })

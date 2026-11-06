@@ -71,7 +71,22 @@ export const liquidISAAbi = [
 	},
 	{
 		"inputs": [],
+		"name": "AlreadyFrozen",
+		"type": "error"
+	},
+	{
+		"inputs": [],
 		"name": "AlreadyInitialized",
+		"type": "error"
+	},
+	{
+		"inputs": [],
+		"name": "AtsTokenAlreadySet",
+		"type": "error"
+	},
+	{
+		"inputs": [],
+		"name": "EscrowFrozenError",
 		"type": "error"
 	},
 	{
@@ -92,6 +107,11 @@ export const liquidISAAbi = [
 	{
 		"inputs": [],
 		"name": "NotCreator",
+		"type": "error"
+	},
+	{
+		"inputs": [],
+		"name": "NotFrozen",
 		"type": "error"
 	},
 	{
@@ -156,6 +176,19 @@ export const liquidISAAbi = [
 			{
 				"indexed": true,
 				"internalType": "address",
+				"name": "atsToken",
+				"type": "address"
+			}
+		],
+		"name": "AtsTokenSet",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
 				"name": "holder",
 				"type": "address"
 			},
@@ -211,6 +244,32 @@ export const liquidISAAbi = [
 			}
 		],
 		"name": "DividendDistributed",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "by",
+				"type": "address"
+			}
+		],
+		"name": "EscrowFrozen",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "by",
+				"type": "address"
+			}
+		],
+		"name": "EscrowUnfrozen",
 		"type": "event"
 	},
 	{
@@ -336,6 +395,19 @@ export const liquidISAAbi = [
 	},
 	{
 		"inputs": [],
+		"name": "atsToken",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "claim",
 		"outputs": [],
 		"stateMutability": "nonpayable",
@@ -435,6 +507,26 @@ export const liquidISAAbi = [
 	},
 	{
 		"inputs": [],
+		"name": "freezeEscrow",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "frozen",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "initializeIPO",
 		"outputs": [],
 		"stateMutability": "nonpayable",
@@ -521,6 +613,19 @@ export const liquidISAAbi = [
 	{
 		"inputs": [],
 		"name": "reclaimStake",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "ats",
+				"type": "address"
+			}
+		],
+		"name": "setAtsToken",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -633,6 +738,13 @@ export const liquidISAAbi = [
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "unfreezeEscrow",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{

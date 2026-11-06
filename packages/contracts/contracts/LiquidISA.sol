@@ -55,7 +55,14 @@ contract LiquidISA is ReentrancyGuard {
 	bool public raiseClosed;
 	bool public defaulted;
 	bool public stakeReclaimed;
+	/// @notice Safe-stop flag set by the oracle. Blocks creator-side outflows.
+	bool public frozen;
+	/// @notice Hedera ATS equity token that mirrors this ISA's cap table (reference only).
+	address public atsToken;
 
+	event EscrowFrozen(address indexed by);
+	event EscrowUnfrozen(address indexed by);
+	event AtsTokenSet(address indexed atsToken);
 	event IPOInitialized(address indexed creator, uint256 stake);
 	event Invested(address indexed investor, uint256 usdcAmount, uint256 shares);
 	event RaiseClosed(uint256 raised);
@@ -78,6 +85,10 @@ contract LiquidISA is ReentrancyGuard {
 	error InvalidTranches();
 	error TermNotEnded();
 	error StakeAlreadyReclaimed();
+	error EscrowFrozenError();
+	error AlreadyFrozen();
+	error NotFrozen();
+	error AtsTokenAlreadySet();
 
 	modifier onlyCreator() {
 		if (msg.sender != creator) revert NotCreator();
@@ -106,6 +117,30 @@ contract LiquidISA is ReentrancyGuard {
 		termMonths = p.termMonths;
 		trancheBps = p.trancheBps;
 		token = new CreatorShareToken(p.name, p.ticker, address(this));
+	}
+
+	/// @notice Oracle records the ATS (ERC-1400 style) equity token minted for this ISA.
+	/// Dividend and escrow math stay in `token`; the ATS token is the regulated registry mirror.
+	function setAtsToken(address ats) external onlyOracle {
+		if (atsToken != address(0)) revert AtsTokenAlreadySet();
+		if (ats == address(0)) revert ZeroAmount();
+		atsToken = ats;
+		emit AtsTokenSet(ats);
+	}
+
+	/// @notice Safe-stop: the oracle freezes tranche releases and creator withdrawals
+	/// (for example when a proof deadline is missed). Investor claims and liquidation still work.
+	function freezeEscrow() external onlyOracle {
+		if (frozen) revert AlreadyFrozen();
+		frozen = true;
+		emit EscrowFrozen(msg.sender);
+	}
+
+	/// @notice The oracle lifts the safe-stop, for example after a late approved proof.
+	function unfreezeEscrow() external onlyOracle {
+		if (!frozen) revert NotFrozen();
+		frozen = false;
+		emit EscrowUnfrozen(msg.sender);
 	}
 
 	function trancheCount() external view returns (uint256) {
@@ -152,6 +187,7 @@ contract LiquidISA is ReentrancyGuard {
 	/// @notice The oracle releases the next milestone tranche to the creator.
 	function unlockNextTranche() external onlyOracle nonReentrant {
 		if (defaulted) revert IsDefaulted();
+		if (frozen) revert EscrowFrozenError();
 		if (!raiseClosed) revert RaiseNotClosed();
 		if (nextTranche >= trancheBps.length) revert NoTrancheLeft();
 		_releaseTranche();
@@ -204,6 +240,7 @@ contract LiquidISA is ReentrancyGuard {
 	/// @notice After the term ends without default, the creator takes the stake back.
 	function reclaimStake() external onlyCreator nonReentrant {
 		if (defaulted) revert IsDefaulted();
+		if (frozen) revert EscrowFrozenError();
 		if (!raiseClosed || block.timestamp < termEnd) revert TermNotEnded();
 		if (stakeReclaimed) revert StakeAlreadyReclaimed();
 		stakeReclaimed = true;
@@ -215,7 +252,8 @@ contract LiquidISA is ReentrancyGuard {
 		raiseClosed = true;
 		termEnd = block.timestamp + uint256(termMonths) * 30 days;
 		emit RaiseClosed(raised);
-		_releaseTranche();
+		// While frozen, tranche 0 waits for the oracle's unlockNextTranche.
+		if (!frozen) _releaseTranche();
 	}
 
 	function _releaseTranche() internal {
