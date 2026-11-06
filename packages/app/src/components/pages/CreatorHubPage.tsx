@@ -1,6 +1,7 @@
 /* eslint-disable @stylistic/max-len -- deeply nested JSX copy */
 import type { Children } from '@kitajs/html'
 import { DEMO_MODE } from '../../consts.ts'
+import { isChainConfigured } from '../../integrations/chain.ts'
 import { BANK_SCENARIOS } from '../../services/mock-bank.ts'
 import type { CreatorHub } from '../../types/index.ts'
 import { formatDate } from '../../utils/dates.ts'
@@ -14,7 +15,11 @@ import { Countdown } from '../Countdown.tsx'
 import { UpdateComposer } from '../creator/UpdateComposer.tsx'
 import { CreatorStatusBadge, isEscrowFrozen } from '../CreatorStatus.tsx'
 import { DataTable } from '../DataTable.tsx'
-import { DividendCard, DividendReceiptCell } from '../DividendCard.tsx'
+import {
+	DividendCard,
+	DividendReceiptCell,
+	OnchainDividendReceipt,
+} from '../DividendCard.tsx'
 import { EmptyState } from '../EmptyState.tsx'
 import { HxForm } from '../forms/HxForm.tsx'
 import { ProofCountdown } from '../instrument/ProofCountdown.tsx'
@@ -102,6 +107,8 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 		+ Number(c.escrow.refunded)
 	const releasedPct = total > 0 ? Math.round(Number(c.escrow.released) / total * 100) : 0
 	const due = hub.pendingDividend
+	const onchain = isChainConfigured() && !!c.contractAddress
+	const lastPaid = dividends.find((d) => d.status === 'PAID')
 	const income = due ? Number(due.amountDue) / (c.shareBps / 10_000) : 0
 	const period = proofs.filter((p) => p.status === 'APPROVED').length
 	const nextDue = c.status === 'GRACE' ? c.graceUntil : c.nextProofDueAt
@@ -220,14 +227,23 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 									? (
 										<DividendCard
 											dividendId={due.id}
+											ticker={c.ticker}
+											onchain={onchain}
 											amountDue={due.amountDue}
 											income={income}
 											shareBps={c.shareBps} />
 									)
 									: (
-										<p>
-											Nothing due until the next approved proof.
-										</p>
+										<>
+											<p>
+												Nothing due until the next approved proof.
+											</p>
+											{
+												onchain && lastPaid?.paidTxHash && (
+													<OnchainDividendReceipt txHash={lastPaid.paidTxHash} />
+												)
+											}
+										</>
 									)
 							}
 						</div>
@@ -281,7 +297,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 						<p>
 							{
 								escapeText(
-									`Prove a deposit of at least ${formatUsdc(c.minIncome)} `
+									`Prove a deposit of ${formatUsdc(c.minIncome)} or more `
 									+ (isSingleTranche(c.tranches)
 										? 'to record income and create your next dividend.'
 										: 'to release the next tranche.'),

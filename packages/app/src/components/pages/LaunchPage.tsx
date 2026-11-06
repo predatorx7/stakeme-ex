@@ -121,7 +121,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 									required
 									placeholder='500.00'
 									pattern='[0-9]+(\.[0-9]{1,6})?'
-									hint='Slashed if you default.' />
+									hint='At least 5% of the raise. Slashed if you default.' />
 								<Field
 									name='sharePct'
 									label='Income share (%)'
@@ -308,7 +308,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 							+ 'A missed proof freezes escrow.'
 						} />
 					<Hint title='Minimum proven income'>
-						{escapeText(`${defaults.minIncome} USDC per period.`)}
+						{escapeText(`${defaults.minIncome} USDC per period releases the next tranche. Lower months are approved but keep it locked.`)}
 					</Hint>
 				</aside>
 			</div>

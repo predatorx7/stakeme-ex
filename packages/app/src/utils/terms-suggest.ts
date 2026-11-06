@@ -17,6 +17,8 @@ export const HIGH_SHARE_BPS = 2000
 export const STAKE_GOAL_FRACTION = 0.1
 export const STAKE_SAVINGS_CAP = 0.5
 export const MIN_STAKE = 1
+/** `launch_ipo` rejects a stake under this fraction of the raise. */
+export const MIN_STAKE_GOAL_FRACTION = 0.05
 /** Goal / monthly income, in months, where the tranche bucket changes. */
 export const SINGLE_TRANCHE_MAX_MONTHS = 6
 export const THREE_TRANCHE_MAX_MONTHS = 24
@@ -125,7 +127,12 @@ export function suggestTerms(input: TermsInput): TermsSuggestion | null {
 		)
 	}
 
-	stakeCents = Math.max(stakeCents, MIN_STAKE * 100)
+	// The 5% floor wins over the savings cap: the launch is rejected below it.
+	stakeCents = Math.max(
+		stakeCents,
+		MIN_STAKE * 100,
+		Math.ceil(goalAmount * MIN_STAKE_GOAL_FRACTION * 100),
+	)
 	const stake = stakeCents / 100
 
 	const months = goalAmount / monthlyIncome
@@ -157,8 +164,8 @@ export function suggestTerms(input: TermsInput): TermsSuggestion | null {
 	if(monthlyIncome < minIncome) {
 		warnings.push({
 			code: 'below-min-income',
-			message: `Proofs under ${usd(minIncome)} a month are rejected. `
-				+ 'Your income is below that.',
+			message: `Months under ${usd(minIncome)} are approved, but the `
+				+ 'next payout stays locked. Your income is below that.',
 		})
 	}
 
@@ -169,7 +176,7 @@ export function suggestTerms(input: TermsInput): TermsSuggestion | null {
 		monthlyDividend: `${sharePct}% of ${usd(monthlyIncome)} a month.`,
 		stake: savings === undefined
 			? '10% of your goal, as skin in the game.'
-			: '10% of your goal, capped at half your savings.',
+			: '10% of your goal, capped at half your savings, min 5% of goal.',
 		trancheSchedule: trancheSchedule === 'single'
 			? 'Your goal is 6 months of income or less, so one payout is enough.'
 			: trancheSchedule === '20-40-40'

@@ -65,15 +65,15 @@ describe('terms suggestion', () => {
 		assert.ok(!has(1000))
 	})
 
-	it('caps stake at half of savings and floors it at 1', () => {
+	it('caps stake at half of savings, floors at 5% of goal', () => {
 		assert.strictEqual(suggestTerms(base)!.stake, '2000.00')
 		const stake = (extra: Partial<TermsInput>) => {
 			return suggestTerms({ ...base, ...extra })!.stake
 		}
 
-		assert.strictEqual(stake({ savings: 1000 }), '500.00')
+		assert.strictEqual(stake({ savings: 1000 }), '1000.00')
 		assert.strictEqual(stake({ savings: 1e6 }), '2000.00')
-		assert.strictEqual(stake({ savings: 0 }), '1.00')
+		assert.strictEqual(stake({ savings: 0 }), '1000.00')
 		assert.strictEqual(stake({ goalAmount: 5 }), '1.00')
 	})
 

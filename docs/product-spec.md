@@ -147,9 +147,10 @@ Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
   agent's verdict. The 0G Router model proposes it, and a model answer that
   breaks the rules is overridden by the rules engine. A pre-check denies a
   deposit dated outside the reporting period before any 0G call (engine
-  `pre-check`). Approve when `verified_amount >= min_income` (default 1000 USDC) and
-  the period isn't already approved. On approval: create the dividend, release
-  the next locked tranche (if any; a single-tranche creator has none left, so approval only creates the dividend), move `next_proof_due_at` by one cadence (30 days monthly, 90 quarterly), clear grace,
+  `pre-check`). Approve when the period isn't already approved and the auditor doesn't deny
+  (size never matters, so a low or $0 month is approved). On approval: create
+  the dividend (none for $0), release
+  the next locked tranche only when `verified_amount >= min_income` (default 1000 USDC; a lower month leaves it locked and `PROOF_VERIFIED` carries the note) (if any; a single-tranche creator has none left, so approval only creates the dividend), move `next_proof_due_at` by one cadence (30 days monthly, 90 quarterly), clear grace,
   insert `PROOF_VERIFIED` and `TRANCHE_RELEASED` events and chain jobs. A late
   approval in `GRACE` also emits `ESCROW_UNFROZEN` and queues `unfreezeEscrow`.
   The audit log is committed with a `local:<sha256>` ref and queued in
@@ -338,13 +339,13 @@ still edit every field. The formulas live in
 | --- | --- |
 | Projected income | Sum for months k = 1 to term of `income * (1 + growth)^(k/12)`. |
 | Share | `ceil(goal * 1.3 / projected * 10000)` bps, clamped to 1-5000. 1.3 is the target investor multiple. |
-| Stake | 10% of the goal, at most 50% of savings when given, at least 1. |
+| Stake | 10% of the goal, at most 50% of savings when given, at least 1 and at least 5% of the goal (`launch_ipo` rejects less). |
 | Escrow release | Goal of 6 months of income or less: `single`. Up to 24 months: `20-40-40`. More: `20-20-20-20-20`. |
 | Proof cadence | `QUARTERLY` when income varies, else `MONTHLY`. |
 
 Warnings: `share-high` (share over 20%), `goal-unreachable` (the unclamped
 share is over 50%; try a longer term or smaller goal), `below-min-income`
-(income under the minimum proof amount, so proofs are rejected).
+(income under the minimum proof amount: proofs are approved but the next tranche stays locked).
 
 ## Implementation status
 

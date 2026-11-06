@@ -92,9 +92,76 @@ describe('income proofs and dividends', () => {
 		)
 		assert.strictEqual(divs.length, 1)
 
-		// Below the 1000 USDC minimum.
-		const low = await proof(id, 'r1', 500)
-		assert.strictEqual((await audit(low, 500)).rows[0].status, 'REJECTED')
+	})
+
+	it('approves an $800 month: $40 dividend, tranche stays locked, no freeze', async() => {
+		const { id } = await launch('LOWM')
+		const due = (await db.query<{ d: string }>(
+			'SELECT next_proof_due_at AS d FROM creators WHERE id = $1', [id],
+		)).rows[0].d
+		const p = await proof(id, 'low0', 800, 0)
+		assert.strictEqual((await audit(p, 800)).rows[0].status, 'APPROVED')
+
+		const { rows: divs } = await db.query<{ amount_due: string }>(
+			'SELECT amount_due FROM dividends WHERE creator_id = $1', [id],
+		)
+		assert.deepStrictEqual(divs.map((d) => Number(d.amount_due)), [40])
+		const { rows: tr } = await db.query<{ status: string }>(
+			'SELECT status FROM tranches WHERE creator_id = $1 ORDER BY idx', [id],
+		)
+		assert.deepStrictEqual(tr.map((t) => t.status), ['RELEASED', 'LOCKED', 'LOCKED'])
+		const { rows: [c] } = await db.query<{ status: string, moved: boolean }>(
+			'SELECT status, next_proof_due_at > $2::timestamptz AS moved FROM creators WHERE id = $1',
+			[id, due],
+		)
+		assert.strictEqual(c.status, 'LIVE')
+		assert.strictEqual(c.moved, true)
+		const { rows: [ev] } = await db.query<{ payload: { note: string } }>(
+			`SELECT payload FROM oracle_events WHERE creator_id = $1
+			AND kind = 'PROOF_VERIFIED'`, [id],
+		)
+		assert.match(ev.payload.note, /next tranche stays locked/)
+	})
+
+	it('approves $0 with no dividend; denies an out-of-period proof', async() => {
+		const { id } = await launch('ZERO')
+		const p = await proof(id, 'z0', 0, 0)
+		assert.strictEqual((await audit(p, 0)).rows[0].status, 'APPROVED')
+		const { rows: divs } = await db.query(
+			'SELECT 1 FROM dividends WHERE creator_id = $1', [id],
+		)
+		assert.strictEqual(divs.length, 0)
+
+		const late = await proof(id, 'z1', 5000, 1)
+		const { rows: [r] } = await db.query<{ status: string }>(
+			`SELECT status FROM audit_income_proof($1, 0,
+				'{"approved":false,"reasoning":"Deposit is outside the reporting period"}')`,
+			[late],
+		)
+		assert.strictEqual(r.status, 'REJECTED')
+	})
+})
+
+describe('launch_ipo stake floor', () => {
+	const launchWith = async(ticker: string, stake: number) => {
+		const n = ++seq
+		const { rows: [u] } = await db.query<{ id: string }>(
+			'INSERT INTO users(email, name) VALUES ($1, $2) RETURNING id',
+			[`s${n}@test.co`, `user ${n}`],
+		)
+		return db.query(
+			`SELECT id FROM launch_ipo($1, $2, $3, $3, '', 500, 60, 10000, $4, $5,
+				'local:x', 'x', 296)`,
+			[u.id, A, ticker, stake, String(5000 + n)],
+		)
+	}
+
+	it('rejects a 4% stake and accepts 5%', async() => {
+		await assert.rejects(
+			launchWith('STKA', 400),
+			/Stake must be at least 5% of the raise \(\$500 for a \$10000 raise\)/,
+		)
+		assert.strictEqual((await launchWith('STKB', 500)).rows.length, 1)
 	})
 })
 

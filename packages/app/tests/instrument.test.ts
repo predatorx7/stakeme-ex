@@ -50,7 +50,7 @@ async function fixture(ticker: string, usdc: string, tokens: string) {
 		[`inst${n}@test.co`, `inst ${n}`],
 	)
 	const { rows: [c] } = await db.query<{ id: string }>(
-		`SELECT id FROM launch_ipo($1, $2, $3, $3, '', 500, 60, 100000, 1000, $4,
+		`SELECT id FROM launch_ipo($1, $2, $3, $3, '', 500, 60, 100000, 5000, $4,
 			'local:x', 'x', 296)`,
 		[u.id, A, ticker, String(5000 + n)],
 	)

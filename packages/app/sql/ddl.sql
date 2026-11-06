@@ -1028,6 +1028,12 @@ BEGIN
 		400, 'Tranche schedule needs 1 to 5 tranches that sum to 10000 bps'
 	);
 	PERFORM assert_that(
+		p_stake_amount >= p_target_raise * 0.05,
+		400, 'Stake must be at least 5% of the raise ($'
+			|| trim_scale(round(p_target_raise * 0.05, 2))::TEXT
+			|| ' for a $' || trim_scale(p_target_raise)::TEXT || ' raise)'
+	);
+	PERFORM assert_that(
 		jsonb_typeof(v_links) = 'object' AND NOT EXISTS (
 			SELECT 1 FROM jsonb_object_keys(v_links) AS k
 			WHERE k NOT IN ('x', 'github', 'linkedin', 'website')
@@ -1558,13 +1564,14 @@ BEGIN
 END;
 $$;
 
--- The rules engine. Approves when the accepted income meets `min_income`, the
--- period isn't already approved, and the auditor (0G) didn't veto
--- (`audit.approved = false`); the auditor can only tighten, never override,
--- these rules. Approval creates the dividend, releases the next locked
--- tranche, pushes the proof deadline out by the creator's cadence (30 or 90
--- days), clears grace, and emits
--- events plus chain jobs. Rejection records why and emits PROOF_REJECTED.
+-- The rules engine. Approves when the period isn't already approved and the
+-- auditor (0G) didn't veto (`audit.approved = false`); size doesn't matter, so
+-- an honest low or zero month is approved. Approval creates the dividend
+-- (income x share; none for zero income), pushes the proof deadline out by
+-- the creator's cadence (30 or 90 days), clears grace, and emits events plus
+-- chain jobs. The next locked tranche is released only when the income meets
+-- `min_income`; otherwise it stays LOCKED and PROOF_VERIFIED says so.
+-- Rejection records why and emits PROOF_REJECTED.
 CREATE OR REPLACE FUNCTION audit_income_proof(
 	p_proof UUID, p_verified_amount money_amount, p_audit JSONB DEFAULT '{}',
 	p_log_document JSONB DEFAULT NULL
@@ -1579,6 +1586,7 @@ DECLARE
 	v_reason TEXT;
 	v_dividend dividends;
 	v_tranche tranches;
+	v_below_min BOOLEAN;
 BEGIN
 	SELECT * INTO v_proof FROM income_proofs ip WHERE ip.id = p_proof FOR UPDATE;
 	PERFORM assert_that(FOUND, 404, 'Proof not found');
@@ -1591,8 +1599,6 @@ BEGIN
 	);
 
 	v_reason := CASE
-		WHEN p_verified_amount < v_creator.min_income
-			THEN 'Income is below the ' || v_creator.min_income::TEXT || ' USDC minimum'
 		WHEN EXISTS (
 			SELECT 1 FROM income_proofs ip
 			WHERE ip.creator_id = v_proof.creator_id
@@ -1635,21 +1641,27 @@ BEGIN
 		substring(p_audit ->> 'logRef' FROM '^local:([0-9a-f]{64})$')
 	);
 
-	INSERT INTO dividends(creator_id, proof_id, amount_due)
-	VALUES (
-		v_creator.id, p_proof,
-		round(p_verified_amount * v_creator.share_bps / 10000, 6)
-	)
-	RETURNING * INTO v_dividend;
+	IF p_verified_amount > 0 THEN
+		INSERT INTO dividends(creator_id, proof_id, amount_due)
+		VALUES (
+			v_creator.id, p_proof,
+			round(p_verified_amount * v_creator.share_bps / 10000, 6)
+		)
+		RETURNING * INTO v_dividend;
+	END IF;
 
-	-- Release the earliest locked tranche, if any remain.
-	UPDATE tranches SET status = 'RELEASED', released_at = now()
-	WHERE id = (
-		SELECT t.id FROM tranches t
-		WHERE t.creator_id = v_creator.id AND t.status = 'LOCKED'
-		ORDER BY t.idx LIMIT 1 FOR UPDATE
-	)
-	RETURNING * INTO v_tranche;
+	-- Release the earliest locked tranche, if any remain, but only for income
+	-- at or above the minimum.
+	v_below_min := p_verified_amount < v_creator.min_income;
+	IF NOT v_below_min THEN
+		UPDATE tranches SET status = 'RELEASED', released_at = now()
+		WHERE id = (
+			SELECT t.id FROM tranches t
+			WHERE t.creator_id = v_creator.id AND t.status = 'LOCKED'
+			ORDER BY t.idx LIMIT 1 FOR UPDATE
+		)
+		RETURNING * INTO v_tranche;
+	END IF;
 
 	-- A late proof inside the grace period lifts the escrow freeze.
 	IF v_creator.status = 'GRACE' THEN
@@ -1673,10 +1685,14 @@ BEGIN
 		'period', v_proof.period,
 		'amount', p_verified_amount::TEXT,
 		'dividendId', v_dividend.id,
-		'dividendDue', v_dividend.amount_due::TEXT,
+		'dividendDue', coalesce(v_dividend.amount_due, 0)::TEXT,
 		'model', p_audit ->> 'model',
 		'reasoning', p_audit ->> 'reasoning'
-	));
+	) || CASE WHEN v_below_min THEN jsonb_build_object(
+		'trancheLocked', TRUE,
+		'note', 'Income below the ' || v_creator.min_income::TEXT
+			|| ' minimum: next tranche stays locked'
+	) ELSE '{}'::JSONB END);
 
 	IF v_tranche.id IS NOT NULL THEN
 		PERFORM emit_oracle_event(v_creator.id, 'TRANCHE_RELEASED', jsonb_build_object(

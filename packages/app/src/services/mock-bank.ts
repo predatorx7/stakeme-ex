@@ -70,7 +70,7 @@ export const BANK_SCENARIOS = [
 	{
 		id: 'low',
 		label: 'Low month',
-		hint: 'One $800 deposit.',
+		hint: 'One $800 deposit. Approved, but the next payout stays locked.',
 		demoAmount: '800.00',
 	},
 	{
@@ -88,13 +88,13 @@ export const BANK_SCENARIOS = [
 	{
 		id: 'none',
 		label: 'No income',
-		hint: 'No deposits. The proof shows $0.',
+		hint: 'No deposits. Approved with no dividend; payout stays locked.',
 		demoAmount: '0.00',
 	},
 	{
 		id: 'late',
 		label: 'Late deposit',
-		hint: 'One $5,000 deposit dated 40 days ago.',
+		hint: 'One $5,000 deposit dated 40 days ago. Denied: outside the period.',
 		demoAmount: null,
 	},
 ] as const

@@ -139,8 +139,8 @@ export async function runAudit(input: { terms: unknown; proof: unknown }) {
 ```
 
 Model output is untrusted. `parseAuditResponse` validates the JSON and throws
-when `verified_amount` exceeds the deposit or an approval falls below
-`minIncome`. The model never sets the dividend: `smx.audit_income_proof`
+when `verified_amount` exceeds the deposit. The auditor judges authenticity
+and period, never size. The model never sets the dividend: `smx.audit_income_proof`
 computes `round(verified_amount * share_bps / 10000, 6)`, and the model can
 only veto an approval.
 

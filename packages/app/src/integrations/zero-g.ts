@@ -68,8 +68,9 @@ export type AuditVerdict = Pick<
 
 export const AUDIT_SYSTEM_PROMPT = [
 	'You audit income share agreements (L-ISA) for a creator.',
-	'Decide whether the verified bank deposit is acceptable income.',
-	'Approve only when the deposit amount is at least minIncome.',
+	'Decide whether the verified bank deposit is genuine income for the',
+	'reporting period. Judge authenticity and period, never size: a small or',
+	'zero deposit is still approved when genuine and inside the window.',
 	'Deny when deposit.date is outside window (from..to, inclusive), with the',
 	'reason "Deposit is outside the reporting period". Ignore a null date.',
 	'verified_amount is the income you accept (USDC), at most the deposit.',
@@ -84,7 +85,6 @@ export function buildAuditPrompt(input: IncomeAuditInput) {
 	const user = canonicalJson({
 		ticker: input.ticker,
 		shareBps: input.shareBps,
-		minIncome: input.minIncome,
 		period: input.period,
 		termsHash: input.termsHash,
 		window: input.window ?? null,
@@ -143,10 +143,6 @@ export function parseAuditResponse(
 		throw new Error('audit response: verified_amount exceeds the deposit')
 	}
 
-	if(approved && verifiedMicro < toMicro(input.minIncome)) {
-		throw new Error('audit response: approved below minIncome')
-	}
-
 	return {
 		approved,
 		verifiedAmount: fromMicro(verifiedMicro),
@@ -185,7 +181,7 @@ export function windowPreCheck(input: IncomeAuditInput): AuditVerdict | null {
 	}
 }
 
-/** Pure: the deterministic fallback (approve when amount >= minIncome). */
+/** Pure: the deterministic fallback (approve when in period, any amount). */
 export function rulesAudit(input: IncomeAuditInput): AuditVerdict {
 	const denied = windowPreCheck(input)
 	if(denied) {
@@ -193,15 +189,10 @@ export function rulesAudit(input: IncomeAuditInput): AuditVerdict {
 	}
 
 	const amount = toMicro(input.income.amount)
-	const min = toMicro(input.minIncome)
-	const approved = amount >= min
-	const amountText = input.income.amount
 	return {
-		approved,
-		verifiedAmount: approved ? fromMicro(amount) : '0.00',
-		reasoning: approved
-			? `Deposit ${amountText} USDC meets the ${input.minIncome} minimum.`
-			: `Deposit ${amountText} USDC is below the ${input.minIncome} minimum.`,
+		approved: true,
+		verifiedAmount: fromMicro(amount),
+		reasoning: `Deposit ${input.income.amount} USDC is within the period.`,
 	}
 }
 

@@ -78,14 +78,14 @@ describe('0G audit', () => {
 		assert.throws(() => parseAuditResponse('not json', AUDIT_INPUT))
 	})
 
-	it('rules engine approves at or above minIncome only', () => {
+	it('rules engine approves any amount in the period', () => {
 		assert.strictEqual(rulesAudit(AUDIT_INPUT).approved, true)
 		const low = rulesAudit({
 			...AUDIT_INPUT,
-			income: { ...AUDIT_INPUT.income, amount: '999.99' },
+			income: { ...AUDIT_INPUT.income, amount: '800.00' },
 		})
-		assert.strictEqual(low.approved, false)
-		assert.strictEqual(low.verifiedAmount, '0.00')
+		assert.strictEqual(low.approved, true)
+		assert.strictEqual(low.verifiedAmount, '800.00')
 	})
 })
 

@@ -64,7 +64,7 @@ Routes and workers never import a sponsor SDK. They call the adapters in
   `RECLAIM_ORG_ETH_PRIVATE_KEY` only if encryption is on). See
   [reclaim.md](reclaim.md).
 - **0G.** The model call is `temperature: 0`, JSON only. A model answer that
-  accepts more than the deposit, or approves below `minIncome`, is rejected as
+  accepts more than the deposit is rejected as
   a Router failure and the proof stays PENDING (see
   [zero-g.md](zero-g.md#router-mode-audit-verdict)). The L-ISA legal
   terms and every approve or deny log go to 0G Storage; the refs are stored in

@@ -62,13 +62,13 @@ so the first row is always the proven deposit. You choose one of six scenarios o
 | Scenario | First row |
 | --- | --- |
 | Salary on time | $5,000.00 deposit dated today. |
-| Low month | $800.00 deposit, below the minimum income. |
+| Low month | $800.00 deposit, below the minimum income. Approved with a $40.00 dividend at 5%; the next tranche stays locked. |
 | Big month | $25,000.00 deposit. |
 | Several deposits | A $5,000.00 row with the month's total, then the separate deposits. |
-| No income | $0.00. |
+| No income | $0.00. Approved with no dividend; the next tranche stays locked. |
 | Late deposit | $5,000.00 deposit dated 40 days ago. |
 
-The auditor denies a deposit dated outside the reporting period (the last 30
+Size never causes a denial: an honest low or zero month is approved, and only income at or above the minimum (default $1,000) releases the next tranche. The auditor denies a deposit dated outside the reporting period (the last 30
 days for monthly creators, 90 for quarterly) with "Deposit is outside the
 reporting period". SMX checks this before calling 0G, so the audit log shows
 engine `pre-check`. A proof with no date (demo fixtures) skips the check.
