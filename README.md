@@ -17,8 +17,8 @@ ID staging and 0G testnet, with a mock bank and MockUSDC.
 1. **Launch.** The creator verifies as one human with World ID, stakes at
    least 5% of the target raise in USDC, and sets the terms: income share,
    social links, proof cadence and a tranche preset. The terms go to 0G Storage
-   and an equity token is minted through Hedera ATS (one real ATS token so far,
-   `$MUSH`).
+   and an equity token is minted through Hedera ATS (current `$MUSH` token
+   `0xFDC2...4517`).
 2. **Fund.** Investors sign `approve` and `LiquidISA.invest` in their own
    wallet. The money sits in a Hedera escrow. The creator picks 2 to 5
    tranches, or "No tranches", which releases everything when the raise closes.
@@ -71,7 +71,7 @@ exhaustive.
 | Hedera contracts, invest, trading | Real on testnet (chain 296), verified on Sourcify. Users sign `approve`, `invest` and swaps in their wallet. Production: `$MUSH`, `$RAVI` and `$RAHUL` are onchain; the other 5 seeded creators are DB-only. |
 | Dividends | Real USDC for onchain creators: the creator signs `distributeDividend`, holders sign `claim()`. A legacy HBAR multi-transfer rail remains only for DB-only or simulated creators (testnet rate 0.0001 HBAR per USDC). |
 | HBAR | Gas, the 0.1 HBAR x402 audit-report fee, and the legacy rail. |
-| Hedera ATS equity token | One real ATS token minted (`$MUSH`). New live mints currently revert and fall back to a simulated token. |
+| Hedera ATS equity token | Live ATS tokens mint for new IPOs when `ATS_MODE=live`. Current `$MUSH` token: `0xFDC25E581320050B4013c9054B5Ac44546A04517`, linked to the escrow with `setAtsToken`. |
 | World ID | Real v4 proof on a staging app, verified with the Simulator. |
 | 0G audit | Real, on 0G Private Computer. If the call fails, the proof stays pending. |
 | 0G Storage | Real on Galileo. Uploads run in the background; the ref is `local:<sha256>` until done. |
@@ -202,7 +202,7 @@ Links checked on 2026-11-07.
 | --- | --- |
 | App and code | Live app: [stakeme.magnificlabs.org](https://stakeme.magnificlabs.org). Repo: [predatorx7/stakeme-ex](https://github.com/predatorx7/stakeme-ex). |
 | Hedera contracts | Verified on Sourcify (exact match): LiquidISAFactory [`0xc6b7af9392538bc596caed4a5758b9d92f650e59`](https://hashscan.io/testnet/contract/0xc6b7af9392538bc596caed4a5758b9d92f650e59), MockUSDC [`0x40027d9375311fa44b95ef881a92374b1dbf8ec4`](https://hashscan.io/testnet/contract/0x40027d9375311fa44b95ef881a92374b1dbf8ec4), LiquidISA implementation [`0x3f61050ad9fb221992742f10b34237b06a97e361`](https://hashscan.io/testnet/contract/0x3f61050ad9fb221992742f10b34237b06a97e361), CreatorShareToken implementation [`0x81521abe9ddc7dc792b4c6f4262a48bc744426ff`](https://hashscan.io/testnet/contract/0x81521abe9ddc7dc792b4c6f4262a48bc744426ff), CreatorPool implementation [`0xe310d76b357be72439e78fff84a82fe486fba84b`](https://hashscan.io/testnet/contract/0xe310d76b357be72439e78fff84a82fe486fba84b). Details in [contracts.md](docs/contracts.md#verification). |
-| Hedera ATS | One real ATS token, `$MUSH`, minted through the public ATS testnet Factory: [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (0.0.11345067). `deployEquity` tx [`0x02f86bdb...c063df8`](https://hashscan.io/testnet/transaction/0x02f86bdb93777d03b4868e09d0f67789c4bf892c84e0f4f939803d909c063df8), `mint` tx [`0x734d4aa3...cd1c77fdf`](https://hashscan.io/testnet/transaction/0x734d4aa32ce0efce009b9c705ccbad57005fd7243f864eabf19ea50cd1c77fdf). Details in [hedera.md](docs/integrations/hedera.md#live-result-on-testnet). |
+| Hedera ATS | Live ATS tokens, minted through the public ATS testnet Factory for each new IPO when `ATS_MODE=live`. Current `$MUSH`: [`0xFDC25E581320050B4013c9054B5Ac44546A04517`](https://hashscan.io/testnet/contract/0xFDC25E581320050B4013c9054B5Ac44546A04517), linked to the MUSH escrow with `setAtsToken` (tx `0xd0a23a99...cb6e974`). The first live mint, [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (0.0.11345067), also exists. `deployEquity` tx [`0x02f86bdb...c063df8`](https://hashscan.io/testnet/transaction/0x02f86bdb93777d03b4868e09d0f67789c4bf892c84e0f4f939803d909c063df8), `mint` tx [`0x734d4aa3...cd1c77fdf`](https://hashscan.io/testnet/transaction/0x734d4aa32ce0efce009b9c705ccbad57005fd7243f864eabf19ea50cd1c77fdf). Details in [hedera.md](docs/integrations/hedera.md#live-result-on-testnet). |
 | Hedera dividend (legacy HBAR rail) | Earlier live holder dividend, one HBAR multi-transfer: [`0.0.11340822@1793996054.174485762`](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762). Dividends for onchain creators are now USDC claims, shown in the contract links above. |
 | Hedera x402 | `GET /creators/{ticker}/audit-report` answers 402 until paid in HBAR. Settled payments: [`0.0.9185802@1793985016.835902874`](https://hashscan.io/testnet/transaction/0.0.9185802@1793985016.835902874) (first), [`0.0.9185802@1793992761.545261642`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992761.545261642), [`0.0.9185802@1793992766.013363358`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992766.013363358), [`0.0.9185802@1793992768.127890663`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992768.127890663). Run log in [x402-agent.md](docs/x402-agent.md). |
 | World ID | App `app_0b5a20d804cb26e5008896d976fc4193` (staging, World ID Simulator). Server verifies with the v4 verify route. Walkthrough: [world-id-debrief.md](docs/world-id-debrief.md). |

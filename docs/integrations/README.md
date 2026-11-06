@@ -74,4 +74,4 @@ Routes and workers never import a sponsor SDK. They call the adapters in
   dividends run on Hedera testnet. Dividends are computed in MockUSDC. Onchain creators
   pay them in MockUSDC through the ISA and holders claim; DB-only creators use
   a legacy HBAR multi-transfer at `DIVIDEND_HBAR_PER_USDC` (default `0.0001`).
-  One real ATS token (`$MUSH`) is minted; new live mints currently revert. The details and the open gaps are in `CONTEXT.md`.
+  Live ATS tokens mint for new IPOs when `ATS_MODE=live`; `$MUSH` is `0xFDC2...4517`. The details and the open gaps are in `CONTEXT.md`.

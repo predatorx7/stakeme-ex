@@ -120,7 +120,7 @@ Say this out loud if a judge asks.
 | Reclaim end-to-end callback | Pending a full end-to-end run. |
 | Dividend payout | Real, in MockUSDC, for onchain creators (MUSH, RAVI, RAHUL): the creator signs `distributeDividend`, holders sign `claim()`, and the server verifies both receipts. The other five creators are DB-only and use a legacy HBAR multi-transfer (testnet rate 0.0001 HBAR per USDC). |
 | HBAR | Used for gas, the x402 audit-report fee (0.1 HBAR, paid to the operator), and the legacy rail above. The earlier live HBAR dividend is historical evidence of that rail. |
-| Hedera ATS equity token | One real ATS token minted: `$MUSH`, through the public ATS testnet Factory. New live mints currently revert, so SMX falls back to a simulated token and the IPO still completes. |
+| Hedera ATS equity token | Live ATS tokens mint for new IPOs through the public ATS testnet Factory (`$MUSH`: `0xFDC2...4517`). If a live mint errors, SMX falls back to a simulated token and the IPO still completes. |
 | Platform revenue | Only x402 fees today. A listing fee, dividend fee and swap-fee share are proposed, not built. |
 | Known gaps | The contract doesn't check the dividend amount against the income share, and anyone can call `distributeDividend`. Trading outside SMX can't be frozen. The oracle key still signs lifecycle calls. |
 

@@ -76,11 +76,10 @@ voiceover, and the proof that a sponsor integration is real.
     transaction hash links under Escrow. Click one `TxLink`; it opens
     `https://hashscan.io/testnet/transaction/<hash>`. Show the SUCCESS result
     for 2 seconds, then return.
-  - **Hedera ATS:** one real ATS equity token is minted (`$MUSH`,
-    `0xe3abC950d9daf866653931a314FF3F19E5276AFb`); show it on HashScan. New live
-    mints currently revert (custom error `0x76f138fb`) and fall back to a
-    simulated token with no HashScan page. Say "one real ATS token minted" and
-    say so on camera when a new creator's token is simulated.
+  - **Hedera ATS:** new IPOs mint live ATS equity tokens (`$MUSH`,
+    `0xFDC25E581320050B4013c9054B5Ac44546A04517`); show it on HashScan. A simulated
+    token (no HashScan page) appears only if a live mint errors; say so on
+    camera if it happens.
   - **0G Storage:** "0G Storage ref" on the L-ISA terms card reads "0G Storage:
     pending", then flips to the root hash after about 30 seconds (the
     `STORAGE_CONFIRMED` event reloads the region over SSE). Click the hash to

@@ -4,8 +4,8 @@ Verified against npm, the Asset Tokenization Studio (ATS) packages, and
 docs.hedera.com on 2026-11-06.
 
 **Status:** live on testnet, with SIMULATED fallbacks for runs without keys.
-One real ATS equity token (`$MUSH`) was minted live; new live mints currently
-revert, so they fall back to simulated (see
+New IPOs mint live ATS equity tokens (`$MUSH` is `0xFDC2...4517`) when
+`ATS_MODE=live`; a live error falls back to simulated (see
 [Live result on testnet](#live-result-on-testnet)). The default mode stays
 simulated (`ATS_MODE=simulated`). Dividends for onchain creators are USDC
 through the ISA (see [Dividend payout](#dividend-payout)). HBAR pays only gas,
@@ -145,13 +145,16 @@ in the ATS repo. No deployment of your own is needed.
 | Factory proxy | `0xd1F118A40f3b02883D35909eF2517e7EDd78379d` (0.0.9213391) |
 | BLR proxy | `0xBA2D5FC2083A0b8f164c50e65d782087fBA18E0a` (0.0.9212226) |
 | Equity config | key `0x...01`, version `1` |
-| Demo token `$MUSH` | [`0xe3abC950d9daf866653931a314FF3F19E5276AFb` (0.0.11345067)](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) |
+| Current `$MUSH` token | [`0xFDC25E581320050B4013c9054B5Ac44546A04517`](https://hashscan.io/testnet/contract/0xFDC25E581320050B4013c9054B5Ac44546A04517), linked to the escrow with `setAtsToken` (tx `0xd0a23a99192a4a87f147221bfdd1e97ba6c50c35a6878d16c3ccfc0cafb6e974`) |
+| First live mint | [`0xe3abC950d9daf866653931a314FF3F19E5276AFb` (0.0.11345067)](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) |
 | `deployEquity` tx | [`0x02f86bdb...c063df8`](https://hashscan.io/testnet/transaction/0x02f86bdb93777d03b4868e09d0f67789c4bf892c84e0f4f939803d909c063df8) |
 | `mint` tx | [`0x734d4aa3...cd1c77fdf`](https://hashscan.io/testnet/transaction/0x734d4aa32ce0efce009b9c705ccbad57005fd7243f864eabf19ea50cd1c77fdf) |
 | Cost | about 0.23 HBAR |
 
-This is the only real ATS token. New live mints currently revert (custom error
-`0x76f138fb`) and fall back to simulated.
+New IPOs mint live tokens. An earlier `0x76f138fb` revert was our bug: the ATS
+input read `totalRaise` after `launch_ipo` switched to `targetRaise`, so max
+supply was 0 and `NewMaxSupplyCannotBeZero()` reverted. Commit `3628cc1` fixed
+it.
 
 ### Prerequisites and limits
 

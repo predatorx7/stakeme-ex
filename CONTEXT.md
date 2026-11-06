@@ -31,11 +31,15 @@ Reference clones (read-only, may be deleted; re-clone with `gh repo clone`):
   Computer through the 0G Router. If the call fails the proof stays `PENDING`
   ("0G audit unavailable, retry"). The rules engine runs only behind
   `ZG_ALLOW_RULES_FALLBACK=1` and is labelled in the UI.
-- **Hedera ATS: one real token, simulated fallback.** `$MUSH`
-  (`0xe3abC950d9daf866653931a314FF3F19E5276AFb`) was minted through the public
-  ATS testnet Factory by `integrations/hedera-ats.ts` (`ATS_MODE=live`). New
-  live mints currently revert (custom error `0x76f138fb`) and fall back to a
-  simulated token, so an IPO never fails. Say "one real ATS token minted".
+- **Hedera ATS: live mints work.** New IPOs mint live ATS tokens through the
+  public ATS testnet Factory (`integrations/hedera-ats.ts`, `ATS_MODE=live`).
+  The current `$MUSH` token is `0xFDC25E581320050B4013c9054B5Ac44546A04517`, linked to the escrow with
+  `setAtsToken` (tx `0xd0a23a99192a4a87f147221bfdd1e97ba6c50c35a6878d16c3ccfc0cafb6e974`).
+  The first live mint, `0xe3abC950d9daf866653931a314FF3F19E5276AFb`, also exists. The earlier
+  `0x76f138fb` revert was our bug: the ATS input read `totalRaise` after
+  `launch_ipo` switched to `targetRaise`, so max supply was 0
+  (`NewMaxSupplyCannotBeZero()`); fixed in commit `3628cc1`. An error in a live
+  mint still falls back to a simulated token, so an IPO never fails.
   `CreatorShareToken` is the source of truth; the ATS token only mirrors it.
 - **Trading and investing are user-signed onchain.** Each creator has a
   `CreatorPool` constant-product AMM (EIP-1167 clone, 0.3% fee kept in the
@@ -117,7 +121,7 @@ Secrets live only in `.env` (gitignored). The IDs below are public.
 | 0G Private Computer | Live through the 0G Router (`ZG_ROUTER_API_KEY`, model per `ZG_ROUTER_MODEL`, trust mode `private`). Router credits: $11; the Hub shows the balance. Example request ID: `3a1c2f3b-6177-4ab8-aa52-c1b5ff80dc8c`. The proof row shows model, request ID and provider; "TEE verified" shows only when the Router returns `tee_verified: true`. |
 | 0G Storage | Live on Galileo with the same account (about 0.0012 0G per upload, faucet refills about 0.5 0G every 25 h). A worker uploads terms and audit logs in the background. |
 | Reclaim | Provider `3fefebae-05cb-4d6b-b319-f3f639a31201` ("SMX Mock Bank Deposit", private) at v0.1.2, pointing at the production mock bank (`https://stakeme.magnificlabs.org/mock-bank`). Proof verified through the Reclaim MCP `run_proof` (`amount`, `deposit_date`). A full in-app session is not yet confirmed. |
-| Hedera ATS | One real token minted on testnet through the public ATS Factory (`0xd1F118A40f3b02883D35909eF2517e7EDd78379d`); new live mints now revert and fall back to simulated. `$MUSH`: [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (0.0.11345067), about 0.23 HBAR. Details in `docs/integrations/hedera.md`. |
+| Hedera ATS | Live tokens mint on testnet through the public ATS Factory (`0xd1F118A40f3b02883D35909eF2517e7EDd78379d`) for new IPOs. Current `$MUSH`: [`0xFDC25E581320050B4013c9054B5Ac44546A04517`](https://hashscan.io/testnet/contract/0xFDC25E581320050B4013c9054B5Ac44546A04517); the first mint `0xe3abC950d9daf866653931a314FF3F19E5276AFb` (0.0.11345067) also exists. Details in `docs/integrations/hedera.md`. |
 | Dividend settlement | Onchain creators: USDC `distributeDividend` and holder `claim()`. Legacy HBAR rail evidence: [0.0.11340822@1793996054.174485762](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762), one multi-transfer to holders at 0.0001 HBAR per USDC. |
 | x402 payments | The audit report (`GET /creators/{ticker}/audit-report`, 0.1 HBAR) is paywalled and bought by `packages/app/scripts/x402-research-agent.ts` with spend controls. Settled testnet transactions (run against a local second instance on 2026-11-07, because the public site did not serve the route then): [CHEF](https://hashscan.io/testnet/transaction/0.0.9185802@1793992761.545261642), [LOFI](https://hashscan.io/testnet/transaction/0.0.9185802@1793992766.013363358), [MUSH](https://hashscan.io/testnet/transaction/0.0.9185802@1793992768.127890663); earlier single-payer run [0.0.9185802@1793985016.835902874](https://hashscan.io/testnet/transaction/0.0.9185802@1793985016.835902874). Details and the over-cap refusal: `docs/x402-agent.md`. |
 | WalletConnect | Project created, public project ID in `.env`; the deployment domains are allowlisted (done by hand). QR pairing is verified in Chrome. |
@@ -133,7 +137,7 @@ Secrets live only in `.env` (gitignored). The IDs below are public.
 | Invest and stake | Real, onchain: user-signed `approve` and `LiquidISA.invest`, server-verified. The creator stake is locked by `initializeIPO`. |
 | Pool liquidity | Protocol-provided: MockUSDC and tokens minted into the pool at raise close (10% of target, minimum 100 USDC). Not investor funds. |
 | USDC | Mock: `MockUSDC` with a faucet (1,000 per click, 50,000 cap). Not Circle USDC. |
-| ATS equity token | One real token (`$MUSH`, public ATS testnet Factory). New live mints revert and fall back to a simulated token (`sim:0x...`). |
+| ATS equity token | Live tokens (`$MUSH` is `0xFDC2...4517`, public ATS testnet Factory). With `ATS_MODE=live`, new IPOs mint live; a simulated token (`sim:0x...`) appears only on a live error. |
 | Dividend settlement | Real, onchain: creator-signed `distributeDividend` in USDC, holder-signed `claim()`, server-verified receipts. Legacy HBAR multi-transfer only for DB-only or simulated creators. |
 | Mock bank | Mock data source with six scenarios; the zkTLS proof is real. Outcomes: salary $5,000 approved, $250 dividend, tranche released; low $800 approved, $40, tranche locked; big $25,000 approved, $1,250; several deposits ($5,000 total) approved; none $0 approved, no dividend, tranche locked; late (40 days old) denied by the date pre-check (engine `pre-check`, no 0G call). "Switch user" works while signed in. |
 | Launch options | Tranche presets 2 to 5 or "No tranches" (all at raise close, shown to traders), monthly or quarterly cadence, social links, terms suggestion calculator, creator updates (5 per day). |
@@ -171,7 +175,7 @@ Deadline: submission by Saturday 2026-11-07 09:00 IST.
 7. **Submit** by 09:00 IST: repo link (confirm public), video, live URL,
    contract addresses, team contacts, AI disclosure (`docs/ai-usage.md`), and the
    three partner prizes. Track status is in `docs/prize-checklist.md`.
-8. Optional: a fix for new live ATS mints (custom error `0x76f138fb`); a phone-wallet signature test; the `no e2e test for
+8. Optional: a phone-wallet signature test; the `no e2e test for
    AuditMilestone` gap; unused `DRAFT` creator status; a production World ID
    app.
 
@@ -202,7 +206,7 @@ Deadline: submission by Saturday 2026-11-07 09:00 IST.
   HashPack accepting a transaction whose fee payer is the SMX operator, and
   the Hedera signer dialog with a WalletConnect wallet. Wallet details are in
   "Wallets".
-- Live ATS mints fall back to a simulated token on any error, so check the
+- A live ATS error falls back to a simulated token, so check the
   creator's `atsTokenAddress` before you claim a live token. The public ATS
   testnet contracts are shared and expire unless their owner renews them.
 - Old creators (launched on the previous factory) have no pool and still trade
