@@ -87,7 +87,27 @@ only path is the real IDKit flow.
 
 ## Differentiation
 
-TODO: see DIFFERENTIATION.md
+Past World ID projects checked a person once, at a claim or a stake.
+FairShare (ETHGlobal Brussels) let one person claim a distribution once.
+GlobePool (Taipei, 2025) used World ID identity for collateralised loans
+on tokenised assets. The closest precedent is "not so secret agent"
+(ETHGlobal London, 2024): staked oracle scraper nodes that get slashed and
+banned have their World ID permanently blocked, so they cannot re-stake from
+a new account. That applies the ban to node operators, not to credit or
+income.
+
+SMX applies the same idea to a person raising money from investors. The
+trust moment is one human, one IPO, enforced at two layers: the server
+verifies the World ID v4 proof and stores the nullifier, and the Hedera
+escrow factory keeps an onchain nullifier registry. On default, the
+nullifier is blacklisted, so the same human cannot raise again from any
+wallet. The penalty is tied to real financial liability: investors are
+refunded from escrow and the creator's $500 stake is slashed.
+
+This is the first combination we found of a World ID ban tied to investor
+refunds and a slashed stake. Our search of showcase pages was not
+exhaustive. The flow was verified end to end with the World ID Simulator, not
+with Orb-verified users.
 
 ## What we built
 
