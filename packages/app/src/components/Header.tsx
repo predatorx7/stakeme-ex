@@ -1,7 +1,6 @@
 import { escapeHtml } from '@kitajs/html'
 import { APP_NAME, BASE_PATH } from '../consts.ts'
 import { shortHex } from '../utils/money.ts'
-import { Avatar } from './Avatar.tsx'
 import { Icon, type IconName } from './Icon.tsx'
 import { navLink } from './nav-swap.ts'
 import { KeyExportDialog, WalletConnectDialog } from './WalletDialogs.tsx'
@@ -36,13 +35,15 @@ const NAV_ITEMS: NavItem[] = [
 	},
 ]
 
+type Viewer = {
+	name: string
+	email: string
+	walletAddress?: string | null
+}
+
 type HeaderProps = {
 	/** The signed-in viewer. Anonymous visitors get a Connect wallet button. */
-	viewer?: {
-		name: string
-		email: string
-		walletAddress?: string | null
-	} | null
+	viewer?: Viewer | null
 	nav?: NavKey
 }
 
@@ -120,47 +121,7 @@ export function Header({ viewer, nav }: HeaderProps) {
 					</a>
 					{
 						viewer ? (
-							<>
-								<span
-									class='rc-person'
-									title={viewer.email}>
-									<Avatar
-										fallbackFor={viewer.name}
-										size='sm' />
-									<span
-										class='smx-mono'
-										data-wallet-address
-										title={viewer.walletAddress ?? undefined}>
-										{
-											escapeHtml(
-												viewer.walletAddress
-													? shortHex(viewer.walletAddress)
-													: viewer.name,
-											)
-										}
-									</span>
-									{/* Painted by client/wallet.ts from the sign-in. */}
-									<span
-										class='rc-pill'
-										data-wallet-kind
-										hidden />
-								</span>
-								<button
-									type='button'
-									class='rc-button'
-									data-size='sm'
-									data-key-export='evm'
-									hidden>
-									Export key
-								</button>
-								<button
-									type='button'
-									class='rc-button'
-									data-size='sm'
-									data-wallet-signout>
-									Sign out
-								</button>
-							</>
+							<ProfileMenu viewer={viewer} />
 						) : (
 							<button
 								type='button'
@@ -191,6 +152,78 @@ export function Header({ viewer, nav }: HeaderProps) {
 					))
 				}
 			</nav>
+		</>
+	)
+}
+
+/**
+ * Signed-in wallet as a design-system profile menu: the trigger shows the
+ * short address, the menu holds the wallet kind and the account actions.
+ * `client/wallet.ts` paints `[data-wallet-kind]` and reveals Export key for a
+ * key held in this browser.
+ */
+function ProfileMenu({ viewer }: { viewer: Viewer }) {
+	const address = viewer.walletAddress
+	const short = address ? shortHex(address) : viewer.name
+	const initials = address ? address.slice(2, 4).toUpperCase() : 'ME'
+	return (
+		<>
+			<button
+				type='button'
+				class='rc-profile-menu__trigger'
+				popovertarget='profile-menu'
+				aria-label='Open profile menu'
+				aria-haspopup='menu'>
+				<span>
+					{escapeHtml(initials)}
+				</span>
+				<strong
+					class='smx-mono'
+					data-wallet-address
+					title={address ?? undefined}>
+					{escapeHtml(short)}
+				</strong>
+				<span
+					class='rc-profile-menu__chevron'
+					aria-hidden='true'>
+					<Icon name='chevronDown' />
+				</span>
+			</button>
+			<div
+				id='profile-menu'
+				class='rc-profile-menu'
+				role='menu'
+				popover>
+				<div class='rc-profile-menu__identity'>
+					<strong
+						class='smx-mono'
+						data-wallet-address
+						title={address ?? undefined}>
+						{escapeHtml(short)}
+					</strong>
+					<small data-wallet-kind>
+						Wallet
+					</small>
+				</div>
+				<div class='rc-profile-menu__actions'>
+					<button
+						type='button'
+						role='menuitem'
+						data-key-export='evm'
+						hidden>
+						<Icon name='shieldCheck' />
+						Export key
+					</button>
+					<button
+						type='button'
+						role='menuitem'
+						class='rc-profile-menu__action--danger'
+						data-wallet-signout>
+						<Icon name='logout' />
+						Sign out
+					</button>
+				</div>
+			</div>
 		</>
 	)
 }
