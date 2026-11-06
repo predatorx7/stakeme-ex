@@ -1,5 +1,6 @@
 import { parseUnits } from 'viem'
 import {
+	ZG_COMPUTE_ENABLED,
 	ZG_LEDGER_DEPOSIT,
 	ZG_PRIVATE_KEY,
 	ZG_PROVIDER_ADDRESS,
@@ -126,14 +127,17 @@ export async function runAuditVerdict(input: IncomeAuditInput): Promise<{
 	provider: string | null
 	teeVerified: boolean | null
 }> {
-	if(isZeroGConfigured()) {
+	if(isZeroGConfigured() && ZG_COMPUTE_ENABLED) {
 		try {
 			return await runCompute(input)
 		} catch(err) {
 			LOGGER.error({ err }, '0G Compute failed: rules-engine fallback')
 		}
 	} else {
-		LOGGER.warn('0G keys unset: rules-engine audit fallback active')
+		LOGGER.warn(
+			'0G Compute off (needs ZG_PRIVATE_KEY and ZG_COMPUTE_ENABLED=1): '
+			+ 'rules-engine audit',
+		)
 	}
 
 	return {

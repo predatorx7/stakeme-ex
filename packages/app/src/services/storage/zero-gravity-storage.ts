@@ -1,4 +1,10 @@
-import { ZG_INDEXER_URL, ZG_PRIVATE_KEY, ZG_RPC_URL } from '../../consts.ts'
+import {
+	ZG_INDEXER_URL,
+	ZG_PRIVATE_KEY,
+	ZG_RPC_URL,
+	ZG_STORAGE_MIN_BALANCE,
+} from '../../consts.ts'
+import { LOGGER } from '../../logger.ts'
 import { buildStorageDocument } from './storage-document.ts'
 import type {
 	IStorageProvider,
@@ -19,10 +25,19 @@ export class ZeroGravityStorage implements IStorageProvider {
 		const { json, contentHash } = buildStorageDocument(input)
 		const { ethers } = await import('ethers')
 		const { Indexer, MemData } = await import('@0gfoundation/0g-storage-ts-sdk')
-		const signer = new ethers.Wallet(
-			ZG_PRIVATE_KEY,
-			new ethers.JsonRpcProvider(ZG_RPC_URL),
-		)
+		const rpc = new ethers.JsonRpcProvider(ZG_RPC_URL)
+		const signer = new ethers.Wallet(ZG_PRIVATE_KEY, rpc)
+		// Faucet 0G is scarce: below the floor, throw so FallbackStorage keeps
+		// the document locally instead of spending the last of the balance.
+		const before = await rpc.getBalance(signer.address)
+		const floor = ethers.parseEther(String(ZG_STORAGE_MIN_BALANCE))
+		if(before < floor) {
+			throw new Error(
+				`0G balance ${ethers.formatEther(before)} is below the`
+				+ ` ${ZG_STORAGE_MIN_BALANCE} 0G storage floor`,
+			)
+		}
+
 		const file = new MemData(new TextEncoder().encode(json))
 		const [tree, treeErr] = await file.merkleTree()
 		if(treeErr !== null || !tree) {
@@ -39,6 +54,13 @@ export class ZeroGravityStorage implements IStorageProvider {
 		if(uploadErr !== null) {
 			throw uploadErr
 		}
+
+		const after = await rpc.getBalance(signer.address)
+		LOGGER.info({
+			kind: input.kind,
+			cost0g: ethers.formatEther(before - after),
+			balance0g: ethers.formatEther(after),
+		}, '0G Storage upload')
 
 		const ref = tree.rootHash()
 		if(!ref) {

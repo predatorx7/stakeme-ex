@@ -117,6 +117,18 @@ export const ZG_INDEXER_URL = process.env.ZG_INDEXER_URL
 	|| 'https://indexer-storage-testnet-turbo.0g.ai'
 export const ZG_PROVIDER_ADDRESS = process.env.ZG_PROVIDER_ADDRESS || ''
 export const ZG_LEDGER_DEPOSIT = +(process.env.ZG_LEDGER_DEPOSIT || 3)
+/**
+ * 0G Compute on Galileo needs a ledger of at least 3 0G plus 1 0G locked per
+ * provider, so it's opt-in: without `ZG_COMPUTE_ENABLED=1` the audit uses the
+ * rules engine and never sends a ledger transaction.
+ */
+export const ZG_COMPUTE_ENABLED = process.env.ZG_COMPUTE_ENABLED === '1'
+/**
+ * 0G Storage stops uploading (local refs instead) once the wallet holds less
+ * than this many 0G, so testing can't drain a scarce faucet balance.
+ */
+export const ZG_STORAGE_MIN_BALANCE =
+	+(process.env.ZG_STORAGE_MIN_BALANCE || 0.1)
 
 /** Storage adapter: `0g` (default, falls back to local) or `local`. */
 export const STORAGE_PROVIDER: '0g' | 'local' =
