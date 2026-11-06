@@ -10,6 +10,9 @@
  *
  *   npm run seed:demo          PGlite dev database (pg_dev_data)
  *   npm run seed:demo -- --pg  Postgres at DB_URI (`npm run db:up`)
+ *   --onchain=MUSH,RAVI        only these tickers send real chain jobs (the
+ *                              raise is filled onchain so the pool seeds);
+ *                              the others settle as SIMULATED, DB only
  *
  * Everything goes through the SQL functions, so the data obeys the same rules
  * as the app. Idempotent: creators that exist are skipped. PGlite is a
@@ -21,6 +24,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
 import { DEFAULT_TRANCHE_BPS, PORT } from '../src/consts.ts'
+import { simulateChainJob } from '../src/integrations/chain.ts'
 import {
 	demoWorldIdNullifier,
 	demoWorldIdProof
@@ -28,6 +32,7 @@ import {
 import { LOGGER } from '../src/logger.ts'
 import {
 	closeRaise,
+	completeChainJob,
 	getCreatorIdByTicker,
 	invest,
 	launchIpo,
@@ -45,6 +50,10 @@ import { processStorageUploads } from '../src/worker/storage-uploads.ts'
 import { applyPgliteMigrations, createPglite } from '../tests/pglite.ts'
 
 const useDocker = process.argv.includes('--pg')
+/** `--onchain=A,B`: tickers that send real chain jobs; undefined = all. */
+const ONCHAIN = process.argv.find((a) => a.startsWith('--onchain='))
+	?.slice('--onchain='.length).split(',').map((t) => t.trim().toUpperCase())
+	.filter(Boolean)
 
 /**
  * Real, signable demo wallets: `users.json` from the presentation folder
@@ -306,6 +315,9 @@ async function seedCreator(c: Creator, index: number) {
 			terms_hash: terms.termsHash,
 			terms_document: terms.document,
 			chain_id: 296,
+			tranche_bps: DEFAULT_TRANCHE_BPS,
+			proof_cadence: 'MONTHLY',
+			social_links: {},
 		},
 		pg,
 	)
@@ -335,7 +347,7 @@ async function seedCreator(c: Creator, index: number) {
 			amount: c.proof,
 			context: row.id,
 			id: `demo-proof-${c.ticker.toLowerCase()}-0`,
-		})
+		}, { demoViewerId: user.id })
 		if(outcome.kind !== 'audited') {
 			throw new Error(
 				`${c.ticker} income proof not audited (${outcome.kind}): `
@@ -376,7 +388,12 @@ async function seedCreator(c: Creator, index: number) {
 		await seedSetOverdue.run({ ticker: c.ticker, hours: 2 }, pg)
 	}
 
-	await slimChainJobs(c.ticker)
+	if(ONCHAIN && !ONCHAIN.includes(c.ticker)) {
+		await settleSimulated(c.ticker)
+	} else {
+		await slimChainJobs(c.ticker, ONCHAIN ? c.raise : undefined)
+	}
+
 	LOGGER.info({ ticker: c.ticker }, 'seeded creator')
 }
 
@@ -385,8 +402,10 @@ async function seedCreator(c: Creator, index: number) {
  * per-investor `invest` jobs collapse into one with the summed amount and the
  * dividend distribution is dropped. createISA, initializeIPO and
  * unlockNextTranche stay. Holdings, trades and prices live in Postgres only.
+ * With `fillAmount` the one invest buys the whole raise, which closes it
+ * onchain and seeds the pool.
  */
-async function slimChainJobs(ticker: string) {
+async function slimChainJobs(ticker: string, fillAmount?: string) {
 	const [row] = await getCreatorIdByTicker.run({ ticker }, pg)
 	const id = [row.id]
 	await pg.query(
@@ -401,6 +420,19 @@ async function slimChainJobs(ticker: string) {
 		)`,
 		id,
 	)
+	if(fillAmount) {
+		await pg.query(
+			`UPDATE smx.chain_jobs
+			SET args = jsonb_set(args, '{amount}', to_jsonb($2::text))
+			WHERE id = (
+				SELECT x.id FROM smx.chain_jobs x
+				WHERE x.creator_id = $1 AND x.fn = 'invest' AND x.status = 'QUEUED'
+				ORDER BY x.seq LIMIT 1
+			)`,
+			[row.id, fillAmount],
+		)
+	}
+
 	await pg.query(
 		`DELETE FROM smx.chain_jobs d
 		WHERE d.creator_id = $1 AND d.status = 'QUEUED' AND (
@@ -413,6 +445,39 @@ async function slimChainJobs(ticker: string) {
 		)`,
 		id,
 	)
+}
+
+/**
+ * DB-only creator: settles its queued jobs as SIMULATED (deterministic fake
+ * hashes and addresses), the same result the worker gives with no chain RPC.
+ */
+async function settleSimulated(ticker: string) {
+	const [row] = await getCreatorIdByTicker.run({ ticker }, pg)
+	const { rows } = await pg.query(
+		`SELECT id, fn, args FROM smx.chain_jobs
+		WHERE creator_id = $1 AND status = 'QUEUED' ORDER BY seq`,
+		[row.id],
+	)
+	for(const j of rows) {
+		const result = simulateChainJob({
+			id: j.id,
+			fn: j.fn,
+			args: j.args,
+			contractAddress: null,
+		})
+		await completeChainJob.run(
+			{
+				id: j.id,
+				status: result.status,
+				tx_hash: result.txHash,
+				error: result.error ?? null,
+				isa: result.deployed?.isa ?? null,
+				token: result.deployed?.token ?? null,
+				ats_token: result.deployed?.atsToken ?? null,
+			},
+			pg,
+		)
+	}
 }
 
 async function connect(): Promise<IPgClientLike> {
