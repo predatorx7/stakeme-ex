@@ -24,7 +24,7 @@ prizes, which drove the cut (`docs/prize-checklist.md`).
 
 | Sponsor | Role (paraphrased from `CONTEXT.md`) |
 | --- | --- |
-| Hedera | Escrow and token contracts, equity token through Asset Tokenization Studio, x402-style dividend payout, escrow freeze |
+| Hedera | Escrow and token contracts, ATS-ready equity token (Asset Tokenization Studio integration built, minting simulated), x402-style dividend payout, escrow freeze |
 | World ID | v4 proof of human; nullifier blocks double IPOs and flags defaulters |
 | 0G | Auditor agent on 0G Compute (opt-in), L-ISA terms and decision logs on 0G Storage, safe-stop freeze |
 

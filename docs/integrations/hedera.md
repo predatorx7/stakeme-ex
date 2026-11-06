@@ -4,7 +4,7 @@ Verified against npm, the Asset Tokenization Studio (ATS) packages, and
 docs.hedera.com on 2026-11-06.
 
 **Status:** implemented with SIMULATED fallbacks. The x402 paywall settled live
-on testnet (see below). The live ATS mint and the dividend x402 settlement are typechecked and unit-tested for their pure logic, but not
+on testnet (see below). ATS-ready (integration built; minting runs in simulated mode on testnet). The live ATS mint and the dividend x402 settlement are typechecked and unit-tested for their pure logic, but not
 run against Hedera testnet in this repository (no operator key in CI).
 
 SMX uses three Hedera features, all with native Hedera transactions:
@@ -12,7 +12,7 @@ SMX uses three Hedera features, all with native Hedera transactions:
 | Feature | What it does | Code |
 | --- | --- | --- |
 | Hedera EVM | Hosts `LiquidISAFactory`, `LiquidISA`, `CreatorShareToken` and `MockUSDC` (chain `296`). | `packages/contracts`, `integrations/chain.ts` |
-| Asset Tokenization Studio | Mints the creator's equity token (for example `$MUSH`). | `integrations/hedera-ats.ts` |
+| Asset Tokenization Studio | ATS-ready: integration built to mint the creator's equity token (for example `$MUSH`); minting runs in simulated mode on testnet. | `integrations/hedera-ats.ts` |
 | x402 dividend loop | The creator's wallet signs one Hedera transfer that pays every holder. | `services/payment/hedera-*.ts`, `client/hedera-pay.ts` |
 
 ```mermaid
@@ -23,7 +23,7 @@ flowchart LR
 	D --> E["Wallet signs one Hedera transfer"]
 	E --> F["Server settles on Hedera"]
 	F --> G["Holders receive micro-streams"]
-	H["IPO: createISA"] --> I["ATS equity token minted"]
+	H["IPO: createISA"] --> I["ATS-ready equity token (simulated mint)"]
 	H --> J["LiquidISA escrow on Hedera EVM"]
 	K["Missed proof deadline"] --> L["freezeEscrow"]
 ```
@@ -63,7 +63,7 @@ Hashio is for development only and can throttle. Keep a fallback relay URL in
 | `CHAIN_ID` | No | `296`. |
 | `ORACLE_PRIVATE_KEY` | Yes | ECDSA key (0x hex) of the oracle and deployer. Fund it from the faucet. |
 | `FACTORY_ADDRESS` | No | Deployed `LiquidISAFactory`. |
-| `ATS_ENABLED` | No | `1` turns on the live ATS mint. |
+| `ATS_ENABLED` | No | `1` turns on the live ATS mint (off by default; minting is simulated). |
 | `ATS_FACTORY_ADDRESS` | No | ATS `Factory` proxy (EVM address) on the target network. |
 | `ATS_RESOLVER_ADDRESS` | No | ATS Business Logic Resolver (BLR) proxy (EVM address). |
 | `ATS_CONFIG_VERSION` | No | Resolver configuration version. `0` (default) means latest. |
@@ -71,7 +71,7 @@ Hashio is for development only and can throttle. Keep a fallback relay URL in
 With no `HEDERA_OPERATOR_*` variables every path returns SIMULATED results and
 logs a warning, so the demo runs with no keys.
 
-## Mint a creator equity token with ATS
+## Mint a creator equity token with ATS (ATS-ready, simulated)
 
 [Asset Tokenization Studio](https://github.com/hashgraph/asset-tokenization-studio)
 (ATS) deploys regulated securities (ERC-1400 and ERC-3643 style) as diamond

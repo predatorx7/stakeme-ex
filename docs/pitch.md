@@ -100,7 +100,7 @@ Say this out loud if a judge asks.
 | Bank | The mock bank stands in for a real bank. |
 | Reclaim end-to-end callback | Pending a stable host for the mock bank. |
 | Dividend payout | The creator signs the transfer, but live settlement needs Hedera operator keys; otherwise it is simulated. |
-| Hedera ATS equity token | Simulated. Never run against a live ATS deployment. |
+| Hedera ATS equity token | ATS-ready (integration built; minting runs in simulated mode on testnet). Never run against a live ATS deployment. |
 | Trading | A simulated AMM with virtual liquidity. |
 
 ## Sponsor questions for booth visits

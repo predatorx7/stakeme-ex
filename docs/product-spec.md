@@ -29,7 +29,7 @@ were dropped; see [deprecated/](deprecated/README.md).
 | Sponsor | Role in SMX | Demo fallback |
 | --- | --- | --- |
 | World ID | v4 proof of unique human at IPO. The server signs the RP request (`POST /api/rp-signature`) and verifies the proof; `POST /api/world-id/check` rejects a used or blacklisted nullifier before submit. The nullifier is stored in Postgres and on the factory contract. | World ID Simulator (staging app); `DEMO_MODE=1` fixture proofs. |
-| Hedera | EVM testnet (chain 296) for the `LiquidISA` clone factory, escrow and share tokens. Creator equity token on the Asset Tokenization Studio (ATS). x402-style dividend payouts: the creator signs one Hedera multi-transfer in their wallet and the server settles it. Safe-stop escrow freeze. | Simulated chain mode (`CHAIN_RPC_URL` unset); simulated receipts. |
+| Hedera | EVM testnet (chain 296) for the `LiquidISA` clone factory, escrow and share tokens. Creator equity token is ATS-ready (Asset Tokenization Studio integration built; minting runs in simulated mode on testnet). x402-style dividend payouts: the creator signs one Hedera multi-transfer in their wallet and the server settles it. Safe-stop escrow freeze. | Simulated chain mode (`CHAIN_RPC_URL` unset); simulated receipts. |
 | 0G | Auditor agent that approves or denies milestones and computes dividends. 0G Compute is opt-in; otherwise a rules engine runs. L-ISA terms and every audit log go to 0G Storage through a background outbox. Triggers the safe-stop freeze. | Rules engine; `local:<sha256>` refs. |
 | Reclaim Protocol | zkTLS proof of a Web2 bank deposit that the 0G agent verifies. The mock bank (`/mock-bank`) stands in for a real bank and shows a hardcoded $5,000 deposit. | `DEMO_MODE=1` fixture proof. |
 
@@ -301,7 +301,7 @@ SMX is a hackathon build. This table is the honest state as of 2026-11-06. See
 | 0G Compute | Opt-in (`ZG_COMPUTE_ENABLED`); needs a 3 0G ledger deposit. The audit falls back to the rules engine. 0G Router (`pc.0g.ai`) credits are pending. |
 | Reclaim | Provider live. The mock bank runs behind a temporary tunnel; the end-to-end callback test is pending. |
 | Wallets | WalletConnect QR pairing verified. A full phone-wallet signature is not. |
-| Hedera ATS equity token | Simulated. It mirrors the cap table; `CreatorShareToken` stays the source of truth. Never run against a live ATS deployment. |
+| Hedera ATS equity token | ATS-ready (integration built; minting runs in simulated mode on testnet). It would mirror the cap table; `CreatorShareToken` stays the source of truth. Never run against a live ATS deployment. |
 | x402 dividend payout | Built and tested against the requirement validator. Live settlement is unrun without operator keys. |
 | Bank | Simulated. The mock bank stands in for a real bank. |
 | Trading | Simulated constant-product AMM with virtual liquidity, not backed by investor funds. |

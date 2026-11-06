@@ -117,13 +117,13 @@ While `frozen` is true:
 - Investing, claiming, dividends and `executeLiquidation()` keep working, so a
   freeze never traps investor money.
 
-## Hedera ATS equity token
+## Hedera ATS equity token (ATS-ready, simulated)
 
 `setAtsToken(address)` (oracle-only, once) records the Hedera Asset
-Tokenization Studio equity token minted for the ISA and emits `AtsTokenSet`.
+Tokenization Studio equity token for the ISA (ATS-ready; minting runs in simulated mode on testnet) and emits `AtsTokenSet`.
 `CreatorShareToken` stays the source of truth for escrow and dividend math; the
 ATS token is the regulated registry mirror. See
-[Hedera integration](integrations/hedera.md#mint-a-creator-equity-token-with-ats).
+[Hedera integration](integrations/hedera.md#mint-a-creator-equity-token-with-ats-ats-ready-simulated).
 
 ## Nullifiers
 

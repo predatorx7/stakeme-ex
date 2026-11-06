@@ -32,7 +32,7 @@ Express and htmx, not Next.js.
 
 | Guide | What SMX uses it for |
 | --- | --- |
-| [integrations/hedera.md](integrations/hedera.md) | Hedera EVM escrow, ATS equity token, x402 dividend payouts, safe-stop freeze. |
+| [integrations/hedera.md](integrations/hedera.md) | Hedera EVM escrow, ATS-ready equity token (simulated), x402 dividend payouts, safe-stop freeze. |
 | [integrations/world-id.md](integrations/world-id.md) | World ID v4 proof of human, server-side RP signature, nullifier handling. |
 | [integrations/zero-g.md](integrations/zero-g.md) | 0G Compute auditor agent and 0G Storage logs for terms and audit decisions. |
 | [integrations/reclaim.md](integrations/reclaim.md) | Reclaim zkTLS bank proof, mock bank, and provider setup. |
