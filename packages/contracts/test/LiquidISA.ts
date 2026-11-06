@@ -22,9 +22,13 @@ describe('LiquidISA', async() => {
 	/** Deploys USDC + factory + a 1,000 USDC ISA with a 200 USDC stake and funds everyone. */
 	async function setup() {
 		const mock = await viem.deployContract('MockUSDC')
+		const isaImpl = await viem.deployContract('LiquidISA')
+		const tokenImpl = await viem.deployContract('CreatorShareToken')
 		const factory = await viem.deployContract('LiquidISAFactory', [
 			mock.address,
 			oracle.account.address,
+			isaImpl.address,
+			tokenImpl.address,
 		])
 		await factory.write.createISA(
 			['Ravi Kumar', 'RAVI', usdc(1000), usdc(200), 1000, 24, [], NULLIFIER],
@@ -170,5 +174,49 @@ describe('LiquidISA', async() => {
 		await isa.write.unfreezeEscrow({ account: oracle.account })
 		await isa.write.unlockNextTranche({ account: oracle.account })
 		assert.equal(await isa.read.nextTranche(), 2n)
+	})
+
+	it('keeps two clones independent and locks the implementations', async() => {
+		const { mock, factory, isa, token } = await setup()
+		await factory.write.createISA(
+			['Second', 'TWO', usdc(500), 0n, 500, 12, [5000, 5000], keccak256(toHex('other'))],
+			{ account: alice.account },
+		)
+		const isa2 = await viem.getContractAt('LiquidISA', await factory.read.allISAs([1n]))
+		const token2 = await viem.getContractAt('CreatorShareToken', await isa2.read.token())
+		assert.notEqual(getAddress(isa2.address), getAddress(isa.address))
+		assert.equal(await token.read.symbol(), 'RAVI')
+		assert.equal(await token2.read.symbol(), 'TWO')
+		assert.equal(await token2.read.name(), 'Second')
+		assert.equal(getAddress(await isa2.read.creator()), getAddress(alice.account.address))
+
+		await mock.write.approve([isa2.address, 2n ** 255n], { account: bob.account })
+		await isa.write.initializeIPO({ account: creator.account })
+		await isa.write.invest([usdc(300)], { account: alice.account })
+		await isa2.write.initializeIPO({ account: alice.account })
+		await isa2.write.invest([usdc(100)], { account: bob.account })
+		assert.equal(await isa.read.raised(), usdc(300))
+		assert.equal(await isa2.read.raised(), usdc(100))
+		assert.equal(await token.read.totalSupply(), shares(300))
+		assert.equal(await token2.read.totalSupply(), shares(100))
+		assert.equal(await isa2.read.trancheCount(), 2n)
+		assert.equal(await isa.read.trancheCount(), 3n)
+
+		// Re-initializing a clone or the implementation is rejected.
+		const impl = await viem.getContractAt('LiquidISA', await factory.read.isaImplementation())
+		await viem.assertions.revertWithCustomError(
+			token.write.initialize(['X', 'X', alice.account.address]),
+			token,
+			'InvalidInitialization',
+		)
+		await viem.assertions.revertWithCustomError(
+			impl.write.initialize([{
+				usdc: mock.address, creator: alice.account.address, oracle: alice.account.address,
+				totalRaise: 1n, creatorStake: 0n, shareBps: 1, termMonths: 1,
+				trancheBps: [10000], worldIdNullifierHash: NULLIFIER,
+			}, token.address]),
+			impl,
+			'InvalidInitialization',
+		)
 	})
 })

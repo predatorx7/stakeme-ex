@@ -1,7 +1,7 @@
 import { buildModule } from '@nomicfoundation/hardhat-ignition/modules'
 
 /**
- * Deploys MockUSDC and the LiquidISAFactory. The oracle defaults to the
+ * Deploys MockUSDC, the two clone implementations and the LiquidISAFactory. The oracle defaults to the
  * deployer account; override with `--parameters` (key: Deploy.oracle).
  */
 export default buildModule('Deploy', (m) => {
@@ -9,7 +9,9 @@ export default buildModule('Deploy', (m) => {
 	const oracle = m.getParameter('oracle', deployer)
 
 	const usdc = m.contract('MockUSDC')
-	const factory = m.contract('LiquidISAFactory', [usdc, oracle])
+	const isaImpl = m.contract('LiquidISA')
+	const tokenImpl = m.contract('CreatorShareToken')
+	const factory = m.contract('LiquidISAFactory', [usdc, oracle, isaImpl, tokenImpl])
 
-	return { usdc, factory }
+	return { usdc, isaImpl, tokenImpl, factory }
 })

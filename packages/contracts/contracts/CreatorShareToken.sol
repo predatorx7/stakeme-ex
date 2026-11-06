@@ -2,15 +2,19 @@
 pragma solidity ^0.8.28;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @notice ERC-20 income-share token with built-in dividend accounting
 /// (ERC-2222 style). The owner (the LiquidISA) mints shares, accrues
-/// dividends and settles claims; it holds the USDC itself.
-contract CreatorShareToken is ERC20 {
+/// dividends and settles claims; it holds the USDC itself. Deployed once as an
+/// implementation and cloned (EIP-1167) per ISA, so name, symbol and owner live in storage.
+contract CreatorShareToken is ERC20, Initializable {
 	/// @dev Fixed-point scale that keeps per-share precision under integer division.
 	uint256 internal constant MAGNITUDE = 2 ** 128;
 
-	address public immutable owner;
+	address public owner;
+	string private _tokenName;
+	string private _tokenSymbol;
 
 	uint256 public magnifiedDividendPerShare;
 	mapping(address => int256) internal magnifiedDividendCorrections;
@@ -19,8 +23,23 @@ contract CreatorShareToken is ERC20 {
 	error NotOwner();
 	error NoShares();
 
-	constructor(string memory name_, string memory symbol_, address owner_) ERC20(name_, symbol_) {
+	/// @dev Locks the implementation; clones are set up through `initialize`.
+	constructor() ERC20("", "") {
+		_disableInitializers();
+	}
+
+	function initialize(string calldata name_, string calldata symbol_, address owner_) external initializer {
+		_tokenName = name_;
+		_tokenSymbol = symbol_;
 		owner = owner_;
+	}
+
+	function name() public view override returns (string memory) {
+		return _tokenName;
+	}
+
+	function symbol() public view override returns (string memory) {
+		return _tokenSymbol;
 	}
 
 	modifier onlyOwner() {

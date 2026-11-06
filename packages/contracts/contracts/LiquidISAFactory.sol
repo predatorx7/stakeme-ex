@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {LiquidISA} from "./LiquidISA.sol";
+import {CreatorShareToken} from "./CreatorShareToken.sol";
 
-/// @notice Deploys one LiquidISA (which deploys its CreatorShareToken) per
-/// creator, and enforces one ISA per World ID nullifier plus a default blacklist.
+/// @notice Clones (EIP-1167) one LiquidISA and one CreatorShareToken per
+/// creator from two implementations deployed once, and enforces one ISA per World ID nullifier plus a default blacklist.
 contract LiquidISAFactory {
 	address public immutable usdc;
 	address public immutable oracle;
+	address public immutable isaImplementation;
+	address public immutable tokenImplementation;
 
 	mapping(bytes32 => address) public isaOfNullifier;
 	mapping(bytes32 => bool) public blacklisted;
@@ -22,9 +26,11 @@ contract LiquidISAFactory {
 	error NullifierBlacklisted();
 	error NullifierUsed();
 
-	constructor(address usdc_, address oracle_) {
+	constructor(address usdc_, address oracle_, address isaImplementation_, address tokenImplementation_) {
 		usdc = usdc_;
 		oracle = oracle_;
+		isaImplementation = isaImplementation_;
+		tokenImplementation = tokenImplementation_;
 	}
 
 	function createISA(
@@ -48,23 +54,23 @@ contract LiquidISAFactory {
 			tranches[2] = 4000;
 		}
 
-		LiquidISA created = new LiquidISA(
+		isa = Clones.clone(isaImplementation);
+		token = Clones.clone(tokenImplementation);
+		CreatorShareToken(token).initialize(name, ticker, isa);
+		LiquidISA(isa).initialize(
 			LiquidISA.Params({
 				usdc: usdc,
 				creator: msg.sender,
 				oracle: oracle,
-				name: name,
-				ticker: ticker,
 				totalRaise: totalRaise,
 				creatorStake: creatorStake,
 				shareBps: shareBps,
 				termMonths: termMonths,
 				trancheBps: tranches,
 				worldIdNullifierHash: worldIdNullifierHash
-			})
+			}),
+			token
 		);
-		isa = address(created);
-		token = address(created.token());
 		isaOfNullifier[worldIdNullifierHash] = isa;
 		isISA[isa] = true;
 		allISAs.push(isa);

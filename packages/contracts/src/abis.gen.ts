@@ -2,70 +2,7 @@
 
 export const liquidISAAbi = [
 	{
-		"inputs": [
-			{
-				"components": [
-					{
-						"internalType": "address",
-						"name": "usdc",
-						"type": "address"
-					},
-					{
-						"internalType": "address",
-						"name": "creator",
-						"type": "address"
-					},
-					{
-						"internalType": "address",
-						"name": "oracle",
-						"type": "address"
-					},
-					{
-						"internalType": "string",
-						"name": "name",
-						"type": "string"
-					},
-					{
-						"internalType": "string",
-						"name": "ticker",
-						"type": "string"
-					},
-					{
-						"internalType": "uint256",
-						"name": "totalRaise",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "creatorStake",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint16",
-						"name": "shareBps",
-						"type": "uint16"
-					},
-					{
-						"internalType": "uint16",
-						"name": "termMonths",
-						"type": "uint16"
-					},
-					{
-						"internalType": "uint16[]",
-						"name": "trancheBps",
-						"type": "uint16[]"
-					},
-					{
-						"internalType": "bytes32",
-						"name": "worldIdNullifierHash",
-						"type": "bytes32"
-					}
-				],
-				"internalType": "struct LiquidISA.Params",
-				"name": "p",
-				"type": "tuple"
-			}
-		],
+		"inputs": [],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
 	},
@@ -87,6 +24,11 @@ export const liquidISAAbi = [
 	{
 		"inputs": [],
 		"name": "EscrowFrozenError",
+		"type": "error"
+	},
+	{
+		"inputs": [],
+		"name": "InvalidInitialization",
 		"type": "error"
 	},
 	{
@@ -117,6 +59,11 @@ export const liquidISAAbi = [
 	{
 		"inputs": [],
 		"name": "NotInitialized",
+		"type": "error"
+	},
+	{
+		"inputs": [],
+		"name": "NotInitializing",
 		"type": "error"
 	},
 	{
@@ -289,6 +236,19 @@ export const liquidISAAbi = [
 			}
 		],
 		"name": "IPOInitialized",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint64",
+				"name": "version",
+				"type": "uint64"
+			}
+		],
+		"name": "Initialized",
 		"type": "event"
 	},
 	{
@@ -523,6 +483,71 @@ export const liquidISAAbi = [
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "usdc",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "creator",
+						"type": "address"
+					},
+					{
+						"internalType": "address",
+						"name": "oracle",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "totalRaise",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "creatorStake",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint16",
+						"name": "shareBps",
+						"type": "uint16"
+					},
+					{
+						"internalType": "uint16",
+						"name": "termMonths",
+						"type": "uint16"
+					},
+					{
+						"internalType": "uint16[]",
+						"name": "trancheBps",
+						"type": "uint16[]"
+					},
+					{
+						"internalType": "bytes32",
+						"name": "worldIdNullifierHash",
+						"type": "bytes32"
+					}
+				],
+				"internalType": "struct LiquidISA.Params",
+				"name": "p",
+				"type": "tuple"
+			},
+			{
+				"internalType": "address",
+				"name": "token_",
+				"type": "address"
+			}
+		],
+		"name": "initialize",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -813,10 +838,41 @@ export const liquidISAFactoryAbi = [
 				"internalType": "address",
 				"name": "oracle_",
 				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "isaImplementation_",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "tokenImplementation_",
+				"type": "address"
 			}
 		],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
+	},
+	{
+		"inputs": [],
+		"name": "FailedDeployment",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "balance",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "needed",
+				"type": "uint256"
+			}
+		],
+		"name": "InsufficientBalance",
+		"type": "error"
 	},
 	{
 		"inputs": [],
@@ -1038,6 +1094,19 @@ export const liquidISAFactoryAbi = [
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"name": "isaImplementation",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "bytes32",
@@ -1071,6 +1140,19 @@ export const liquidISAFactoryAbi = [
 	},
 	{
 		"inputs": [],
+		"name": "tokenImplementation",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "usdc",
 		"outputs": [
 			{
@@ -1086,23 +1168,7 @@ export const liquidISAFactoryAbi = [
 
 export const creatorShareTokenAbi = [
 	{
-		"inputs": [
-			{
-				"internalType": "string",
-				"name": "name_",
-				"type": "string"
-			},
-			{
-				"internalType": "string",
-				"name": "symbol_",
-				"type": "string"
-			},
-			{
-				"internalType": "address",
-				"name": "owner_",
-				"type": "address"
-			}
-		],
+		"inputs": [],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
 	},
@@ -1194,7 +1260,17 @@ export const creatorShareTokenAbi = [
 	},
 	{
 		"inputs": [],
+		"name": "InvalidInitialization",
+		"type": "error"
+	},
+	{
+		"inputs": [],
 		"name": "NoShares",
+		"type": "error"
+	},
+	{
+		"inputs": [],
+		"name": "NotInitializing",
 		"type": "error"
 	},
 	{
@@ -1225,6 +1301,19 @@ export const creatorShareTokenAbi = [
 			}
 		],
 		"name": "Approval",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint64",
+				"name": "version",
+				"type": "uint64"
+			}
+		],
+		"name": "Initialized",
 		"type": "event"
 	},
 	{
@@ -1362,6 +1451,29 @@ export const creatorShareTokenAbi = [
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "name_",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "symbol_",
+				"type": "string"
+			},
+			{
+				"internalType": "address",
+				"name": "owner_",
+				"type": "address"
+			}
+		],
+		"name": "initialize",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{

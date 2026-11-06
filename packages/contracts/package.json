@@ -16,7 +16,7 @@
 		"test": "hardhat test",
 		"node": "hardhat node",
 		"deploy:local": "hardhat ignition deploy ignition/modules/Deploy.ts",
-		"deploy:hedera": "hardhat ignition deploy ignition/modules/Deploy.ts --network hederaTestnet",
+		"deploy:hedera": "hardhat compile && node scripts/deploy-hedera.ts",
 		"deploy:sepolia": "hardhat ignition deploy ignition/modules/Deploy.ts --network sepolia",
 		"deploy:0g": "hardhat ignition deploy ignition/modules/Deploy.ts --network ogGalileo"
 	},

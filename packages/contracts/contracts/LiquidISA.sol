@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {CreatorShareToken} from "./CreatorShareToken.sol";
 
@@ -14,7 +15,9 @@ interface IISAFactory {
 /// raised USDC sits in escrow and is released to the creator in tranches
 /// unlocked by the oracle. Income dividends flow back to token holders; if the
 /// creator defaults, escrow plus the creator's stake are refunded pro rata.
-contract LiquidISA is ReentrancyGuard {
+/// Deployed once as an implementation and cloned (EIP-1167) per IPO by the
+/// factory, so per-ISA config lives in storage instead of immutables.
+contract LiquidISA is ReentrancyGuard, Initializable {
 	using SafeERC20 for IERC20;
 
 	uint256 public constant BPS = 10_000;
@@ -25,8 +28,6 @@ contract LiquidISA is ReentrancyGuard {
 		address usdc;
 		address creator;
 		address oracle;
-		string name;
-		string ticker;
 		uint256 totalRaise;
 		uint256 creatorStake;
 		uint16 shareBps;
@@ -35,16 +36,16 @@ contract LiquidISA is ReentrancyGuard {
 		bytes32 worldIdNullifierHash;
 	}
 
-	IERC20 public immutable usdc;
-	CreatorShareToken public immutable token;
-	address public immutable factory;
-	address public immutable creator;
-	address public immutable oracle;
-	bytes32 public immutable worldIdNullifierHash;
-	uint256 public immutable totalRaise;
-	uint256 public immutable creatorStake;
-	uint16 public immutable shareBps;
-	uint16 public immutable termMonths;
+	IERC20 public usdc;
+	CreatorShareToken public token;
+	address public factory;
+	address public creator;
+	address public oracle;
+	bytes32 public worldIdNullifierHash;
+	uint256 public totalRaise;
+	uint256 public creatorStake;
+	uint16 public shareBps;
+	uint16 public termMonths;
 
 	uint16[] public trancheBps;
 	uint256 public raised;
@@ -100,7 +101,12 @@ contract LiquidISA is ReentrancyGuard {
 		_;
 	}
 
-	constructor(Params memory p) {
+	/// @dev Locks the implementation; clones are set up through `initialize`.
+	constructor() {
+		_disableInitializers();
+	}
+
+	function initialize(Params calldata p, address token_) external initializer {
 		uint256 sum;
 		for (uint256 i; i < p.trancheBps.length; i++) sum += p.trancheBps[i];
 		if (p.trancheBps.length == 0 || sum != BPS) revert InvalidTranches();
@@ -116,7 +122,7 @@ contract LiquidISA is ReentrancyGuard {
 		shareBps = p.shareBps;
 		termMonths = p.termMonths;
 		trancheBps = p.trancheBps;
-		token = new CreatorShareToken(p.name, p.ticker, address(this));
+		token = CreatorShareToken(token_);
 	}
 
 	/// @notice Oracle records the ATS (ERC-1400 style) equity token minted for this ISA.

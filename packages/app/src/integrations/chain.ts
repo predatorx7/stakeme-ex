@@ -13,6 +13,7 @@ import {
 	createPublicClient,
 	createWalletClient,
 	defineChain,
+	encodeFunctionData,
 	getAddress,
 	type Hex,
 	http,
@@ -33,6 +34,18 @@ import { keccakUtf8, nullifierHash } from './util.ts'
 
 const USDC_DECIMALS = 6
 const DEFAULT_TRANCHES = [2000, 4000, 4000]
+// Hedera bills 80% of the gas limit, so limits are estimateGas + 20%, not a
+// large default.
+const GAS_MARGIN_PCT = 120n
+// Hashio reads of a fresh contract fail with FAIL_INVALID until the mirror
+// node indexes it.
+const READ_TRIES = 10
+const READ_DELAY_MS = 2000
+// Hashio receipts can lag the mirror node by minutes.
+const RECEIPT_WAIT = { timeout: 300_000, pollingInterval: 3000 }
+const lastNonce = new Map<Address, number>()
+const MIRROR_URL = process.env.HEDERA_MIRROR_URL
+	|| 'https://testnet.mirrornode.hedera.com/api/v1'
 
 export function isChainConfigured() {
 	return !!CHAIN_RPC_URL
@@ -117,13 +130,66 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 			args?: readonly unknown[]
 		},
 	) => {
-		const { request } = await publicClient.simulateContract({
+		await retryFresh(() => publicClient.simulateContract({
 			account,
 			...call,
+		}))
+		const hash = await write({ ...call, gas: await gasFor(call) })
+		const receipt = await publicClient.waitForTransactionReceipt({
+			hash,
+			...RECEIPT_WAIT,
 		})
-		const hash = await wallet.writeContract(request)
-		const receipt = await publicClient.waitForTransactionReceipt({ hash })
 		return { hash, receipt }
+	}
+
+	/**
+	 * Hashio's nonce view lags behind confirmed txs (the mirror node), so a
+	 * quick second tx can get "nonce too low". Track the next nonce locally
+	 * and retry that error.
+	 */
+	async function write(call: {
+		address: Address
+		abi: Abi
+		functionName: string
+		args?: readonly unknown[]
+		gas: bigint
+	}) {
+		for(let i = 1; ; i++) {
+			const onchain = await publicClient.getTransactionCount({
+				address: account.address,
+			})
+			const nonce = Math.max(
+				onchain,
+				(lastNonce.get(account.address) ?? -1) + 1,
+			)
+			try {
+				const hash = await wallet.writeContract({ ...call, nonce })
+				lastNonce.set(account.address, nonce)
+				return hash
+			} catch(err) {
+				if(i >= READ_TRIES || !/nonce/i.test(String(err))) {
+					throw err
+				}
+
+				await sleep(READ_DELAY_MS)
+			}
+		}
+	}
+
+	/** estimateGas + 20%, retrying FAIL_INVALID on a fresh target. */
+	async function gasFor(request: {
+		address: Address
+		abi: Abi
+		functionName: string
+		args?: readonly unknown[]
+	}) {
+		const data = encodeFunctionData(request)
+		const estimate = await retryFresh(() => publicClient.estimateGas({
+			account,
+			to: request.address,
+			data,
+		}))
+		return (estimate * GAS_MARGIN_PCT) / 100n
 	}
 
 	switch (job.fn) {
@@ -166,6 +232,7 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 				logs: receipt.logs,
 			})
 			assert(created, new Error('ISACreated event missing from receipt'))
+			await waitForMirror(created.args.isa)
 			const atsToken = await mirrorAtsToken(created.args.isa)
 			return {
 				status: 'CONFIRMED',
@@ -179,11 +246,11 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 		}
 
 		case 'initializeIPO': {
-			const stake = await publicClient.readContract({
+			const stake = await retryFresh(() => publicClient.readContract({
 				address: to,
 				abi: liquidISAAbi,
 				functionName: 'creatorStake',
-			})
+			}))
 			await fundAndApprove(to, stake)
 			return finish(await send({
 				address: to, abi: liquidISAAbi, functionName: 'initializeIPO',
@@ -248,38 +315,104 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 			return
 		}
 
-		const token = await publicClient.readContract({
+		const token = await retryFresh(() => publicClient.readContract({
 			address: isa, abi: liquidISAAbi, functionName: 'usdc',
-		})
-		const balance = await publicClient.readContract({
+		}))
+		const balance = await retryFresh(() => publicClient.readContract({
 			address: token,
 			abi: mockUSDCAbi,
 			functionName: 'balanceOf',
 			args: [account.address],
-		})
+		}))
 		if(balance < amount) {
 			try {
-				const mint = await wallet.writeContract({
+				const mint = await write({
 					address: token,
 					abi: mockUSDCAbi,
 					functionName: 'mint',
 					args: [account.address, amount - balance],
+					gas: await gasFor({
+						address: token,
+						abi: mockUSDCAbi,
+						functionName: 'mint',
+						args: [account.address, amount - balance],
+					}),
 				})
-				await publicClient.waitForTransactionReceipt({ hash: mint })
+				await publicClient.waitForTransactionReceipt({
+					hash: mint,
+					...RECEIPT_WAIT,
+				})
 			} catch(err) {
 				// Real USDC has no open mint: the oracle must already hold it.
 				LOGGER.warn({ err }, 'USDC mint skipped')
 			}
 		}
 
-		const approve = await wallet.writeContract({
+		const approve = await write({
 			address: token,
 			abi: mockUSDCAbi,
 			functionName: 'approve',
 			args: [isa, amount],
+			gas: await gasFor({
+				address: token,
+				abi: mockUSDCAbi,
+				functionName: 'approve',
+				args: [isa, amount],
+			}),
 		})
-		await publicClient.waitForTransactionReceipt({ hash: approve })
+		await publicClient.waitForTransactionReceipt({
+			hash: approve,
+			...RECEIPT_WAIT,
+		})
 	}
+}
+
+/**
+ * Retries a call while Hashio answers FAIL_INVALID (the contract is not in
+ * the mirror node yet). Other errors rethrow immediately.
+ */
+async function retryFresh<T>(fn: () => Promise<T>): Promise<T> {
+	for(let i = 1; ; i++) {
+		try {
+			return await fn()
+		} catch(err) {
+			if(i >= READ_TRIES || !isFailInvalid(err)) {
+				throw err
+			}
+
+			await sleep(READ_DELAY_MS)
+		}
+	}
+}
+
+function isFailInvalid(err: unknown) {
+	const text = err instanceof BaseError
+		? `${err.message} ${err.details}`
+		: String(err)
+	return /FAIL_INVALID/i.test(text)
+}
+
+/** Waits until the Hedera mirror node knows `address` (skipped elsewhere). */
+async function waitForMirror(address: Address) {
+	if(CHAIN_ID && CHAIN_ID !== 296) {
+		return
+	}
+
+	for(let i = 0; i < 30; i++) {
+		const res = await fetch(`${MIRROR_URL}/contracts/${address}`)
+			.catch(() => null)
+		if(res?.ok) {
+			return
+		}
+
+		await sleep(READ_DELAY_MS)
+	}
+
+	LOGGER.warn({ address }, 'Mirror node did not index contract in time')
+}
+
+function sleep(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /** ATS mint input from a `createISA` job (1 USDC raised = 1 share). */

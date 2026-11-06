@@ -8,9 +8,10 @@ Solidity contracts for StakeMe Exchange (SMX), built with Hardhat 3, viem and
 
 ## Layout
 
-- `contracts/`: `MockUSDC`, `CreatorShareToken`, `LiquidISA`, `LiquidISAFactory`.
+- `contracts/`: `MockUSDC`, `CreatorShareToken`, `LiquidISA`, `LiquidISAFactory`. The ISA and token are EIP-1167 clones: `initialize(...)` replaces constructors, no `immutable` config, implementations call `_disableInitializers()`.
 - `test/`: TypeScript `node:test` tests (core logic only).
-- `ignition/modules/Deploy.ts`: deploys `MockUSDC` and the factory.
+- `ignition/modules/Deploy.ts`: Ignition deploy for local, Sepolia and 0G.
+- `scripts/deploy-hedera.ts`: viem deploy for Hedera (explicit gas = estimate + 20%), writes `deployments/hedera-testnet.json` and the root `.env`.
 - `scripts/export-abis.ts`: writes `src/abis.gen.ts` and `src/deployments.gen.ts`.
 - `src/index.ts`: public entry point (`exports["."]`). Run by Node type
   stripping, so no enums or namespaces and use `.ts` import extensions.
