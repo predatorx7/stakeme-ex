@@ -24,7 +24,7 @@ as one prize. SMX uses exactly three sponsors, so it fits.
 
 | Sponsor | Best-fit track | Prize | Fit today | Biggest blocker |
 | --- | --- | --- | --- | --- |
-| Hedera | Tokenize Anything with Hedera Studios | $5,000 | Partly | ATS equity token is simulated and never ran live; contracts verified; video pending |
+| Hedera | Tokenize Anything with Hedera Studios | $5,000 | Partly | ATS equity token minted live on testnet (`$MUSH`); the ATS token mirrors the cap table, and a live error falls back to simulated; contracts verified; video pending |
 | Hedera | AI Agents That Pay: x402 on Hedera | $6,500 | Partly | Paid endpoint and agent met with tx links; recorded run was on a local instance, public-site rerun pending; video pending |
 | World | Best Use of IDKit | $2,500 (2 x $1,250) | Met | Debrief written (`docs/world-id-debrief.md`, about 8 minutes to first success); video pending |
 | World | World ID Agent Pass | $5,000 | Not met | SMX uses IDKit proof of human, not Agent Pass |
@@ -48,7 +48,7 @@ and the 0G submission list.
 | Work started after the hackathon began (classic track) | "all work on your project must begin after the hackathon officially starts" | Met | Hacking started on 5 November 2026 (developer's statement). The first commit is 2026-11-06 16:38 IST, inside the event window. |
 | Demo video | "Must be between 2 and 4 minutes", at least 720p, not sped up, not phone-recorded, no AI voiceover, at most 4 bullets per slide | Not met | Video pending (plan in `docs/demo-video.md`). 0G asks for "under 3 mins"; record one 2:30 to 3:00 video that also satisfies the 5-minute Hedera limit. |
 | Live demo link | 0G: "Demo video (under 3 mins) and a live demo link" | Met | https://stakeme.magnificlabs.org/ , `/creators` and `/creators/MUSH` return 200 (MUSH shows "Audited by 0G Private Computer"); `/creators/MUSH/audit-report` returns 402 unpaid. Deploy files are committed (cf42922, `docs/deployment.md`); the mock bank is served at `/mock-bank`. |
-| Contract addresses | 0G: "Contract deployment addresses" | Met | `packages/contracts/deployments/hedera-testnet.json`: `LiquidISAFactory` `0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`, `MockUSDC` `0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`, `LiquidISA` implementation `0xb2a511d967202950e3b259c7420de1a7729a2f15`, `CreatorShareToken` implementation `0x8e483e26b05ee86f414a4f502457ee8fa3f05071`. Verified on Sourcify (exact runtime match). |
+| Contract addresses | 0G: "Contract deployment addresses" | Met | `packages/contracts/deployments/hedera-testnet.json`: `LiquidISAFactory` `0xc6b7af9392538bc596caed4a5758b9d92f650e59`, `MockUSDC` `0x40027d9375311fa44b95ef881a92374b1dbf8ec4`, `LiquidISA` implementation `0x3f61050ad9fb221992742f10b34237b06a97e361`, `CreatorShareToken` implementation `0x81521abe9ddc7dc792b4c6f4262a48bc744426ff`, `CreatorPool` implementation `0xe310d76b357be72439e78fff84a82fe486fba84b`. Verified on Sourcify (exact runtime match). ATS token `$MUSH`: `0xe3abC950d9daf866653931a314FF3F19E5276AFb`. |
 | Team names and contact | 0G: "Team member names and contact info (Telegram and X)" | Met | Solo builder Mushaheed Syed; X [@_predatorx7](https://x.com/_predatorx7), Telegram [@mushaheedx](https://t.me/mushaheedx), both listed in the README. |
 | Open-source license | Public repo with a license (0G and Hedera require a public repo) | Met | MIT `LICENSE` at the repo root, `"license": "MIT"` in every `package.json`, and a License line in the README. |
 | Partner prize selection | "Select up to 3 Partner Prizes" | Met | Choose Hedera, World, 0G. |
@@ -65,24 +65,21 @@ freeze, liquidation).
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| "Use Asset Tokenization Studio or Stablecoin Studio to issue or manage a tokenized asset or stablecoin." | Partly | ATS is simulated (honest label kept). `packages/app/src/integrations/hedera-ats.ts` calls ATS `Factory.deployEquity` and `Equity.mint` with viem. README: "Hedera ATS equity token: Simulated. The code is written but never ran against a live ATS deployment." The ATS token only mirrors the cap table; `CreatorShareToken` is the source of truth (`CONTEXT.md`, Scope update 2). |
-| "Deploy and demo on Hedera testnet" | Partly | Own contracts are live on chain 296 (addresses above). The ATS factory and resolver are not deployed (`ATS_ENABLED`, `ATS_FACTORY_ADDRESS`, `ATS_RESOLVER_ADDRESS` unset; `CONTEXT.md`, Remaining). |
-| "with contracts verified on HashScan where applicable" | Met | All four contracts are verified on Sourcify (exact runtime match), which HashScan displays; factory `0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`. |
-| Public repo and demo video of 5 minutes or less "covering issuance, configuration, and at least one lifecycle operation" | Partly | Lifecycle (tranche unlock, freeze, liquidation) ran against a local Hardhat node and the Hedera clone deploy. Video pending. |
+| "Use Asset Tokenization Studio or Stablecoin Studio to issue or manage a tokenized asset or stablecoin." | Met | With `ATS_MODE=live`, `packages/app/src/integrations/hedera-ats.ts` calls the public ATS testnet Factory (`deployEquity`, then `mint`) with viem. `$MUSH` is [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (about 0.23 HBAR). Honest limits: the default mode is simulated, a live error falls back to a simulated token, and the ATS token mirrors the cap table while `CreatorShareToken` is the source of truth. |
+| "Deploy and demo on Hedera testnet" | Met | Own contracts are live on chain 296 (addresses above), the ATS equity token is live, and a dividend settled live on Hedera ([`0.0.11340822@1793996054.174485762`](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762)). |
+| "with contracts verified on HashScan where applicable" | Met | All five contracts are verified on Sourcify (exact runtime match), which HashScan displays; factory `0xc6b7af9392538bc596caed4a5758b9d92f650e59`. |
+| Public repo and demo video of 5 minutes or less "covering issuance, configuration, and at least one lifecycle operation" | Partly | Lifecycle (tranche release, freeze, liquidation, live dividend) ran on Hedera testnet and a local Hardhat node. Video pending. |
 
 Extra points listed on the page that SMX already has: compliance freezes
 (`freezeEscrow`/`unfreezeEscrow`), and dividend distributions.
 
 Actions, by impact:
 
-1. Deploy the ATS factory and resolver to Hedera testnet, set `ATS_ENABLED=1`,
-   and run one real IPO so `atsTokenAddress` is a real HTS-backed token. Link it
-   on HashScan in the demo.
-2. Verify `LiquidISAFactory`, the `LiquidISA` implementation, and
-   `CreatorShareToken` on HashScan (Sourcify) and add the links to `README.md`.
-3. If ATS deployment is not feasible in time, say plainly in the video that ATS
-   is a mirror and show the live `createISA` transaction on HashScan; expect a
-   weak score on this track.
+1. Show the `$MUSH` ATS token on HashScan in the video, then a live dividend
+   transaction.
+2. Say plainly that the ATS token mirrors the cap table, and that a live ATS
+   error falls back to a simulated token.
+3. Done: contracts verified on Sourcify and linked in `README.md`.
 
 ### Track: AI Agents That Pay: x402 on Hedera ($6,500)
 
@@ -194,16 +191,17 @@ Not eligible. It is for Continuity Track projects.
 ## Top actions across all sponsors
 
 Done since this list was written: hosted app, 0G request IDs, HashScan/Sourcify
-verification, World debrief, AI disclosure. Remaining: demo video and the
-public-site x402 rerun.
+verification, live ATS mint, live dividend settlement, onchain trading,
+World debrief, AI disclosure. Remaining: demo video and the public-site x402
+rerun.
 
 Ordered by impact on qualification.
 
 1. Deploy a hosted app and a stable mock-bank host, and record the 2:30 to 3:00
    video. Without them, no track qualifies.
 2. Enable 0G Private Computer with request IDs (0G qualification).
-3. Run the ATS equity token live on Hedera testnet and verify contracts on
-   HashScan (Hedera qualification).
+3. Done: the ATS equity token runs live on Hedera testnet and the contracts are
+   verified on HashScan (Hedera qualification).
 4. Write the World integration debrief and trust-moment explanation, and record
    the cancel path (World qualification).
 5. Add the AI-use disclosure and commit history hygiene

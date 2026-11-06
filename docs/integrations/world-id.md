@@ -3,12 +3,29 @@
 Verified against npm and docs.world.org on 2026-11-06.
 
 **Status:** implemented (see [Implementation notes](README.md#implementation-notes)).
+The live app runs on a World ID staging app and is verified with the Simulator.
+A production setup is possible; see [Real and simulated](#real-and-simulated).
 
 SMX uses World ID to prove that a creator is a unique human before they launch
 an L-ISA. The proof yields an action-scoped nullifier. SMX stores the
 nullifier on the creator row (`creators.world_id_nullifier`, unique) and in
 `blacklisted_nullifiers` after a default, so a defaulted creator can't launch
 again.
+
+## Real and simulated
+
+| Part | State |
+| --- | --- |
+| Server-side RP signature (`POST /api/rp-signature`) | Real. |
+| Proof verification (`POST https://developer.world.org/api/v4/verify/{rp_id}`) | Real, against the staging environment. |
+| Nullifier storage in Postgres and on the factory | Real. A defaulter's nullifier is blacklisted. |
+| Credential | Staging. The Simulator approves the request, so the nullifier is not an Orb-verified person, and the Sybil guarantee is shown against Simulator identities. |
+| Fixture proofs (`demo: true`) | Demo only. Accepted when `DEMO_MODE=1` and World ID is not configured. Never when real IDKit is configured. |
+
+Moving to production needs a production app and action, `WORLD_ENV=production`,
+and a verifier that is World App with an Orb-verified credential, not the
+Simulator. [`world-id-debrief.md`](../world-id-debrief.md) lists the steps and
+the gaps.
 
 ## Packages and versions
 

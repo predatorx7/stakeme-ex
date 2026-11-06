@@ -2,7 +2,7 @@
 
 Data-attribute contract between the server-rendered markup and the browser
 modules in `packages/app/src/client/` (`wallet.ts`, `world-id.ts`,
-`reclaim.ts`, `hedera-pay.ts`, `key-export.ts`). All listeners are delegated on `document`, so the markup works
+`reclaim.ts`, `hedera-pay.ts`, `chain-trade.ts`, `order-estimate.ts`, `watchlist.ts`, `key-export.ts`). All listeners are delegated on `document`, so the markup works
 for fragments that htmx swaps in later. Every hook degrades to a plain page
 when JavaScript is off.
 
@@ -185,7 +185,7 @@ session wallet as the signal, to `verifyWorldIdProof`. Demo fixtures
 		data-reclaim-demo-context="creator-uuid"
 		data-reclaim-demo-amount="5000.00"
 		data-reclaim-demo-field="proof"
-		data-reclaim-body='{"ticker":"RAVI","period":1}'>Simulate $5,000 deposit</button>
+		data-reclaim-body='{"ticker":"RAVI","period":1}'>Simulate deposit</button>
 </section>
 ```
 
@@ -196,11 +196,46 @@ session wallet as the signal, to `verifyWorldIdProof`. Demo fixtures
 | `[data-reclaim-output]` | inside the closest `[data-reclaim]` (else anywhere) | Receives a QR image and a link to `requestUrl`. Without it the URL opens in a new tab. |
 | `data-reclaim-demo="/url"` | `<button type=button>` | DEMO_MODE only. POSTs `{ ...body, [field]: { demo: true, amount, context, id } }` and then reloads, or follows `HX-Redirect`. |
 | `data-reclaim-demo-context` | demo button | Required. The creator id echoed back as the proof context. |
-| `data-reclaim-demo-amount` | demo button | USDC decimal string. Default `5000.00`. |
+| `data-reclaim-demo-amount` | demo button | USDC decimal string. Default `5000.00`. The Hub also renders a `[data-reclaim-demo-scenario]` picker that sets the amount. |
 | `data-reclaim-demo-field` | demo button | Body key that holds the fixture. Default `proof`. |
 
 The proof status uses the server's SSE stream (`PROOF_VERIFIED`): put the
 htmx SSE hooks on the status fragment, not on these buttons.
+
+The server accepts a demo fixture only from the signed-in owner of the
+creator, with `DEMO_MODE=1`, and at most 3 per creator per hour.
+
+## Onchain trade, invest and faucet (`chain-trade.ts`)
+
+In live chain mode the user's own wallet signs every trade and investment. The
+module intercepts the submit in the capture phase, before htmx sees it. It
+asks `GET /creators/{ticker}/chain` whether the creator trades onchain. In
+simulated mode (`mode: "simulated"`), the form goes to the server untouched
+and the SQL AMM runs. In live mode, the signed-in wallet sends `approve`
+(skipped when the allowance is enough) and then the swap or `invest` call, with
+gas set to the estimate plus 20% and the slippage as `minOut`. The module posts
+the `txHash` to the same route, and the server verifies the receipt and records
+the event amounts.
+
+| Hook | On | Meaning |
+| --- | --- | --- |
+| `[data-order-ticket]` | order ticket root | Its form becomes a `BUY` or `SELL` swap on the creator's `CreatorPool`. `data-ticker`, `data-usdc-reserve`, `data-token-reserve`, `data-fee-bps` and `data-halted` feed the estimate. |
+| `form[action$="/investments"]` | invest form | Primary-market `LiquidISA.invest`. |
+| `form[action$="/close-raise"]` | Hub form | The creator calls `closeRaise`. |
+| `[data-chain-scope="TICKER"]` | host inside a form | Marks where the module paints the status and the faucet button. |
+| `[data-chain-faucet]` | `<button>` | "Get 1,000 test USDC": the wallet calls `MockUSDC.faucet` (cap 50,000 per call). Shown when the USDC balance is low. |
+| `[data-chain-status]` | `<output>` | Progress text. |
+
+A wallet without HBAR for gas gets a link to the Hedera testnet faucet. The
+Portfolio page has a second faucet form (`POST /portfolio/faucet`) that the
+server signs, limited to one request per wallet per minute.
+
+`order-estimate.ts` drives the order ticket: it computes the pool quote, the
+price impact and the minimum received from the reserves in the data
+attributes, with slippage presets (`[data-slippage-bps]`) or a custom value
+(`[data-slippage-custom]`). `watchlist.ts` handles `[data-watchlist-toggle]`
+(PUT or DELETE `/watchlist/{ticker}`; a 401 opens the wallet dialog) and
+`[data-watchlist-open]` (refetch `GET /watchlist` into the drawer).
 
 ## Hedera dividend payment (`hedera-pay.ts`)
 
@@ -274,8 +309,11 @@ the WalletConnect modal cancels the payment with no side effects.
   by EVM alias (cached as `smx.hedera.account`). If the account doesn't exist,
   the status says to fund the printed address from the Hedera faucet. The server
   pays network fees (fee payer), so the account needs only the dividend amount.
-- **Simulated mode:** the server has no `HEDERA_OPERATOR_*`. Nothing is
-  signed and the receipts are `sim:` hashes.
+- **Simulated mode:** the server has no `HEDERA_OPERATOR_*` and is not in
+  production. Nothing is signed and the receipts are `sim:` hashes. In
+  production the server answers `503` instead, unless `HEDERA_ALLOW_SIMULATED=1`.
+  The live button reads "Pay {hbar} HBAR on Hedera" at the testnet rate
+  `DIVIDEND_HBAR_PER_USDC`.
 
 The Hiero SDK (about 1.9 MB, 310 KB gzipped) and the Hedera WalletConnect
 chunk (about 1.3 MB, 195 KB gzipped) load lazily, so pages without the button

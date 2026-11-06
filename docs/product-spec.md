@@ -28,9 +28,9 @@ the zkTLS proof source, not a sponsor target. Other sponsors were dropped; see [
 | Sponsor | Role in SMX | Demo fallback |
 | --- | --- | --- |
 | World ID | v4 proof of unique human at IPO. The server signs the RP request (`POST /api/rp-signature`) and verifies the proof; `POST /api/world-id/check` rejects a used or blacklisted nullifier before submit. The nullifier is stored in Postgres and on the factory contract. | World ID Simulator (staging app); `DEMO_MODE=1` fixture proofs. |
-| Hedera | EVM testnet (chain 296) for the `LiquidISA` clone factory, escrow and share tokens. Creator equity token is ATS-ready (Asset Tokenization Studio integration built; minting runs in simulated mode on testnet). x402-style dividend payouts: the creator signs one Hedera multi-transfer in their wallet and the server settles it. Safe-stop escrow freeze. | Simulated chain mode (`CHAIN_RPC_URL` unset); simulated receipts. |
-| 0G | Auditor agent that approves or denies milestones and computes dividends. 0G Compute is opt-in; otherwise a rules engine runs. L-ISA terms and every audit log go to 0G Storage through a background outbox. Triggers the safe-stop freeze. | Rules engine; `local:<sha256>` refs. |
-| Reclaim Protocol | zkTLS proof of a Web2 bank deposit that the 0G agent verifies. The mock bank (`/mock-bank`) stands in for a real bank and shows the deposits of the income scenario picked at login (default $5,000). | `DEMO_MODE=1` fixture proof. |
+| Hedera | EVM testnet (chain 296) for the `LiquidISA` clone factory, escrow, share tokens and the `CreatorPool` AMM. Creator equity token minted through the public Asset Tokenization Studio (ATS) testnet Factory when `ATS_MODE=live`. x402-style dividend payouts: the creator signs one Hedera multi-transfer in their wallet and the server settles it live. Safe-stop escrow freeze. | Simulated chain mode (`CHAIN_RPC_URL` unset); simulated receipts, and a simulated ATS token if a live ATS call errors. Dividends have no simulated fallback in production. |
+| 0G | Auditor agent that approves or denies milestones and computes dividends. It runs on 0G Private Computer through the 0G Router; 0G Compute through the SDK broker is opt-in, and the rules engine runs only behind `ZG_ALLOW_RULES_FALLBACK=1`. L-ISA terms and every audit log go to 0G Storage through a background outbox. Triggers the safe-stop freeze. | Rules engine; `local:<sha256>` refs. |
+| Reclaim Protocol | zkTLS proof of a Web2 bank deposit that the 0G agent verifies. The mock bank (`/mock-bank`) stands in for a real bank and shows the deposits of the income scenario picked at login (six scenarios: salary $5,000 by default, low $800, big $25,000, several deposits, none, late). | `DEMO_MODE=1` fixture proof. |
 
 Wallets: sign-in uses SIWE. Users connect with WalletConnect (1inch Wallet
 featured), generate a local key, or import a key. The Hedera payment signer
@@ -75,16 +75,18 @@ Money is `money_amount NUMERIC(18,6)` (USDC has 6 decimals). Token amounts are
 | Table | Purpose |
 | --- | --- |
 | Better Auth tables | Users and sessions. Sign-in with Ethereum (SIWE) plugin; wallet address on the user. |
-| `creators` | One L-ISA per creator: `ticker` (3–6 upper letters, unique), `display_name`, `headline`, `share_bps`, `term_months`, `target_raise`, `stake_amount`, `status creator_status`, `world_id_nullifier` (unique), `terms_ref` (0G root hash, or `local:<sha256>` until the upload finishes), `terms_hash` (sha256), `contract_address`, `token_address`, `ats_token_address`, `chain_id`, `next_proof_due_at`, `grace_until`, `ipo_at`. |
-| `tranches` | Escrow schedule per creator: `idx`, `amount`, `status tranche_status ('LOCKED','RELEASED','REFUNDED')`, `released_at`, `tx_hash`. Default schedule 20% / 40% / 40%. Tranche 0 releases on IPO. |
+| `creators` | One L-ISA per creator: `ticker` (3–6 upper letters, unique), `display_name`, `headline`, `share_bps`, `term_months`, `target_raise`, `stake_amount`, `raised_amount`, `status creator_status`, `world_id_nullifier` (unique), `terms_ref` (0G root hash, or `local:<sha256>` until the upload finishes), `terms_hash` (sha256), `contract_address`, `token_address`, `pool_address`, `ats_token_address`, `chain_id`, `proof_cadence ('MONTHLY','QUARTERLY')`, social links (`x_url`, `github_url`, `linkedin_url`, `website_url`), `next_proof_due_at`, `grace_until`, `ipo_at`, `raise_closed_at`. |
+| `tranches` | Escrow schedule per creator: `idx`, `amount`, `status tranche_status ('LOCKED','RELEASED','REFUNDED')`, `released_at`, `tx_hash`. Presets of 2 to 5 tranches; default 20% / 40% / 40%. Tranche 0 releases when the raise closes, resized to the amount raised. |
+| `creator_updates` | Short posts by a creator to holders (at most 5 per day). |
 | `investments` | Primary-market purchases: investor `wallet`, `usdc_amount`, `token_amount`, `tx_hash`. |
-| `holdings` | Derived balances per (creator, wallet). Updated by investments and trades. |
-| `pools` | Simulated constant-product AMM per creator (`usdc_reserve`, `token_reserve`). Seeded at IPO. |
-| `trades` | `side trade_side ('BUY','SELL')`, amounts, price, wallet. |
+| `holdings` | Derived balances per (creator, wallet). Updated by investments and trades. The pool is not a holder, so supply = holdings + pool tokens. |
+| `pools` | Constant-product AMM reserves per creator (`usdc_reserve`, `token_reserve`). For an onchain pool, each indexed `Swap` event replaces the reserves; without a pool (old factory or simulated chain mode), the SQL AMM moves them. Seeded at raise close. |
+| `trades` | `side trade_side ('BUY','SELL')`, amounts, price, wallet, `tx_hash` (unique per swap). |
+| `watchlist` | A signed-in user's watched tickers. |
 | `price_ticks` | Price history for charts (`at`, `price`). One tick per trade and per oracle event. |
-| `income_proofs` | Reclaim proof per period: `period` (month index), `provider`, `reclaim_proof_id`, `verified_amount`, `status proof_status ('PENDING','APPROVED','REJECTED')`, `audit jsonb` (agent output; `engine`/`model` shows `0g-compute` or `rules-engine`), `audit_log_ref` (0G Storage root, or `local:<sha256>` until uploaded). |
+| `income_proofs` | Reclaim proof per period: `period` (month index), `provider`, `reclaim_proof_id`, `verified_amount`, `status proof_status ('PENDING','APPROVED','REJECTED')`, `audit jsonb` (agent output; `engine` shows `0g-router`, `0g-compute`, `rules-engine` or `pre-check`), `audit_log_ref` (0G Storage root, or `local:<sha256>` until uploaded). |
 | `dividends` | `amount_due` = `verified_amount * share_bps / 10000`, `status dividend_status ('DUE','PAID')`, `paid_tx_hash`. |
-| `oracle_events` | Live feed: `kind oracle_event_kind ('IPO','INVESTED','PROOF_VERIFIED','PROOF_REJECTED','TRANCHE_RELEASED','DIVIDEND_PAID','GRACE_STARTED','DEFAULTED','TRADE','ESCROW_FROZEN','ESCROW_UNFROZEN','STORAGE_CONFIRMED')`, `creator_id`, `payload jsonb`. Published to pgmb for SSE. |
+| `oracle_events` | Live feed: `kind oracle_event_kind ('IPO','INVESTED','PROOF_VERIFIED','PROOF_REJECTED','TRANCHE_RELEASED','DIVIDEND_PAID','GRACE_STARTED','DEFAULTED','TRADE','ESCROW_FROZEN','ESCROW_UNFROZEN','STORAGE_CONFIRMED','CREATOR_UPDATE','STAKE_RETURNED')`, `creator_id`, `payload jsonb`. Published to pgmb for SSE. |
 | `chain_jobs` | Outbox of onchain calls (`fn`, `args jsonb`, `status ('QUEUED','SENT','CONFIRMED','FAILED','SIMULATED')`, `tx_hash`). Optimistic UI reads DB state; the worker confirms later. |
 | `blacklisted_nullifiers` | World ID nullifiers banned after default. |
 | `reclaim_sessions` | One row per Reclaim verification session: `status`, `failure_reason`, `proof_id`. |
@@ -100,7 +102,7 @@ stateDiagram-v2
 	LIVE --> GRACE: sweep_deadlines (proof overdue)
 	GRACE --> LIVE: audit_income_proof approved
 	GRACE --> DEFAULTED: sweep_deadlines (grace expired)
-	LIVE --> COMPLETED: term ends
+	LIVE --> COMPLETED: term ends (stake returned, sell only)
 	DEFAULTED --> [*]
 	COMPLETED --> [*]
 ```
@@ -110,7 +112,7 @@ Tranche lifecycle:
 ```mermaid
 stateDiagram-v2
 	[*] --> LOCKED
-	LOCKED --> RELEASED: IPO (tranche 0) or approved proof
+	LOCKED --> RELEASED: raise close (tranche 0) or approved proof
 	LOCKED --> REFUNDED: liquidate_creator
 	RELEASED --> [*]
 	REFUNDED --> [*]
@@ -121,21 +123,34 @@ stateDiagram-v2
 Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
 
 - `smx.launch_ipo(...)`: asserts the nullifier isn't blacklisted or used,
-  creates the creator, tranches, pool, first tick, `IPO` event, and a
-  `chain_jobs` row for `createISA` (then `initializeIPO`); releases tranche 0.
-  The L-ISA terms are committed with a `local:<sha256>` ref and queued for 0G
-  Storage.
+  creates the creator (social links, proof cadence), tranches (2 to 5 entries
+  summing to 10000 bps), pool, first tick, `IPO` event, and `chain_jobs` rows
+  for `createISA` and `initializeIPO`. All tranches start `LOCKED`. The L-ISA
+  terms are committed with a `local:<sha256>` ref and queued for 0G Storage.
 - `smx.record_investment(creator, wallet, usdc)`: mints tokens 1:1 at the IPO
-  price (1 USDC = 1 token), caps at `target_raise`, updates holdings.
-- `smx.amm_swap(creator, wallet, side, amount_in)`: constant product with 0.3%
-  fee, slippage guard `min_out`, updates pool, holdings, trades, ticks. Rejects
-  when the creator is `DEFAULTED`.
+  price (1 USDC = 1 token), caps at the remaining raise, updates holdings. A
+  fill closes the raise.
+- `smx.finish_raise(creator)` and `smx.close_raise(creator, user)`: close the
+  raise (full, or early by the creator). They resize the tranches to the amount
+  raised, release tranche 0, start the term clock and the first proof
+  deadline, and open the pool.
+- `smx.amm_swap(creator, wallet, side, amount_in, min_out)`: the SQL
+  constant-product AMM with 0.3% fee and a slippage guard, used when a creator
+  has no onchain pool. Rejects when the creator is `DEFAULTED`, and rejects
+  buys once the term has ended (`COMPLETED` is sell only).
+- `smx.ingest_onchain_swap(...)` and `smx.ingest_onchain_invest(...)`: with an
+  onchain pool, record a user-signed swap or investment from its verified
+  receipt. The chain is the truth and SQL is the index. Both are idempotent on
+  the transaction hash.
+- `smx.post_creator_update(...)`: the creator's owner posts an update; limited
+  to 5 per day.
 - `smx.audit_income_proof(proof_id, verified_amount, audit jsonb)`: applies the
-  agent's verdict. The 0G Compute model proposes it when enabled; a rules engine
-  (the default) decides otherwise, and a model answer that breaks the rules is
-  overridden by the rules engine. Approve when `verified_amount >= min_income` (default 1000 USDC) and
+  agent's verdict. The 0G Router model proposes it, and a model answer that
+  breaks the rules is overridden by the rules engine. A pre-check denies a
+  deposit dated outside the reporting period before any 0G call (engine
+  `pre-check`). Approve when `verified_amount >= min_income` (default 1000 USDC) and
   the period isn't already approved. On approval: create the dividend, release
-  the next locked tranche, move `next_proof_due_at` by 30 days, clear grace,
+  the next locked tranche, move `next_proof_due_at` by one cadence (30 days monthly, 90 quarterly), clear grace,
   insert `PROOF_VERIFIED` and `TRANCHE_RELEASED` events and chain jobs. A late
   approval in `GRACE` also emits `ESCROW_UNFROZEN` and queues `unfreezeEscrow`.
   The audit log is committed with a `local:<sha256>` ref and queued in
@@ -145,19 +160,29 @@ Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
 - `smx.enqueue_storage_upload`, `claim_storage_upload`,
   `complete_storage_upload`: the 0G Storage outbox. On upload, the root hash
   replaces the local ref and `STORAGE_CONFIRMED` is emitted.
-- `smx.sweep_deadlines(now)`: `LIVE` creators past `next_proof_due_at` enter
-  `GRACE` for 14 days and the escrow is frozen (`ESCROW_FROZEN`, chain job
-  `freezeEscrow`); `GRACE` creators past `grace_until` are liquidated.
-- `smx.liquidate_creator(creator)`: refunds locked tranches pro rata to
-  investors, slashes the stake pro rata to holders, blacklists the nullifier,
-  sets `DEFAULTED`, emits `DEFAULTED`, queues `executeLiquidation`.
+- `smx.sweep_deadlines(now)`: `LIVE` creators past `next_proof_due_at`, or with
+  a dividend unpaid for a full cadence, enter `GRACE` for 14 days and the
+  escrow is frozen (`ESCROW_FROZEN`, chain job `freezeEscrow`); `GRACE`
+  creators past `grace_until` are liquidated. `LIVE` creators past the term
+  end become `COMPLETED`: the stake returns (`STAKE_RETURNED`, chain job
+  `reclaimStake`) and the token is sell only.
+- `smx.liquidate_creator(creator)`: refunds locked tranches pro rata to the
+  current token holders (by holdings, not original investors), slashes the
+  stake pro rata to the same holders, blacklists the nullifier, sets
+  `DEFAULTED`, emits `DEFAULTED`, queues `executeLiquidation`.
 
 ## Smart contracts (`packages/contracts`)
 
 - `CreatorShareToken.sol`: ERC-20 (OpenZeppelin), minted only by its
-  `LiquidISA`. Hooks into dividend accounting on transfer.
+  `LiquidISA`. Hooks into dividend accounting on transfer. The pool is
+  excluded from the dividend denominator.
+- `CreatorPool.sol`: constant-product AMM between `MockUSDC` and one creator's
+  token, cloned per ISA. The 0.3% fee stays in the pool. The ISA seeds it at
+  raise close with 10% of the target (minimum 100 USDC) of protocol-minted
+  `MockUSDC` plus the same value in tokens at 1 USDC. Swaps revert when
+  `tradingOpen()` is false. See [`contracts.md`](contracts.md#pool).
 - `LiquidISA.sol`: one per creator, cloned (EIP-1167) by
-  `LiquidISAFactory.sol`, which also clones the share token, maps each World ID
+  `LiquidISAFactory.sol`, which also clones the share token and the pool, maps each World ID
   nullifier to its ISA, and keeps the blacklist. Constructors are
   `initialize(...)`. Addresses are in
   `packages/contracts/deployments/hedera-testnet.json` and change on redeploy.
@@ -165,21 +190,23 @@ Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
     `creatorStake`, `shareBps`, `termEnd`, `tranches[]`, `nextTranche`,
     `defaulted`.
   - `initializeIPO()`: creator deposits the USDC stake.
-  - `invest(amount)`: investor deposits USDC, receives tokens 1:1, funds
-    escrow. Releases tranche 0 when the raise target is met (or on
-    `closeRaise()` by the creator).
+  - `invest(amount)`: the investor signs `approve` and `invest` from their own
+    wallet, deposits USDC, receives tokens 1:1 and funds escrow. When the raise
+    target is met (or the creator calls `closeRaise()`), the ISA seeds the pool
+    and releases tranche 0.
   - `unlockNextTranche()`: only the oracle. Transfers the next tranche to the
     creator.
   - `distributeDividend(amount)`: anyone (usually the creator) deposits USDC;
     accrues through a dividend-per-share accumulator (`magnifiedDividendPerShare`),
     holders `claim()`. O(1) gas regardless of holder count.
   - `freezeEscrow()` / `unfreezeEscrow()`: only the oracle. A frozen escrow
-    blocks `unlockNextTranche`, `reclaimStake`, and the automatic tranche 0
-    release; claims and liquidation still work.
+    blocks `unlockNextTranche`, `reclaimStake`, the automatic tranche 0
+    release and pool trading; claims and liquidation still work.
   - `executeLiquidation()`: only the oracle. Moves remaining escrow and the
     stake into the dividend accumulator as refunds, sets `defaulted`, emits
     `CreatorDefaulted(nullifierHash)`.
-  - `MockUSDC.sol` (6 decimals, public mint) for testnets.
+  - `reclaimStake()`: returns the stake to the creator after the term ends.
+  - `MockUSDC.sol` (6 decimals, public mint, capped `faucet`) for testnets.
 - Networks: `hardhatMainnet` (simulated), `hederaTestnet` (chain 296, the
   target), plus `sepolia` and `ogGalileo` configs that the demo doesn't use. Keys come from Hardhat
   configuration variables, never committed.
@@ -193,18 +220,24 @@ Pages render HTML; the same handler returns JSON by content negotiation.
 | Method and path | operationId | Notes |
 | --- | --- | --- |
 | `GET /` | `GetExchange` | Trending creators, price, 24h change, chart, live oracle events (SSE). |
-| `GET /creators/{ticker}` | `GetCreator` | Token page: chart, terms, escrow progress, buy/sell form, holders, events. |
+| `GET /creators/{ticker}` | `GetCreator` | Instrument view: quote, depth, stats, candles, order ticket with estimate, your position, fundamentals, corporate actions, holders, events. See [`instrument-view.md`](instrument-view.md). |
+| `GET /creators/{ticker}/candles` | `GetCreatorCandles` | OHLC candles for the chart. |
+| `GET /portfolio` | `GetPortfolio` | Wallet funds, holdings with P&L, transactions, dividends received. |
+| `POST /portfolio/faucet` | `RequestTestUsdc` | Mints 1,000 `MockUSDC` to the viewer's wallet (50,000 cap per call, one request per minute). Live chain mode only. |
+| `GET /watchlist`, `PUT`, `DELETE /watchlist/{ticker}` | `GetWatchlist`, `PutWatchlistItem`, `DeleteWatchlistItem` | The viewer's watchlist. |
+| `GET`, `POST /creators/{ticker}/updates` | `ListCreatorUpdates`, `CreateCreatorUpdate` | Creator updates (owner only, 5 per day). |
 | `GET /hub` | `GetCreatorHub` | Viewer's creator dashboard: escrow, Reclaim proof button, pending dividend, collateral. |
-| `GET /launch` | `GetLaunch` | IPO form gated by World ID. |
+| `GET /launch` | `GetLaunch` | IPO form gated by World ID: social links, tranche preset (2 to 5), proof cadence. |
 | `POST /api/rp-signature` | `CreateRpSignature` | Signs the World ID v4 request on the server. The signal is the session wallet. |
 | `POST /api/world-id/check` | `CheckWorldId` | Verifies a proof and rejects a used (409) or blacklisted (403) nullifier. Read-only. |
 | `POST /creators` | `LaunchIpo` | Body includes the World ID proof; server verifies it. The 0G upload is queued, not awaited. |
-| `POST /creators/{ticker}/investments` | `Invest` | Primary market. |
-| `POST /creators/{ticker}/trades` | `Trade` | Simulated AMM (`side`, `amountIn`, `minOut`). |
+| `POST /creators/{ticker}/investments` | `Invest` | Primary market. With an onchain pool, the body is the `txHash` of the user-signed `invest`; the server verifies the receipt. Otherwise, `usdcAmount` runs the SQL purchase. |
+| `POST /creators/{ticker}/close-raise` | `CloseRaise` | The creator ends the raise early. |
+| `POST /creators/{ticker}/trades` | `Trade` | With an onchain pool, the body is the `txHash` of the user-signed swap, verified and indexed from its `Swap` event. Otherwise, the SQL AMM (`side`, `amountIn`, `minOut`). |
 | `POST /creators/{ticker}/reclaim-sessions` | `CreateReclaimSession` | Returns the Reclaim request URL and status URL. |
 | `GET /reclaim/sessions/{sessionId}` | `GetReclaimSessionStatus` | Polling fallback for the proof status. |
 | `POST /reclaim/callback` | `ReclaimCallback` | Reclaim posts the proof here. |
-| `POST /api/audit-milestone` | `AuditMilestone` | Accepts a Reclaim proof JSON, verifies, runs the 0G audit, calls `audit_income_proof`. |
+| `POST /api/audit-milestone` | `AuditMilestone` | Accepts a Reclaim proof JSON, verifies, runs the 0G audit, calls `audit_income_proof`. A demo fixture needs `DEMO_MODE=1`, the signed-in creator owner, and at most 3 per creator per hour. |
 | `POST /api/trigger-default` | `TriggerDefault` | Demo only (`DEMO_MODE=1` and an `X-Admin-Key` header equal to `SMX_ADMIN_KEY`; `403` otherwise): fast-forwards the deadline and liquidates. |
 | `POST /dividends/{dividendId}/payment-request` | `CreateDividendPaymentRequest` | Returns x402 payment requirements, one per holder, built from SQL. |
 | `POST /dividends/{dividendId}/payment` | `PayDividend` | Creator pays the dividend. An optional `paymentPayload` (the creator-signed transfer) is settled first. |
@@ -280,31 +313,39 @@ from the Hub:
    key).
 3. The browser posts the signed payload to `PayDividend`. The server rebuilds
    the requirements, checks every transfer, adds the operator fee-payer
-   signature, and executes the transaction on Hedera.
+   signature, and executes the transaction on Hedera. HBAR amounts use the
+   testnet rate `DIVIDEND_HBAR_PER_USDC` (default 0.0001 HBAR per USDC).
 4. `pay_dividend` marks the dividend `PAID` and emits `DIVIDEND_PAID`.
 
 The stock x402 `exact` facilitator verifies one payee, so SMX settles the
-multi-payee transfer itself. Without Hedera operator keys the rail returns
-simulated `sim:0x...` receipts.
+multi-payee transfer itself. Dividends settle live on Hedera testnet (for
+example `0.0.11340822@1793996054.174485762`). In production there is no
+simulated fallback: without operator keys, payment requests fail with `503`
+unless `HEDERA_ALLOW_SIMULATED=1`. Outside production, the rail returns
+simulated `sim:0x...` receipts without keys.
 
 ## Implementation status
 
-SMX is a hackathon build. This table is the honest state as of 2026-11-06. See
+SMX is a hackathon build. This table is the honest state as of 2026-11-07. See
 [`../CONTEXT.md`](../CONTEXT.md) for details and known issues.
 
 | Area | Status |
 | --- | --- |
-| Hedera contracts | Live on testnet (chain 296): clone factory and `MockUSDC`. Unit tests pass. |
-| World ID v4 | Live on a staging app; verified end to end with the Simulator. |
+| Hedera contracts | Live on testnet (chain 296) and verified on Sourcify: clone factory, `LiquidISA`, `CreatorShareToken`, `CreatorPool` and `MockUSDC`. Unit tests pass. |
+| Trading | Live onchain. Each creator has a `CreatorPool` AMM; users sign `approve` and the swap, and the server verifies receipts and indexes `Swap` events into SQL. Creators without a pool (old factory or simulated chain mode) use the SQL AMM. |
+| Invest | Live onchain. Users sign `approve` and `LiquidISA.invest`; the server verifies the receipt. |
+| USDC | Mock. `MockUSDC` (not Circle USDC; Circle testnet USDC 0.0.429274 exists, but its faucet is too small) with an in-app faucet of 1,000 per click and a 50,000 cap. |
+| Pool liquidity | Protocol-provided: the protocol mints 10% of the target (minimum 100 USDC) of `MockUSDC` plus tokens at 1 USDC at raise close. |
+| Hedera ATS equity token | Live. With `ATS_MODE=live`, the operator key mints the token through the public ATS testnet Factory (for example `$MUSH`, `0xe3abC950d9daf866653931a314FF3F19E5276AFb`). A live error falls back to a simulated token. The default mode is simulated. `CreatorShareToken` stays the source of truth. |
+| Dividend payout | Live on Hedera: a creator-signed or operator HBAR multi-transfer to holders (tx `0.0.11340822@1793996054.174485762`). No simulated fallback in production. |
+| World ID v4 | Live on a staging app; verified end to end with the Simulator. Production is possible; see [`world-id-debrief.md`](world-id-debrief.md). |
+| 0G audit | Live on 0G Private Computer through the 0G Router. If the call fails, the proof stays pending. |
 | 0G Storage | Live on Galileo. Uploads run in the background; refs start as `local:<sha256>`. |
-| 0G Compute | Opt-in (`ZG_COMPUTE_ENABLED`); needs a 3 0G ledger deposit. The audit falls back to the rules engine. 0G Router (`pc.0g.ai`) credits are pending. |
-| Reclaim | Provider live on the production mock bank; the end-to-end callback test is pending. |
+| 0G Compute | Opt-in (`ZG_COMPUTE_ENABLED`); needs a 3 0G ledger deposit. |
+| Reclaim | Provider live on the production mock bank; the end-to-end in-app callback test is pending. |
+| Bank | Mock. The mock bank stands in for a real bank with six scenarios; the zkTLS proof is real. |
 | Wallets | WalletConnect QR pairing verified. A full phone-wallet signature is not. |
-| Hedera ATS equity token | ATS-ready (integration built; minting runs in simulated mode on testnet). It would mirror the cap table; `CreatorShareToken` stays the source of truth. Never run against a live ATS deployment. |
-| x402 dividend payout | Built and tested against the requirement validator. Live settlement is unrun without operator keys. |
-| Bank | Simulated. The mock bank stands in for a real bank. |
-| Trading | Simulated constant-product AMM with virtual liquidity, not backed by investor funds. |
-| Gaps | The Exchange "Dividends paid" and "Total raised" KPIs are approximate. SSE has no `Last-Event-ID` replay. |
+| Gaps | The Exchange "Dividends paid" and "Total raised" KPIs are approximate. |
 
 ## Optimistic UI
 

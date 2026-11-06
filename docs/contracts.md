@@ -232,7 +232,7 @@ While `frozen` is true:
 Tokenization Studio equity token for the ISA (ATS-ready; minting runs in simulated mode on testnet) and emits `AtsTokenSet`.
 `CreatorShareToken` stays the source of truth for escrow and dividend math; the
 ATS token is the regulated registry mirror. See
-[Hedera integration](integrations/hedera.md#mint-a-creator-equity-token-with-ats-ats-ready-simulated).
+[Hedera integration](integrations/hedera.md#mint-a-creator-equity-token-with-ats).
 
 ## Nullifiers
 

@@ -13,6 +13,17 @@ SMX uses 0G for two things:
 - **0G Storage**: store the audit log (JSON) and keep its root hash in
   `income_proofs.audit_log_ref`.
 
+## Real and simulated
+
+| Part | State |
+| --- | --- |
+| 0G Private Computer audit through the Router | Real. Every income proof is audited there, with a request ID, model and provider on the proof row. |
+| 0G Storage | Real, on Galileo. A worker uploads terms and audit logs in the background. |
+| Date-window pre-check | Local code, not a 0G call. A deposit dated outside the reporting period is denied before the Router call. The audit log shows engine `pre-check`. |
+| Rules engine | Offline dev only, behind `ZG_ALLOW_RULES_FALLBACK=1`, and labelled in the UI. |
+| 0G Compute (SDK broker) | Off by default (`ZG_COMPUTE_ENABLED`). Needs a 3 0G ledger deposit. |
+| Income data | The bank is a mock; the zkTLS proof of its response is real. |
+
 ## Packages and versions
 
 The `@0glabs/*` packages are deprecated. Use the `@0gfoundation/*` packages.
@@ -167,6 +178,13 @@ outbox) holds `engine: "0g-router"`, `model`, `requestId`, `providerAddress`,
 `providerIdentity`). `income_proofs.audit` (jsonb, no new columns) holds the
 same fields, and `income_proof_json` serves them as `engine`, `requestId`,
 `providerAddress`, `teeVerified`, `trustMode` to the UI.
+
+**Date pre-check.** Before any 0G call, the audit compares the proven deposit
+date with the reporting period (the last 30 days for monthly creators, 90 for
+quarterly). A deposit outside it is denied with "Deposit is outside the
+reporting period", the log records engine `pre-check`, and no Router credit is
+spent. A proof with no date (demo fixtures) skips the check. The model prompt
+also carries the same rule.
 
 **0G is required for approval.** If the Router call fails (`402`
 `insufficient_balance`, `429`, `5xx`, timeout, bad JSON) and Compute is not

@@ -14,7 +14,7 @@ the source and docs, not from a live run.
 ## Conventions
 
 - `$APP` is `http://localhost:4020` for recording and the deployed URL
-  (`https://<static-ip>.sslip.io`, see [deployment.md](deployment.md)) for
+  (`https://stakeme.magnificlabs.org`, see [deployment.md](deployment.md)) for
   judges.
 - Button and label text is copied from the components in
   `packages/app/src/components/pages/`.
@@ -56,7 +56,8 @@ voiceover, and the proof that a sponsor integration is real.
   3. Type the pre-planned values (type fast, or paste from a note): Ticker
      `SMXD`, Display name `Mushaheed`, Headline, Target raise `10000.00`,
      Your stake `500.00`. Leave "Income share (%)" at 5 and "Term (months)" at
-     60.
+     60. Optionally add a social link, and keep the default 3-tranche preset
+     and monthly proof cadence.
   4. Click **Verify with World ID**. A QR code and link appear.
   5. Switch to the prepared World ID Simulator window
      (`simulator.worldcoin.org`), use **Paste code**, paste the IDKit link, and
@@ -66,7 +67,8 @@ voiceover, and the proof that a sponsor integration is real.
 - **Voiceover:** "Mushaheed connects a wallet and sets his terms: raise
   $10,000, stake $500, share 5% of income for five years. World ID proves one
   human, one IPO. No fake accounts. He launches, and the L-ISA terms are
-  written to 0G Storage and the token is created on Hedera."
+  written to 0G Storage and his equity token is minted through Hedera's Asset
+  Tokenization Studio."
 - **Proves:**
   - **World ID:** the "Verified" pill after the Simulator approval. Optionally
     flash the Simulator window showing the approved request. Cut to the next
@@ -75,6 +77,9 @@ voiceover, and the proof that a sponsor integration is real.
     transaction hash links under Escrow. Click one `TxLink`; it opens
     `https://hashscan.io/testnet/transaction/<hash>`. Show the SUCCESS result
     for 2 seconds, then return.
+  - **Hedera ATS:** the creator's ATS equity token address (`ATS_MODE=live`)
+    opens on HashScan as a contract. If the live mint errors, the token is
+    simulated and has no HashScan page; say so on camera.
   - **0G Storage:** "0G Storage ref" on the L-ISA terms card reads "0G Storage:
     pending", then flips to the root hash after about 30 seconds (the
     `STORAGE_CONFIRMED` event reloads the region over SSE). Click the hash to
@@ -86,20 +91,23 @@ voiceover, and the proof that a sponsor integration is real.
 
 ### Shot 3: Raise (1:05 to 1:25)
 
-- **Screen:** `$APP/creators/SMXD`, the **Invest** card.
+- **Screen:** `$APP/creators/SMXD`, the **Invest** card, then the Hub.
 - **Clicks:** Open a second browser profile or window that is signed in with a
-  different generated wallet (prepared in advance). Enter an amount in
-  **Amount (USDC)** and click **Invest**. Return to the first window. The
-  Escrow card shows "Raised" and "Released to creator" advance, and
-  tranche 1 is released.
-- **Voiceover:** "Investors fund Mushaheed. 20% of the raise releases now.
-  The rest stays in escrow and only unlocks as he proves income."
+  different generated wallet (prepared in advance). On `/portfolio`, click
+  **Get test USDC** once (1,000 MockUSDC). Back on the creator page, enter an
+  amount in **Amount (USDC)** and click **Invest**; the wallet signs `approve`,
+  then `invest`, and the server verifies the receipt. In the first window, open
+  the Hub and click **Close raise now**. The Escrow card shows "Raised" and
+  "Released to creator" advance, and tranche 0 is released. The pool opens for
+  trading.
+- **Voiceover:** "Investors fund Mushaheed from their own wallets. When the
+  raise closes, 20% releases now. The rest stays in escrow and only unlocks as
+  he proves income."
 - **Proves:** Escrow and tranche releases with Hedera transaction links
-  (`TxLink`). **Unconfirmed:** the exact tranche split shown on screen.
-- **Cost warning:** Invest queues chain jobs. Each costs testnet gas. If the
-  take count matters, record this shot against the seeded `$MUSH` or `$RAVI`
-  page for the same Invest card instead (the Escrow card shows the same
-  numbers).
+  (`TxLink`), and an onchain pool seeded at raise close.
+- **Cost warning:** Invest and close-raise cost testnet gas. If the take count
+  matters, record this shot against the seeded `$MUSH` or `$RAVI` page for the
+  same Invest card instead (the Escrow card shows the same numbers).
 
 ### Shot 4: Reclaim proof and 0G audit (1:25 to 2:00)
 
@@ -110,7 +118,9 @@ voiceover, and the proof that a sponsor integration is real.
      appear in the card.
   2. Open the link (or scan it) in the second window. Reclaim opens the HDFC
      Bank NetBanking demo at `/mock-bank/login`. Enter any Customer ID and
-     password, keep **Salary on time** selected, click **Login**. The statement shows a $5,000 deposit.
+     password, keep **Salary on time** selected (the other five scenarios are
+     low $800, big $25,000, several deposits, none and late), click **Login**.
+     The statement shows a $5,000 deposit.
   3. Reclaim generates the zkTLS proof. Return to the Hub. The page updates
      over SSE (`PROOF_VERIFIED`).
   4. Scroll to **Income proofs**: the proof row shows the 0G Storage log ref.
@@ -126,30 +136,33 @@ voiceover, and the proof that a sponsor integration is real.
   - **0G:** "0G AI detected ... income" text, and the "0G Storage log ref" link
     on the proof row, which opens `indexer-storage-testnet-turbo.0g.ai/file/info/<root>` the same way as
     in shot 2.
-- **Unconfirmed:** the live Reclaim loop end to end. The mock bank provider
-  URL is a Cloudflare quick tunnel (see CONTEXT.md), which changes on restart
-  and then needs a new provider version. Verify the tunnel and provider before
-  recording. If the live loop is unavailable, use the fallback in section
-  "Fallback plan".
+- **Unconfirmed:** the live Reclaim loop end to end in the app. The provider
+  points at the production mock bank, so recording against `localhost` needs
+  a public URL that matches the provider version. Verify before recording. If
+  the live loop is unavailable, use the fallback in section "Fallback plan".
+- **Late scenario:** pick **Late** to show the pre-check. The auditor denies
+  the 40-day-old deposit with "Deposit is outside the reporting period" and
+  the audit log shows engine `pre-check`, with no 0G call.
 
 ### Shot 5: Dividend on Hedera (2:00 to 2:20)
 
 - **Screen:** `$APP/hub`, **Pending dividend** card.
 - **Clicks:**
-  1. Click **Pay $250.00 USDC on Hedera**. In live mode, the signer dialog
-     opens: choose **Generate a new wallet** (a funded key prepared in advance,
+  1. Click **Pay 0.025 HBAR on Hedera** (the testnet rate is 0.0001 HBAR per
+     USDC, so $250 is 0.025 HBAR). In live mode, the signer dialog opens: choose **Generate a new wallet** (a funded key prepared in advance,
      see the checklist) or WalletConnect.
   2. The status line next to the button shows progress, then the dividend
      moves to **Dividends paid** with receipt links.
   3. Click a receipt link to open the HashScan transaction.
 - **Voiceover:** "Mushaheed pays the dividend. One Hedera transaction pays
-  every holder in proportion to their tokens. Tranche two unlocks automatically."
+  every holder in proportion to their tokens. The next tranche unlocks
+  automatically."
 - **Proves:** **Hedera:** the HashScan testnet transaction page showing a
-  transfer to the holder accounts.
-  **Unconfirmed:** live settlement. CONTEXT.md notes that the live x402 or HTS
-  payment rail was not run (no operator key). If the server runs simulated,
-  receipts are `sim:` hashes and have no HashScan page. Check which mode
-  `GET /dividends/{id}/payment-request` returns (`mode`) before recording.
+  transfer to the holder accounts. Live settlement ran on testnet (for example
+  `0.0.11340822@1793996054.174485762`). Outside production, a server without
+  `HEDERA_OPERATOR_*` returns `sim:` receipts with no HashScan page. Check
+  that `GET /dividends/{id}/payment-request` returns `mode: "live"` before
+  recording.
 
 ### Shot 6: Scam protection (2:20 to 2:40)
 
@@ -171,8 +184,8 @@ voiceover, and the proof that a sponsor integration is real.
   status badge reads Defaulted.
 - **Voiceover:** "Rahul takes his first tranche and disappears. No proof
   arrives. The agent freezes his escrow and starts a 14-day grace period. When
-  it ends, locked escrow is refunded to investors, his stake is slashed to
-  holders, and his World ID is blacklisted. He can never IPO again."
+  it ends, locked escrow is refunded to the current token holders, his stake
+  is slashed to them, and his World ID is blacklisted. He can never IPO again."
 - **Proves:** **World ID** blacklisting is shown by the defaulted state. For a
   stronger proof, return to `/launch` with a second wallet and click
   **Simulate Sybil** if available (`DEMO_MODE=1`); it reports a used or
@@ -185,9 +198,10 @@ voiceover, and the proof that a sponsor integration is real.
 - **Screen:** `$APP/` (Exchange), then a final title card with the repo URL and
   the QR code of the deployed URL.
 - **Clicks:** Click **Buy** on the `$SMXD` row; the creator page opens at the
-  **Trade** card (`#trade`). Do not click **Place trade** on camera unless you
-  accept the gas cost. Return to the Exchange and show the price chart and the
-  feed.
+  order ticket. Show the depth, the stats and the cost estimate. Do not click
+  **Buy** on camera unless you accept the gas cost (the wallet signs `approve`
+  and the pool swap). Open `/portfolio` to show funds, holdings and P&L.
+  Return to the Exchange and show the price chart and the feed.
 - **Voiceover:** "Hold the token for dividends, or trade it on life events.
   Scan the QR code to try it. Five percent of any prize streams to token
   holders. StakeMe Exchange: invest in people."
@@ -225,7 +239,8 @@ voiceover, and the proof that a sponsor integration is real.
 | Hedera testnet HBAR (server relay and oracle key) | Chain jobs: `createISA`, `initializeIPO`, `invest`, dividends, liquidation | `createISA` costs about 0.76 HBAR per IPO. Every take that launches an IPO spends real testnet HBAR. A fresh factory deploy costs about 3.7 HBAR. Fund from the Hedera faucet. |
 | Hedera account for the dividend signer | Shot 5 | The key generated in the signer dialog needs a Hedera account on testnet: fund its printed EVM address from the faucet once (CONTEXT.md). The server pays network fees; the account needs only the dividend amount. |
 | 0G Galileo (`ZG_PRIVATE_KEY`) | Terms upload (shot 2) and audit log (shot 4) | About 0.0013 0G per storage upload, so about 0.0026 per full take. Uploads are skipped below `ZG_STORAGE_MIN_BALANCE` (default 0.1), so keep the balance above that. |
-| `HEDERA_OPERATOR_*` | Live dividend payment | Without it the rail is simulated. |
+| `HEDERA_OPERATOR_*` | Live dividend payment and the ATS mint | Without it the rail is simulated and the production server refuses payment requests. |
+| MockUSDC for investors | Shot 3 | Each investor wallet clicks **Get test USDC** (1,000 per click, 50,000 cap). |
 
 Budget the take count: plan for at most 5 full takes. At about 1 HBAR and
 about 0.003 0G per take (plus the one-time funding of the dividend signer), 5
@@ -267,15 +282,17 @@ Prepare these before you start recording:
 
 ### Environment
 
-- `DEMO_MODE=1` (needed for **Simulate $5,000 deposit**, **Simulate Sybil**,
+- `DEMO_MODE=1` (needed for **Simulate deposit**, **Simulate Sybil**,
   **Mark as paid (demo)** and `trigger-default`). The checked `.env` has it
-  set.
+  set. Demo proofs also need the signed-in creator owner and allow 3 per
+  creator per hour; `trigger-default` needs `SMX_ADMIN_KEY`.
+- `ATS_MODE=live` for the real ATS token mint.
 - `CHAIN_RPC_URL` set (live Hedera testnet). Unset it for a simulated run,
   but then transaction links have no HashScan page.
 - `WORLD_ENV=staging`, `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`.
   Without them, the demo World ID buttons appear instead of a real QR code.
   **Unconfirmed on screen:** which of the two modes the dev server is in.
-- Mock bank tunnel and Reclaim provider version point at the same URL.
+- The Reclaim provider version points at the mock bank host you demo.
 - Dry run the whole sequence once end to end before the first recorded take.
 
 ## Fallback plan
@@ -287,9 +304,10 @@ result.
 | Step | Failure | Fallback | What to say |
 | --- | --- | --- | --- |
 | World ID (shot 2) | Simulator unreachable or request rejected | Click **Simulate success** (shown when `DEMO_MODE=1` and no real World ID app is configured, or after clicking Verify without an app id). | "The World ID Simulator is unreachable, so this uses our demo proof. The live Simulator flow is shown in the submission repo." |
-| Reclaim (shot 4) | Tunnel down, provider error, no callback | Click **Simulate $5,000 deposit** (`DEMO_MODE` only). It posts a fixture proof to `/api/audit-milestone` and reloads. | "The live Reclaim callback needs a public tunnel that is down. This button submits a fixture proof so the audit and dividend run as normal. The Reclaim session and the mock bank are real; only the proof is simulated." |
+| Reclaim (shot 4) | Provider error, no callback | Click **Simulate deposit** (`DEMO_MODE` only, creator owner only). It posts a fixture proof to `/api/audit-milestone` and reloads. | "The live Reclaim callback is down. This button submits a fixture proof so the audit and dividend run as normal. The Reclaim session and the mock bank are real; only the proof is simulated." |
 | 0G Storage (shots 2, 4) | Upload fails or is slow | The ref stays `local:<sha256>`. The page still shows the document hash. | "The upload to 0G Storage retries in the background. The local hash already proves the document; the root hash appears when the upload finishes." |
-| 0G audit (shot 4) | Compute unavailable | The audit falls back to the deterministic demo audit. **Unconfirmed:** the exact fallback behavior of the compute call. | Say the audit ran in demo mode. |
+| 0G audit (shot 4) | Router unavailable | The proof stays PENDING with "0G audit unavailable, retry". There is no silent fallback; the rules engine runs only behind `ZG_ALLOW_RULES_FALLBACK=1` and is labelled. | "0G is unavailable, so the proof waits for a retry. We do not approve without the 0G audit." |
+| Hedera ATS (shot 2) | Live ATS call errors | The token is simulated (status `SIMULATED`) and the IPO still completes. | "The ATS mint failed, so this token is simulated. The live mint is on HashScan at the address in the README." |
 | Hedera (shots 2, 3, 5) | Hashio throttled, relay error, balance low | Chain jobs show a failed or pending badge. A failed job is not retried after `SENT`. Without `CHAIN_RPC_URL`, hashes are simulated and have no HashScan page. For the dividend, click **Mark as paid (demo)** (`DEMO_MODE`). | "Hedera's public relay is rate limited. The job is queued and settles on retry. Simulated hashes are labeled as such and are not on HashScan." |
 | Default (shot 6) | `curl` returns 403 | `DEMO_MODE` is not `1`. Restart with it set. | None needed. |
 
@@ -304,9 +322,9 @@ failed, a labeled demo fallback is shown."
 
 ## Judge walkthrough (60 seconds)
 
-For the deployed URL (`https://<static-ip>.sslip.io`). The deployed instance
-runs with the real Hedera and 0G keys and `DEMO_MODE` from `.env`.
-**Unconfirmed:** the deployed URL and that `DEMO_MODE` is on there.
+For the deployed URL (`https://stakeme.magnificlabs.org`). The deployed
+instance runs with the real Hedera and 0G keys. **Unconfirmed:** whether
+`DEMO_MODE` is on there; the demo buttons below need it.
 
 1. **0:00. Exchange.** Open `/`. See the KPIs, the three seeded creators, and
    the live oracle feed.
@@ -319,10 +337,10 @@ runs with the real Hedera and 0G keys and `DEMO_MODE` from `.env`.
    new wallet**. Fill the form, click **Verify with World ID**, then
    **Simulate success** (or use the World ID Simulator with Paste code), and
    click **Launch IPO**.
-5. **0:45. Prove income.** On the Hub, click **Simulate $5,000 deposit**. See
+5. **0:45. Prove income.** On the Hub, click **Simulate deposit**. See
    the $250 pending dividend and the 0G audit text. Click **Verify income with
    Reclaim** to see the real zkTLS session QR.
-6. **0:55. Pay.** Click **Pay $250.00 USDC on Hedera** (needs a funded Hedera
+6. **0:55. Pay.** Click **Pay 0.025 HBAR on Hedera** (needs a funded Hedera
    account) or **Mark as paid (demo)**. Open a receipt link in HashScan.
 
 Tell judges that a launched IPO spends real testnet gas on our relay, so
