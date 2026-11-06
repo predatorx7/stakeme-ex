@@ -34,7 +34,7 @@ export async function runIncomeAudit(
 	pg: IPgClientLike,
 	rawBody: unknown,
 ): Promise<IncomeAuditOutcome> {
-	const body = unwrapProofBody(rawBody)
+	const body = demoFixtureOf(unwrapProofBody(rawBody))
 	const oracle = createOracle()
 	const isDemo = field(body, 'demo') === true
 
@@ -134,4 +134,14 @@ export async function runIncomeAudit(
 		pg,
 	)
 	return { kind: 'audited', result: row.j }
+}
+
+/**
+ * The Hub's demo button sends `{ ticker, period, proof: <fixture> }`, while a
+ * Reclaim delivery is the envelope itself. Lift a nested demo fixture so both
+ * shapes reach the same pipeline; anything else passes through unchanged.
+ */
+function demoFixtureOf(body: unknown): unknown {
+	const proof = field(body, 'proof')
+	return field(proof, 'demo') === true ? proof : body
 }
