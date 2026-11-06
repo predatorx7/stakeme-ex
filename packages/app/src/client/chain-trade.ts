@@ -18,7 +18,7 @@ import {
 	type WalletClient,
 } from 'viem'
 import { readSlippage } from './order-estimate.ts'
-import { postJson, toastError } from './web3-util.ts'
+import { pick, postJson, toastError } from './web3-util.ts'
 
 /**
  * User-signed trades and investments (live chain mode). Delegated, no
@@ -103,6 +103,20 @@ document.addEventListener('click', (event) => {
 
 	event.preventDefault()
 	void getFaucet(host, button, ticker)
+})
+
+document.addEventListener('click', (event) => {
+	const button = (event.target as Element | null)
+		?.closest<HTMLButtonElement>('[data-chain-dividend], [data-chain-claim]')
+	const ticker = button?.dataset.ticker ?? button?.dataset.chainClaim
+	if(!button || button.disabled || !ticker) {
+		return
+	}
+
+	event.preventDefault()
+	void (button.dataset.chainDividend
+		? payDividend(button, ticker)
+		: claimDividends(button, ticker))
 })
 
 document.addEventListener('htmx:load', paintAll)
@@ -286,6 +300,132 @@ async function closeRaise(job: Job, info: Live) {
 	}, 'close raise')
 	const url = `/creators/${ticker}/close-raise`
 	await record(form, url, hash, 'smx:raise-closed')
+}
+
+/**
+ * Creator pays a dividend in USDC: approve (if short), `distributeDividend`,
+ * then the hash goes to `POST /dividends/{id}/payment`.
+ */
+async function payDividend(button: HTMLButtonElement, ticker: string) {
+	const scope = button.closest<HTMLElement>('[data-chain-dividend-scope]')
+		?? button.parentElement!
+	const out = scope.querySelector<HTMLElement>('[data-chain-dividend-status]')
+	await withButton(button, scope, ticker, async(info) => {
+		const amount = parseAmount(button.dataset.amount, USDC_DECIMALS)
+		const ctx = await context(scope, info)
+		const have = await ctx.pub.readContract({
+			address: info.usdc,
+			abi: mockUSDCAbi,
+			functionName: 'balanceOf',
+			args: [ctx.address],
+		})
+		if(have < amount) {
+			needUsdc(scope, ticker)
+			throw new Error('You need more test USDC to pay this dividend.')
+		}
+
+		await approve(ctx, info.usdc, info.isa, amount, 'USDC')
+		const hash = await send(ctx, {
+			address: info.isa,
+			abi: liquidISAAbi,
+			functionName: 'distributeDividend',
+			args: [amount],
+		}, 'dividend payment')
+		status(scope, 'Recording your payment...')
+		let paid: unknown
+		try {
+			({ json: paid } = await postJson(
+				`/dividends/${button.dataset.chainDividend}/payment`,
+				{ txHash: hash },
+			))
+		} catch(err) {
+			const why = err instanceof Error ? err.message : String(err)
+			throw new Error(
+				`Your payment confirmed (${hash.slice(0, 10)}…) but recording it `
+				+ `failed: ${why} Reload to see it.`,
+			)
+		}
+
+		const holders = pick(pick(paid, 'settlement'), 'holders')
+		const who = typeof holders === 'number'
+			? `${holders} holder${holders === 1 ? '' : 's'}`
+			: 'holders'
+		if(out) {
+			out.replaceChildren(
+				`Paid in USDC to ${who}. They claim it from Portfolio. `,
+			)
+			const link = document.createElement('a')
+			const net = hashscanNetwork(info.chainId)
+			link.href = `https://hashscan.io/${net}/transaction/${hash}`
+			link.target = '_blank'
+			link.rel = 'noopener noreferrer'
+			link.textContent = 'View on HashScan'
+			out.append(link)
+		}
+
+		button.hidden = true
+		document.body.dispatchEvent(
+			new CustomEvent('smx:dividend-paid', { bubbles: true }),
+		)
+	})
+}
+
+/** Holder claims their USDC dividends, then the hash goes to the server. */
+async function claimDividends(button: HTMLButtonElement, ticker: string) {
+	const scope = button.closest<HTMLElement>('[data-chain-claim-scope]')
+		?? button.parentElement!
+	await withButton(button, scope, ticker, async(info) => {
+		const ctx = await context(scope, info)
+		const hash = await send(ctx, {
+			address: info.isa,
+			abi: liquidISAAbi,
+			functionName: 'claim',
+			args: [],
+		}, 'claim')
+		status(scope, 'Recording your claim...')
+		try {
+			await postJson('/portfolio/claims', { ticker, txHash: hash })
+		} catch(err) {
+			const why = err instanceof Error ? err.message : String(err)
+			throw new Error(
+				`Your claim confirmed (${hash.slice(0, 10)}…) but recording it `
+				+ `failed: ${why} Reload to see it.`,
+			)
+		}
+
+		showToast('USDC claimed.', { tone: 'success' })
+		location.reload()
+	})
+}
+
+/** Runs a live-chain button action with busy state and error handling. */
+async function withButton(
+	button: HTMLButtonElement,
+	scope: HTMLElement,
+	ticker: string,
+	action: (info: Live) => Promise<void>,
+) {
+	button.disabled = true
+	button.setAttribute('aria-busy', 'true')
+	try {
+		const info = await chainInfo(ticker)
+		if(info.mode !== 'live') {
+			throw new Error('This creator does not pay dividends onchain.')
+		}
+
+		clearNotice(scope)
+		await action(info)
+	} catch(err) {
+		fail({ form: scope, ticker }, err)
+	} finally {
+		status(scope, '')
+		button.disabled = false
+		button.removeAttribute('aria-busy')
+	}
+}
+
+function hashscanNetwork(chainId: number) {
+	return chainId === 295 ? 'mainnet' : 'testnet'
 }
 
 async function getFaucet(

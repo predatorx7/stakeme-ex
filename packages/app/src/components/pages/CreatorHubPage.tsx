@@ -239,9 +239,9 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 												Nothing due until the next approved proof.
 											</p>
 											{
-												onchain && lastPaid?.paidTxHash && (
-													<OnchainDividendReceipt txHash={lastPaid.paidTxHash} />
-												)
+												onchain && lastPaid?.paidTxHash
+													? <OnchainDividendReceipt txHash={lastPaid.paidTxHash} />
+													: undefined
 											}
 										</>
 									)

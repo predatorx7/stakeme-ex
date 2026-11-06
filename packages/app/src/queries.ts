@@ -1783,14 +1783,14 @@ export interface IGetPortfolioQuery {
   result: IGetPortfolioResult;
 }
 
-const getPortfolioIR: any = {"usedParamSet":{"wallet":true,"user_id":true},"params":[{"name":"wallet","required":false,"transform":{"type":"scalar"},"locs":[{"a":137,"b":143}]},{"name":"user_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":146,"b":154}]}],"statement":"-- A wallet's holdings, totals and dividends received, plus the user's own IPO.\n-- Route: GetPortfolio.\nSELECT smx.wallet_portfolio_json(:wallet, :user_id!) AS j"};
+const getPortfolioIR: any = {"usedParamSet":{"wallet":true,"user_id":true},"params":[{"name":"wallet","required":false,"transform":{"type":"scalar"},"locs":[{"a":149,"b":155}]},{"name":"user_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":158,"b":166}]}],"statement":"-- A wallet's holdings, totals and dividends received, plus the user's own IPO.\n-- Route: GetPortfolio.\nSELECT smx.wallet_portfolio_with_claims_json(:wallet, :user_id!) AS j"};
 
 /**
  * Query generated from SQL:
  * ```
  * -- A wallet's holdings, totals and dividends received, plus the user's own IPO.
  * -- Route: GetPortfolio.
- * SELECT smx.wallet_portfolio_json(:wallet, :user_id!) AS j
+ * SELECT smx.wallet_portfolio_with_claims_json(:wallet, :user_id!) AS j
  * ```
  */
 export const getPortfolio = new PreparedQuery<IGetPortfolioParams,IGetPortfolioResult>(getPortfolioIR);
@@ -1972,5 +1972,116 @@ const ingestOnchainInvestIR: any = {"usedParamSet":{"creator_id":true,"investor"
  * ```
  */
 export const ingestOnchainInvest = new PreparedQuery<IIngestOnchainInvestParams,IIngestOnchainInvestResult>(ingestOnchainInvestIR);
+
+
+/** 'PayDividendOnchain' parameters type */
+export interface IPayDividendOnchainParams {
+  dividend_id: string;
+  holders: number;
+  tx_hash: string;
+  viewer_id: string;
+}
+
+/** 'PayDividendOnchain' return type */
+export interface IPayDividendOnchainResult {
+  holders: number | null;
+  j: unknown | null;
+}
+
+/** 'PayDividendOnchain' query type */
+export interface IPayDividendOnchainQuery {
+  params: IPayDividendOnchainParams;
+  result: IPayDividendOnchainResult;
+}
+
+const payDividendOnchainIR: any = {"usedParamSet":{"dividend_id":true,"tx_hash":true,"holders":true,"viewer_id":true},"params":[{"name":"dividend_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":242,"b":254}]},{"name":"tx_hash","required":true,"transform":{"type":"scalar"},"locs":[{"a":257,"b":265}]},{"name":"holders","required":true,"transform":{"type":"scalar"},"locs":[{"a":268,"b":276}]},{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":288,"b":298}]}],"statement":"-- Creator paid a due dividend with their own `distributeDividend` call; the\n-- receipt was verified. Route: PayDividend.\nSELECT smx.dividend_json(d) AS j, (d.stream_receipts ->> 'holders')::INTEGER AS holders\nFROM smx.pay_dividend_onchain(\n\t:dividend_id!, :tx_hash!, :holders!::INTEGER, :viewer_id!\n) AS d"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Creator paid a due dividend with their own `distributeDividend` call; the
+ * -- receipt was verified. Route: PayDividend.
+ * SELECT smx.dividend_json(d) AS j, (d.stream_receipts ->> 'holders')::INTEGER AS holders
+ * FROM smx.pay_dividend_onchain(
+ * 	:dividend_id!, :tx_hash!, :holders!::INTEGER, :viewer_id!
+ * ) AS d
+ * ```
+ */
+export const payDividendOnchain = new PreparedQuery<IPayDividendOnchainParams,IPayDividendOnchainResult>(payDividendOnchainIR);
+
+
+/** 'IngestDividendClaim' parameters type */
+export interface IIngestDividendClaimParams {
+  amount: NumberOrString;
+  creator_id: string;
+  tx_hash: string;
+  wallet: string;
+}
+
+/** 'IngestDividendClaim' return type */
+export interface IIngestDividendClaimResult {
+  amount: string;
+  id: string;
+  tx_hash: string;
+}
+
+/** 'IngestDividendClaim' query type */
+export interface IIngestDividendClaimQuery {
+  params: IIngestDividendClaimParams;
+  result: IIngestDividendClaimResult;
+}
+
+const ingestDividendClaimIR: any = {"usedParamSet":{"creator_id":true,"wallet":true,"tx_hash":true,"amount":true},"params":[{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":235,"b":246}]},{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":249,"b":256}]},{"name":"tx_hash","required":true,"transform":{"type":"scalar"},"locs":[{"a":259,"b":267}]},{"name":"amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":270,"b":277}]}],"statement":"-- Records a verified ISA `Claimed` event (USDC base units). Idempotent by\n-- transaction hash. Route: CreateDividendClaim.\nSELECT dc.id AS \"id!\", dc.amount::TEXT AS \"amount!\", dc.tx_hash AS \"tx_hash!\"\nFROM smx.ingest_dividend_claim(\n\t:creator_id!, :wallet!, :tx_hash!, :amount!::NUMERIC\n) AS dc"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Records a verified ISA `Claimed` event (USDC base units). Idempotent by
+ * -- transaction hash. Route: CreateDividendClaim.
+ * SELECT dc.id AS "id!", dc.amount::TEXT AS "amount!", dc.tx_hash AS "tx_hash!"
+ * FROM smx.ingest_dividend_claim(
+ * 	:creator_id!, :wallet!, :tx_hash!, :amount!::NUMERIC
+ * ) AS dc
+ * ```
+ */
+export const ingestDividendClaim = new PreparedQuery<IIngestDividendClaimParams,IIngestDividendClaimResult>(ingestDividendClaimIR);
+
+
+/** 'ListClaimableCreators' parameters type */
+export interface IListClaimableCreatorsParams {
+  wallet: string;
+}
+
+/** 'ListClaimableCreators' return type */
+export interface IListClaimableCreatorsResult {
+  contract_address: string;
+  creator_id: string;
+  display_name: string;
+  ticker: string;
+}
+
+/** 'ListClaimableCreators' query type */
+export interface IListClaimableCreatorsQuery {
+  params: IListClaimableCreatorsParams;
+  result: IListClaimableCreatorsResult;
+}
+
+const listClaimableCreatorsIR: any = {"usedParamSet":{"wallet":true},"params":[{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":327,"b":334}]}],"statement":"-- Onchain creators the wallet holds (or held) tokens of: their dividends may\n-- be claimable. Route: GetPortfolio.\nSELECT c.id AS \"creator_id!\", c.ticker AS \"ticker!\",\n\tc.display_name AS \"display_name!\", c.contract_address AS \"contract_address!\"\nFROM smx.holdings h\nJOIN smx.creators c ON c.id = h.creator_id\nWHERE h.wallet = :wallet!::smx.evm_address AND c.contract_address IS NOT NULL\nORDER BY c.ticker\nLIMIT 50"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Onchain creators the wallet holds (or held) tokens of: their dividends may
+ * -- be claimable. Route: GetPortfolio.
+ * SELECT c.id AS "creator_id!", c.ticker AS "ticker!",
+ * 	c.display_name AS "display_name!", c.contract_address AS "contract_address!"
+ * FROM smx.holdings h
+ * JOIN smx.creators c ON c.id = h.creator_id
+ * WHERE h.wallet = :wallet!::smx.evm_address AND c.contract_address IS NOT NULL
+ * ORDER BY c.ticker
+ * LIMIT 50
+ * ```
+ */
+export const listClaimableCreators = new PreparedQuery<IListClaimableCreatorsParams,IListClaimableCreatorsResult>(listClaimableCreatorsIR);
 
 

@@ -48,6 +48,25 @@ export function assertSimulatedAllowed(allowed = HEDERA_ALLOW_SIMULATED) {
 	)
 }
 
+/**
+ * Fail closed: on mainnet the HBAR rail has no default rate. It needs an
+ * explicit `DIVIDEND_HBAR_PER_USDC` or a `HEDERA_DIVIDEND_TOKEN_ID`.
+ */
+export function assertHbarRailConfigured(
+	opts: { network?: string, hbarPerUsdc?: string, tokenId?: string } = {},
+) {
+	const network = opts.network ?? HEDERA_NETWORK
+	const rate = opts.hbarPerUsdc ?? DIVIDEND_HBAR_PER_USDC
+	const tokenId = opts.tokenId ?? HEDERA_DIVIDEND_TOKEN_ID
+	assert(
+		network !== 'mainnet' || !!rate || !!tokenId,
+		serverUnavailable(
+			'The HBAR dividend rail is off on mainnet: set DIVIDEND_HBAR_PER_USDC '
+			+ 'or HEDERA_DIVIDEND_TOKEN_ID',
+		),
+	)
+}
+
 /** HTS dividend token when configured, else HBAR. */
 export function dividendAsset() {
 	return HEDERA_DIVIDEND_TOKEN_ID || HBAR_ASSET
@@ -62,19 +81,28 @@ export function createHederaPaymentRequest(input: {
 	live?: boolean
 	allowSimulated?: boolean
 	hbarPerUsdc?: string
+	network?: string
+	tokenId?: string
 }): HederaPaymentRequest {
 	const live = input.live ?? isHederaRailLive()
 	if(!live) {
 		assertSimulatedAllowed(input.allowSimulated)
 	}
 
+	assertHbarRailConfigured({
+		network: input.network,
+		hbarPerUsdc: input.hbarPerUsdc,
+		tokenId: input.tokenId,
+	})
 	const request = buildPaymentRequest({
 		dividendId: input.dividendId,
 		amount: input.amount,
 		splits: input.splits,
-		hbarPerUsdc: input.hbarPerUsdc ?? DIVIDEND_HBAR_PER_USDC,
-		network: `hedera:${HEDERA_NETWORK}`,
-		asset: dividendAsset(),
+		hbarPerUsdc: (input.hbarPerUsdc ?? DIVIDEND_HBAR_PER_USDC) || undefined,
+		network: `hedera:${input.network ?? HEDERA_NETWORK}`,
+		asset: input.tokenId === undefined
+			? dividendAsset()
+			: input.tokenId || HBAR_ASSET,
 		feePayer: HEDERA_ACCOUNT_ID || '0.0.0',
 	})
 	return { ...request, mode: live ? 'live' : 'simulated' }

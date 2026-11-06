@@ -63,7 +63,7 @@ Hashio is for development only and can throttle. Keep a fallback relay URL in
 | `HEDERA_OPERATOR_KEY` | Yes | ECDSA key of the operator, raw `0x` hex or Hedera DER hex. Legacy alias: `HEDERA_PRIVATE_KEY`. Create an ECDSA account in the [Hedera portal](https://portal.hedera.com). |
 | `HEDERA_NETWORK` | No | `testnet` (default) or `mainnet`. |
 | `HEDERA_DIVIDEND_TOKEN_ID` | No | HTS token id for the dividend asset (a testnet USDC, 6 decimals). Unset means HBAR. |
-| `DIVIDEND_HBAR_PER_USDC` | No | Testnet conversion for HBAR dividends: HBAR sent per 1 USDC due. Default `0.0001` on testnet (`0.01` on mainnet), so a $250 dividend sends 0.025 HBAR. Up to 8 decimals. Not a market price. |
+| `DIVIDEND_HBAR_PER_USDC` | No | Testnet conversion for HBAR dividends: HBAR sent per 1 USDC due. Default `0.0001` on testnet, so a $250 dividend sends 0.025 HBAR. No default on mainnet: unset there (without a token id) turns the HBAR rail off. Up to 8 decimals. Not a market price. |
 | `HEDERA_ALLOW_SIMULATED` | No | In production, `1` allows SIMULATED receipts when no operator keys are set. Outside production they are always allowed. |
 | `HEDERA_OPERATOR_PAYOUT` | No | `1` lets the worker pay holders from the operator's own HBAR when the creator did not sign (the demo "Mark as paid"). Default off. |
 | `HEDERA_RPC_URL` | No | JSON-RPC relay for ATS calls when `CHAIN_RPC_URL` is unset. Default Hashio. |
@@ -170,10 +170,44 @@ in the ATS repo. No deployment of your own is needed.
 
 ## Dividend payout
 
-The app computes every dividend in USDC (`MockUSDC`, not Circle USDC). The live
-payout is one Hedera multi-transfer of HBAR to all holders, converted at the
-fixed testnet rate `DIVIDEND_HBAR_PER_USDC` (default `0.0001`). The rate is not
-a market price.
+The app computes every dividend in USDC (`MockUSDC`, not Circle USDC). There
+are two rails.
+
+### Onchain creators: USDC through the ISA
+
+When the chain is live and the creator has an ISA address, no HBAR moves.
+
+1. On the Hub, the creator's wallet signs `MockUSDC.approve(isa, amount)`
+   (skipped when the allowance is enough), then
+   `LiquidISA.distributeDividend(amount)`. The amount is the USD due in
+   6-decimal USDC. Gas is the estimate plus 20%.
+2. The browser posts the `txHash` to `POST /dividends/{id}/payment`. The server
+   checks the receipt: it succeeded, the sender is the creator's wallet, the
+   target is the ISA, and a `DividendDistributed` event from that wallet
+   carries exactly the amount due. Then SQL `pay_dividend_onchain` marks the
+   dividend `PAID` and stores the hash in `paid_tx_hash`. It also settles the
+   queued oracle `distributeDividend` job so the oracle never pays twice, and
+   it skips the HBAR stream.
+3. Holders claim from Portfolio ("Dividends to claim"). The page reads
+   `withdrawableOf` for each held onchain creator (cached 15 seconds). The
+   holder's wallet signs `LiquidISA.claim()` and the browser posts
+   `{ ticker, txHash }` to `POST /portfolio/claims`. The server checks the
+   receipt and the `Claimed` event, then records the claim in
+   `dividend_claims`. Recording is idempotent by `txHash`. "Dividends received"
+   includes the claims.
+
+A creator without test USDC sees "Get test USDC" and a hint when the wallet has
+no HBAR for gas.
+
+### DB-only or simulated creators, and x402: HBAR
+
+The HBAR multi-transfer stays for the x402 paywall and for creators with no
+ISA (or a simulated chain). It is one Hedera multi-transfer of HBAR to all
+holders, converted at `DIVIDEND_HBAR_PER_USDC`. The testnet default is `0.0001`.
+The rate is not a market price.
+
+The rail fails closed on mainnet. There is no default rate: without an explicit
+`DIVIDEND_HBAR_PER_USDC` or `HEDERA_DIVIDEND_TOKEN_ID`, it refuses with a 503.
 
 - The creator signs the transfer from their own wallet, so the creator must hold
   enough HBAR. The operator account is the x402 fee payer.

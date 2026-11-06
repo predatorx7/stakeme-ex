@@ -571,6 +571,40 @@ paths:
           $ref: '#/components/responses/ProblemResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
+  /portfolio/claims:
+    post:
+      summary: Record a dividend claim
+      operationId: CreateDividendClaim
+      tags:
+        - Portfolio
+      description: >-
+        Live chain mode: the holder signs `LiquidISA.claim()` in their wallet,
+        then sends the `txHash`. The server verifies the receipt (sent by the
+        viewer's wallet to the creator's ISA, with a `Claimed` event for that
+        wallet) and records the claim. Idempotent by `txHash`.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DividendClaimRequest'
+      responses:
+        '201':
+          description: The recorded claim.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DividendClaim'
+        '204':
+          description: htmx request; the `HX-Trigger` header carries the result.
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /hub:
     get:
       summary: Creator hub
@@ -1085,7 +1119,11 @@ paths:
       tags:
         - Income
       description: >-
-        Marks a due dividend paid, splits it pro rata across current holders and
+        Marks a due dividend paid. Live chain mode (the creator has an ISA): the
+        creator signs `distributeDividend` in USDC first and sends the `txHash`;
+        the server verifies the receipt and holders claim from their portfolio
+        (`CreateDividendClaim`). A live creator without a `txHash` gets `409`.
+        Otherwise it splits the dividend pro rata across current holders and
         queues the onchain distribution. When the body carries a
         `paymentPayload` (the transaction the creator's wallet signed for the
         x402 payment request), the server settles it on Hedera first; without
@@ -2426,7 +2464,9 @@ components:
           maxLength: 32
     DividendReceived:
       type: object
-      required: [id, dividendId, creatorId, ticker, displayName, amount, createdAt]
+      required: [id, creatorId, ticker, displayName, amount, createdAt]
+      description: >-
+        A dividend payout, or a USDC claim (no `dividendId`).
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
@@ -2514,8 +2554,47 @@ components:
               description: The latest 25 payouts, newest first.
               items:
                 $ref: '#/components/schemas/DividendReceived'
+        claimable:
+          type: array
+          maxItems: 50
+          description: >-
+            Onchain creators whose USDC dividends the wallet can claim. Empty
+            when the chain is simulated or a read fails.
+          items:
+            $ref: '#/components/schemas/ClaimableDividend'
         creator:
           $ref: '#/components/schemas/CreatorRef'
+    ClaimableDividend:
+      type: object
+      required: [creatorId, ticker, displayName, amount]
+      properties:
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        displayName:
+          type: string
+          maxLength: 80
+        amount:
+          $ref: '#/components/schemas/DecimalString'
+    DividendClaimRequest:
+      type: object
+      required: [ticker, txHash]
+      properties:
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+    DividendClaim:
+      type: object
+      required: [id, amount, txHash]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        amount:
+          $ref: '#/components/schemas/DecimalString'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
     FaucetResult:
       type: object
       required: [amount, txHash]
@@ -2990,6 +3069,8 @@ components:
     PayDividendRequest:
       type: object
       properties:
+        txHash:
+          $ref: '#/components/schemas/TxHash'
         paymentPayload:
           type: object
           description: >-

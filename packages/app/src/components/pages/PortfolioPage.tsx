@@ -68,6 +68,7 @@ export function PortfolioPage({ portfolio, live, url, cursor }: {
 }) {
 	const { totals, holdings, transactions, dividends, creator, funds } =
 		portfolio
+	const claimable = portfolio.claimable ?? []
 	const pnl = Number(totals.pnl)
 	const firstHref = cursor
 		? withQueryParams(url, { cursor: undefined })
@@ -242,6 +243,60 @@ export function PortfolioPage({ portfolio, live, url, cursor }: {
 						: undefined
 				}
 				firstHref={firstHref} />
+
+			{
+				live && (
+					<SectionCard
+						title='Dividends to claim'
+						count={claimable.length}>
+						{
+							claimable.length
+								? (
+									<DataTable
+										caption='Dividends to claim'
+										columns={
+											[
+												{ label: 'Creator' },
+												{ label: 'Amount', align: 'end' },
+												{ label: 'Claim', align: 'end' },
+											]
+										}>
+										{
+											claimable.map((c) => (
+												<tr>
+													<td>
+														<a href={`/creators/${c.ticker}`}>
+															{escapeText(`$${c.ticker}`)}
+														</a>
+													</td>
+													<td data-align='end'>
+														{escapeText(formatUsdc(c.amount))}
+													</td>
+													<td
+														data-align='end'
+														data-chain-claim-scope={c.ticker}>
+														<button
+															type='button'
+															class='rc-button'
+															data-variant='primary'
+															data-chain-claim={c.ticker}>
+															Claim
+														</button>
+													</td>
+												</tr>
+											))
+										}
+									</DataTable>
+								)
+								: (
+									<EmptyState
+										title='Nothing to claim yet'
+										hint='USDC dividends from creators you hold appear here.' />
+								)
+						}
+					</SectionCard>
+				)
+			}
 
 			<SectionCard
 				title='Dividends received'

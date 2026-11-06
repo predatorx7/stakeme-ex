@@ -226,6 +226,15 @@ the event amounts.
 | `[data-chain-faucet]` | `<button>` | "Get 1,000 test USDC": the wallet calls `MockUSDC.faucet` (cap 50,000 per call). Shown when the USDC balance is low. |
 | `[data-chain-status]` | `<output>` | Progress text. |
 
+Two more hooks cover dividends in USDC (onchain creators only):
+
+| Hook | On | Meaning |
+| --- | --- | --- |
+| `[data-chain-dividend="DIVIDEND_ID"]` | Hub `<button>` | The creator's wallet approves USDC and calls `distributeDividend`, then the module posts `{ txHash }` to `POST /dividends/{id}/payment`. Also needs `data-ticker` and `data-amount` (USD due). |
+| `[data-chain-dividend-scope]` / `[data-chain-dividend-status]` | wrapper / `<output>` | Where the funding notice and the "Paid in USDC to N holders. They claim it from Portfolio." line with the HashScan link appear. |
+| `[data-chain-claim="TICKER"]` | Portfolio `<button>` | The holder's wallet calls `claim()`, then the module posts `{ ticker, txHash }` to `POST /portfolio/claims` and reloads. |
+| `[data-chain-claim-scope]` | wrapper of the button | Where status and the funding notice appear. |
+
 A wallet without HBAR for gas gets a link to the Hedera testnet faucet. The
 Portfolio page has a second faucet form (`POST /portfolio/faucet`) that the
 server signs, limited to one request per wallet per minute.
@@ -238,6 +247,8 @@ attributes, with slippage presets (`[data-slippage-bps]`) or a custom value
 `[data-watchlist-open]` (refetch `GET /watchlist` into the drawer).
 
 ## Hedera dividend payment (`hedera-pay.ts`)
+
+This HBAR flow is for DB-only or simulated creators. Onchain creators pay in USDC with `chain-trade.ts` (see above).
 
 The creator pays a due dividend from the Hub. The module asks the server for
 x402 payment requirements, signs one Hedera `TransferTransaction` that pays

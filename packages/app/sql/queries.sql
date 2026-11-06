@@ -471,7 +471,7 @@ FROM smx.complete_storage_upload(
 /* @name GetPortfolio */
 -- A wallet's holdings, totals and dividends received, plus the user's own IPO.
 -- Route: GetPortfolio.
-SELECT smx.wallet_portfolio_json(:wallet, :user_id!) AS j;
+SELECT smx.wallet_portfolio_with_claims_json(:wallet, :user_id!) AS j;
 
 
 /* @name ListWalletTransactions */
@@ -512,3 +512,34 @@ FROM smx.ingest_onchain_invest(
 	:creator_id!, :investor!, :tx_hash!, :usdc!::NUMERIC, :shares!::NUMERIC,
 	:raise_closed!::BOOLEAN, :pool_usdc::NUMERIC, :pool_tokens::NUMERIC
 ) AS i;
+
+
+
+/* @name PayDividendOnchain */
+-- Creator paid a due dividend with their own `distributeDividend` call; the
+-- receipt was verified. Route: PayDividend.
+SELECT smx.dividend_json(d) AS j, (d.stream_receipts ->> 'holders')::INTEGER AS holders
+FROM smx.pay_dividend_onchain(
+	:dividend_id!, :tx_hash!, :holders!::INTEGER, :viewer_id!
+) AS d;
+
+
+/* @name IngestDividendClaim */
+-- Records a verified ISA `Claimed` event (USDC base units). Idempotent by
+-- transaction hash. Route: CreateDividendClaim.
+SELECT dc.id AS "id!", dc.amount::TEXT AS "amount!", dc.tx_hash AS "tx_hash!"
+FROM smx.ingest_dividend_claim(
+	:creator_id!, :wallet!, :tx_hash!, :amount!::NUMERIC
+) AS dc;
+
+
+/* @name ListClaimableCreators */
+-- Onchain creators the wallet holds (or held) tokens of: their dividends may
+-- be claimable. Route: GetPortfolio.
+SELECT c.id AS "creator_id!", c.ticker AS "ticker!",
+	c.display_name AS "display_name!", c.contract_address AS "contract_address!"
+FROM smx.holdings h
+JOIN smx.creators c ON c.id = h.creator_id
+WHERE h.wallet = :wallet!::smx.evm_address AND c.contract_address IS NOT NULL
+ORDER BY c.ticker
+LIMIT 50;

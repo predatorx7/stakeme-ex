@@ -1,5 +1,6 @@
 import { unauthorized } from '@hapi/boom'
 import assert from 'node:assert'
+import { formatUnits } from 'viem'
 import { Layout } from '../components/Layout.tsx'
 import {
 	PortfolioPage,
@@ -8,10 +9,15 @@ import {
 import {
 	canRequestTestUsdc,
 	isChainConfigured,
+	readClaimable,
 	readWalletFunds,
 } from '../integrations/chain.ts'
-import { getPortfolio, listWalletTransactions } from '../queries.ts'
-import type { Portfolio } from '../types/index.ts'
+import {
+	getPortfolio,
+	listClaimableCreators,
+	listWalletTransactions,
+} from '../queries.ts'
+import type { IPgClientLike, Portfolio } from '../types/index.ts'
 import type { ITypedExpressRequest } from '../types/openapi.ts'
 import { shouldSendJson } from '../utils/negotiation.ts'
 import {
@@ -57,8 +63,12 @@ export default async function GetPortfolio(
 			? readWalletFunds(wallet)
 			: { status: 'UNAVAILABLE' as const },
 	])
+	const claimable = wallet && isChainConfigured()
+		? await readClaimables(req.pg, wallet)
+		: []
 	const portfolio = {
-		...(row.j as Omit<Portfolio, 'funds' | 'transactions'>),
+		...(row.j as Omit<Portfolio, 'funds' | 'transactions' | 'claimable'>),
+		claimable,
 		funds: { ...funds, canRequestUsdc: canRequestTestUsdc() },
 		transactions: txs,
 	} as Portfolio
@@ -79,4 +89,22 @@ export default async function GetPortfolio(
 				cursor={req.query.cursor} />
 		</Layout>
 	)
+}
+
+/** USDC each onchain holding can claim now (cached chain reads, 15 s). */
+async function readClaimables(pg: IPgClientLike, wallet: string) {
+	const rows = await listClaimableCreators.run({ wallet }, pg)
+	const amounts = await Promise.all(
+		rows.map((r) => readClaimable(r.contract_address, wallet)),
+	)
+	return rows.flatMap((r, i) => (
+		amounts[i]
+			? [{
+				creatorId: r.creator_id,
+				ticker: r.ticker,
+				displayName: r.display_name,
+				amount: formatUnits(amounts[i], 6),
+			}]
+			: []
+	))
 }

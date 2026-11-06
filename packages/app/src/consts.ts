@@ -168,13 +168,16 @@ export const HEDERA_ALLOW_SIMULATED = !IS_PRODUCTION
 export const HEDERA_OPERATOR_PAYOUT =
 	process.env.HEDERA_OPERATOR_PAYOUT === '1'
 /**
- * Testnet conversion for dividends paid in HBAR: HBAR sent per 1 USDC due.
- * Testnet HBAR is scarce, so the default is 0.0001 (a $250 dividend sends
- * 0.025 HBAR). Mainnet defaults to 0.01. Not a market price. Up to 8 decimals.
+ * Conversion for dividends paid in HBAR: HBAR sent per 1 USDC due. Testnet
+ * HBAR is scarce, so the testnet default is 0.0001 (a $250 dividend sends
+ * 0.025 HBAR). Mainnet has NO default: without an explicit rate (or
+ * `HEDERA_DIVIDEND_TOKEN_ID`) the HBAR rail refuses
+ * (`assertHbarRailConfigured`).
+ * Not a market price. Up to 8 decimals. Onchain creators pay in USDC instead.
  */
 export const DIVIDEND_HBAR_PER_USDC =
 	process.env.DIVIDEND_HBAR_PER_USDC
-	|| (HEDERA_NETWORK === 'mainnet' ? '0.01' : '0.0001')
+	|| (HEDERA_NETWORK === 'mainnet' ? '' : '0.0001')
 
 /**
  * Hedera Asset Tokenization Studio (ATS) equity token. Behind a flag because

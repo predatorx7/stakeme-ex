@@ -472,6 +472,87 @@ export function decodeInvestReceipt(
 }
 
 /**
+ * Decodes the ISA `DividendDistributed` event of a verified
+ * `distributeDividend` receipt. The depositor must be `payer`. Returns the
+ * USDC base units deposited.
+ */
+export function decodeDividendReceipt(
+	logs: readonly Log[],
+	{ isa, payer }: { isa: string, payer: string },
+) {
+	const [event] = parseEventLogs({
+		abi: liquidISAAbi,
+		eventName: 'DividendDistributed',
+		logs: fromContract(logs, isa),
+	})
+	assert(event, conflict('The transaction has no dividend for this creator'))
+	assert(
+		isAddressEqual(event.args.from, getAddress(payer)),
+		conflict('The dividend was paid by a different wallet'),
+	)
+	return { amount: event.args.amount }
+}
+
+/**
+ * Decodes the ISA `Claimed` event of a verified `claim` receipt. The holder
+ * must be `holder`. Returns the USDC base units paid out.
+ */
+export function decodeClaimReceipt(
+	logs: readonly Log[],
+	{ isa, holder }: { isa: string, holder: string },
+) {
+	const [event] = parseEventLogs({
+		abi: liquidISAAbi,
+		eventName: 'Claimed',
+		logs: fromContract(logs, isa),
+	})
+	assert(event, conflict('The transaction has no claim for this creator'))
+	assert(
+		isAddressEqual(event.args.holder, getAddress(holder)),
+		conflict('The claim was made by a different wallet'),
+	)
+	return { amount: event.args.amount }
+}
+
+const CLAIMABLE_TTL_MS = 15_000
+const claimableCache = new Map<string, { at: number, value: bigint }>()
+
+/**
+ * USDC base units `holder` can claim from an ISA (`withdrawableOf`). Cached
+ * 15 s per (ISA, holder). `undefined` when the read fails: never a made-up
+ * number. Drop the cache after a claim with `forgetClaimable`.
+ */
+export async function readClaimable(isa: string, holder: string) {
+	if(!isChainConfigured()) {
+		return undefined
+	}
+
+	const key = `${getAddress(isa)}:${getAddress(holder)}`
+	const hit = claimableCache.get(key)
+	if(hit && Date.now() - hit.at < CLAIMABLE_TTL_MS) {
+		return hit.value
+	}
+
+	try {
+		const value = await retryFresh(() => readClient().readContract({
+			address: getAddress(isa),
+			abi: liquidISAAbi,
+			functionName: 'withdrawableOf',
+			args: [getAddress(holder)],
+		}))
+		claimableCache.set(key, { at: Date.now(), value })
+		return value
+	} catch(err) {
+		LOGGER.warn({ err, isa }, 'withdrawableOf read failed')
+		return undefined
+	}
+}
+
+export function forgetClaimable(isa: string, holder: string) {
+	claimableCache.delete(`${getAddress(isa)}:${getAddress(holder)}`)
+}
+
+/**
  * Sends one `chain_jobs` row onchain and waits for the receipt.
  *
  * Demo simplification: the creator-side calls (`createISA`, `initializeIPO`,
