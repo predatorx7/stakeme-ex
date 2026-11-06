@@ -229,7 +229,10 @@ Known issues (workstream 7): live Reclaim/0G/World ID paths are untested (no liv
 
 ## Remaining
 
-- UI follow-ups for workstream 7: `GetExchange` has no totals, so the "Dividends paid" KPI sums `DIVIDEND_PAID` events in the latest 20 (shows $0.00 when none are in the window) and "Total raised" sums trending creators; add `totals` to `exchange_json`. `GetCreatorHub` returns no events, so the Hub feed starts empty and fills from SSE. The demo button "Simulate $5,000 deposit" (`/api/audit-milestone`, no session id) now fails with 400 "Delivery has no session id" (`income-audit.ts`); the pending-dividend card could not be exercised live. `data-hedera-pay` button markup is unrun against `hedera-pay.ts`.
+- UI follow-ups for workstream 7: `GetExchange` has no totals, so the "Dividends paid" KPI sums `DIVIDEND_PAID` events in the latest 20 (shows $0.00 when none are in the window) and "Total raised" sums trending creators; add `totals` to `exchange_json`. `GetCreatorHub` returns no events, so the Hub feed starts empty and fills from SSE. The demo button "Simulate $5,000 deposit" works again (fixed 2026-11-06: `runIncomeAudit` lifts a nested `proof` demo fixture); verified by curl, approved with a $250 DUE dividend, but the pending-dividend card was not re-checked in a browser. `data-hedera-pay` button markup is unrun against `hedera-pay.ts`.
+- Live sponsor runs (none done yet): deploy contracts to Hedera testnet (`npm run deploy:hedera -w packages/contracts`) and set `CHAIN_RPC_URL`, `FACTORY_ADDRESS`, `USDC_ADDRESS`, `ORACLE_PRIVATE_KEY`; Hedera operator keys for the x402 rail; deploy the ATS factory and resolver for `ATS_ENABLED=1`; World ID staging app and RP key; 0G Galileo key and compute provider.
+- Reclaim e2e (workstream 8): move the mock bank to a stable host, publish a provider version with that URL, run `proxy_callback_events` to `/reclaim/callback`, and test one real verification from the Hub.
+- Docs: `docs/pitch.md` and `docs/product-spec.md` still mention Arkiv and Chainlink; align them with the three-sponsor scope.
 - Backend: no `Last-Event-ID` replay on SSE; no e2e test for `AuditMilestone`; `DRAFT` creator status unused.
 
 ## Known issues
