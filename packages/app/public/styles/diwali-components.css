@@ -39,32 +39,9 @@
 	box-shadow: var(--smx-dw-glow, 0 0 18px rgb(240 160 40 / 22%));
 }
 
-/* Cards: faint rangoli corner accent. */
+/* Cards: no corner ornament; the lattice lives on feature cards only. */
 .rc-card {
 	position: relative;
-}
-
-.rc-card::after {
-	background:
-		radial-gradient(
-			circle at 100% 0,
-			color-mix(in srgb, var(--smx-dw-marigold, #f08a1c) 16%, transparent) 0,
-			transparent 62%
-		),
-		repeating-conic-gradient(
-			from 0deg at 100% 0,
-			color-mix(in srgb, var(--smx-dw-gold, #e8b44c) 14%, transparent) 0 6deg,
-			transparent 6deg 18deg
-		);
-	block-size: 3.25rem;
-	content: '';
-	inline-size: 3.25rem;
-	inset-block-start: 0;
-	inset-inline-end: 0;
-	mask-image: radial-gradient(circle at 100% 0, #000 0, transparent 72%);
-	opacity: 0.7;
-	pointer-events: none;
-	position: absolute;
 }
 
 .rc-card:hover {
@@ -73,11 +50,6 @@
 		var(--smx-dw-gold, #e8b44c) 35%,
 		var(--rc-component-card-border)
 	);
-}
-
-.rc-card[data-tone='danger']::after,
-.rc-card[data-spec]::after {
-	display: none;
 }
 
 /* Primary buttons: marigold to saffron, dark ink for contrast. */
@@ -108,11 +80,11 @@
 .rc-pill[data-tone='pending'][title^='Escrow frozen'] {
 	background: color-mix(
 		in srgb,
-		var(--smx-dw-maroon, #7a1f2b) 22%,
+		var(--smx-dw-maroon, #7a1f2b) 12%,
 		var(--rc-color-pill-pending-background)
 	);
 	box-shadow: inset 0 0 0 1px
-		color-mix(in srgb, var(--smx-dw-maroon, #7a1f2b) 45%, transparent);
+		color-mix(in srgb, var(--smx-dw-maroon, #7a1f2b) 30%, transparent);
 }
 
 /* Progress: diya-gold fill with a soft glow. */
@@ -187,6 +159,13 @@ table.rc-table tbody tr:hover,
 	position: absolute;
 }
 
+@media (max-width: 35rem) {
+	.smx-event::before {
+		inset-block-start: 1.1rem;
+		margin-block-start: 0;
+	}
+}
+
 .smx-event[data-kind='PROOF_REJECTED']::before,
 .smx-event[data-kind='DEFAULTED']::before {
 	background: var(--rc-color-status-danger);
@@ -213,6 +192,10 @@ table.rc-table tbody tr:hover,
 
 .rc-area-chart__fill {
 	fill: color-mix(in srgb, var(--smx-dw-gold, #e8b44c) 20%, transparent);
+}
+
+[data-theme='dark'] .rc-area-chart__fill {
+	fill: color-mix(in srgb, var(--smx-dw-marigold, #f08a1c) 14%, transparent);
 }
 
 .rc-bar-list__bar > span:not([data-tone]),

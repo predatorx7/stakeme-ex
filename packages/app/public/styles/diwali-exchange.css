@@ -25,7 +25,11 @@
 }
 
 .smx-xc > .rc-page-header .rc-eyebrow {
-	color: var(--smx-dw-marigold, #c2570c);
+	color: var(--rc-color-action-primary, #b45309);
+}
+
+[data-theme='dark'] .smx-xc > .rc-page-header .rc-eyebrow {
+	color: var(--smx-dw-marigold, #ffb020);
 }
 
 /* KPI tiles: gold hairline and warm hover glow, from the shared tokens. */

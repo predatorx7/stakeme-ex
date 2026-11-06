@@ -3,7 +3,10 @@
 /* Eyebrow: warm, understated. */
 .smx-page > .rc-page-header .rc-eyebrow,
 .smx-page .rc-eyebrow {
-	color: var(--smx-dw-marigold, #c2570c);
+	color: var(--rc-color-action-primary, #b45309);
+}
+[data-theme='dark'] .smx-page .rc-eyebrow {
+	color: var(--smx-dw-marigold, #ffb020);
 }
 
 /* Form card: gold hairline, warm glow on focus-within. */
@@ -27,16 +30,16 @@
 /* World ID step: a card with a small diya accent. */
 .smx-world {
 	position: relative;
-	padding: var(--rc-space-3, 0.75rem) var(--rc-space-4, 1rem);
-	padding-inline-start: calc(var(--rc-space-4, 1rem) + 1.25rem);
+	padding: var(--rc-space-4, 1rem);
+	padding-inline-start: calc(var(--rc-space-4, 1rem) + 1rem);
 	border: 1px solid var(--rc-color-border-default, rgb(128 128 128 / 0.3));
-	border-radius: var(--rc-radius-md, 8px);
+	border-radius: 2px;
 }
 .smx-world::before {
 	content: '';
 	position: absolute;
 	inset-inline-start: var(--rc-space-4, 1rem);
-	inset-block-start: calc(var(--rc-space-3, 0.75rem) + 0.5rem);
+	inset-block-start: calc(var(--rc-space-4, 1rem) + 1.125rem - 0.25rem);
 	inline-size: 0.5rem;
 	block-size: 0.5rem;
 	border-radius: 50%;

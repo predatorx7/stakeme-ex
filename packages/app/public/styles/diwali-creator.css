@@ -1,18 +1,8 @@
 /* diwali-creator: Diwali theme layer (see docs/diwali-theme.md). */
 
 /* Price header: warm glow behind the price and ticker. */
-#creator-live .smx-price strong {
-	text-shadow: 0 0 1.25rem color-mix(in srgb, var(--smx-dw-gold, #e8b04a) 45%, transparent);
-}
-
-#creator-live .rc-page-header,
-#creator-live > header:first-child {
-	background-image: radial-gradient(
-		ellipse 28rem 9rem at 0% 0%,
-		color-mix(in srgb, var(--smx-dw-marigold, #f08a24) 14%, transparent),
-		transparent 70%
-	);
-}
+/* The header glow comes from the jali layer (diwali-jali.css); the price
+   carries no extra halo so the lattice never doubles up behind it. */
 
 /* L-ISA terms card: gold hairline across the top. */
 .rc-card:has(> .smx-terms),
@@ -63,7 +53,7 @@
 
 @keyframes smx-dw-creator-lit {
 	50% {
-		box-shadow: 0 0 0.7rem 0.2rem color-mix(in srgb, var(--smx-dw-gold, #e8b04a) 55%, transparent);
+		opacity: 0.7;
 	}
 }
 

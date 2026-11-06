@@ -13,9 +13,9 @@ export function ChartFrame({ title, meta, kind, children }: PropsWithChildren<{
 			class='rc-chart-frame'
 			data-tile>
 			<header class='rc-chart-frame__header'>
-				<h3>
+				<h2>
 					{escapeText(title)}
-				</h3>
+				</h2>
 				{
 					meta && (
 						<span>

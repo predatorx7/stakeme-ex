@@ -11,27 +11,27 @@
 	--smx-sl-red: #d6403f;
 	--smx-sl-blue: #3b63e0;
 	--smx-sl-gold: #c9921c;
-	--smx-sl-unlit: rgb(60 50 40 / 0.16);
+	--smx-sl-unlit: rgb(60 50 40 / 0.24);
 	--smx-sl-opacity: 0.95;
-	--smx-sl-core: 0.9px;
-	--smx-sl-halo: 2.1px;
-	--smx-sl-halo-alpha: 28%;
+	--smx-sl-core: 1.05px;
+	--smx-sl-halo: 2.3px;
+	--smx-sl-halo-alpha: 32%;
 	--smx-sl-pitch: 14px;
 }
 
 [data-theme='dark'],
 :root:has([data-theme-root][data-theme='dark']) {
-	--smx-sl-white: #fff6e0;
-	--smx-sl-mint: #7ff0bf;
-	--smx-sl-amber: #ffb43a;
-	--smx-sl-red: #ff5a52;
-	--smx-sl-blue: #4f7dff;
-	--smx-sl-gold: #f5c451;
+	--smx-sl-white: #efe6d2;
+	--smx-sl-mint: #8fd9bb;
+	--smx-sl-amber: #e8ad4a;
+	--smx-sl-red: #e87a74;
+	--smx-sl-blue: #7a95e6;
+	--smx-sl-gold: #e6bf5f;
 	--smx-sl-unlit: rgb(255 240 220 / 0.14);
-	--smx-sl-opacity: 0.95;
-	--smx-sl-core: 1.1px;
-	--smx-sl-halo: 3.2px;
-	--smx-sl-halo-alpha: 45%;
+	--smx-sl-opacity: 0.8;
+	--smx-sl-core: 1px;
+	--smx-sl-halo: 2.4px;
+	--smx-sl-halo-alpha: 28%;
 }
 
 /* One bulb: bright core, soft halo, blurred edge like long exposure. */
@@ -162,10 +162,9 @@
 	animation: smx-sl-twinkle-a 5s ease-in-out infinite;
 	background-color: transparent;
 	background-image:
-		radial-gradient(circle at calc(var(--_bulb) * 7.5) 50%, var(--smx-sl-mint) 0 1.7px, transparent 2.9px),
 		radial-gradient(circle at 50% 50%, var(--smx-sl-amber) 0 1.8px, color-mix(in srgb, var(--smx-sl-gold) 40%, transparent) 2.2px, transparent 3.3px);
 	background-repeat: repeat-x;
-	background-size: calc(var(--_bulb) * 8) 100%, var(--_bulb) 100%;
+	background-size: var(--_bulb) 100%;
 	box-shadow: none;
 	filter: blur(0.2px);
 }
@@ -186,15 +185,26 @@
 	--_bulb: 9px;
 }
 
+/* Phones: tighter strand so the cramped bar stays calm. */
+@media (max-width: 37.5rem) {
+	:root {
+		--smx-sl-pitch: 11px;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
+	/* Decorative strands only; the real progress fill keeps full opacity. */
 	.public-shell .rc-app-bar::before,
 	.public-shell .rc-app-bar::after,
 	.smx-dw-footer::after,
-	.smx-sl-divider,
+	.smx-sl-divider {
+		animation: none;
+		opacity: calc(var(--smx-sl-opacity) * 0.7);
+	}
+
 	.rc-progress > span,
 	.rc-progress:not([data-tone]) > span {
 		animation: none;
-		opacity: calc(var(--smx-sl-opacity) * 0.7);
 	}
 }
 
@@ -202,7 +212,8 @@
 	.public-shell .rc-app-bar::before,
 	.public-shell .rc-app-bar::after,
 	.smx-dw-footer::after,
-	.smx-sl-strand {
+	.smx-sl-strand,
+	.smx-sl-divider {
 		display: none;
 	}
 

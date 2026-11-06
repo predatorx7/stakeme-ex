@@ -69,8 +69,7 @@ export function Header({ viewer, nav }: HeaderProps) {
 				data-sticky>
 				<a
 					class='rc-app-bar__brand'
-					{...navLink(BASE_PATH)}
-					aria-label={`${APP_NAME} home`}>
+					{...navLink(BASE_PATH)}>
 					<span
 						class='smx-brand-mark'
 						aria-hidden='true'>

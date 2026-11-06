@@ -35,12 +35,11 @@
 	}
 }
 @keyframes smx-dw-flicker {
-	0%, 100% { opacity: 1; box-shadow: 0 0 6px 1px var(--smx-dw-marigold, #f28c28); }
-	18% { opacity: 0.78; box-shadow: 0 0 3px 0 var(--smx-dw-marigold, #f28c28); }
-	34% { opacity: 1; box-shadow: 0 0 9px 2px var(--smx-dw-gold, #f5b942); }
-	52% { opacity: 0.86; box-shadow: 0 0 4px 1px var(--smx-dw-marigold, #f28c28); }
-	71% { opacity: 0.97; box-shadow: 0 0 8px 2px var(--smx-dw-gold, #f5b942); }
-	86% { opacity: 0.74; box-shadow: 0 0 3px 0 var(--smx-dw-marigold, #f28c28); }
+	0%, 100% { opacity: 1; }
+	18% { opacity: 0.78; }
+	52% { opacity: 0.88; }
+	86% { opacity: 0.74; }
+}
 }
 
 /* Spark overlay: fixed, inert, hidden from assistive tech. */
