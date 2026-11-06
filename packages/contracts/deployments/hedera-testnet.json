@@ -2,12 +2,12 @@
   "chainId": 296,
   "network": "hedera-testnet",
   "oracle": "0x96B380895ea976cbEc267b959A1D116C457705aF",
-  "deployedAt": "2026-11-06T16:23:12.228Z",
-  "hbarSpent": "3.70198389",
+  "deployedAt": "2026-11-06T18:53:10.668Z",
+  "hbarSpent": "3.73208132",
   "contracts": {
     "MockUSDC": "0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f",
-    "LiquidISA": "0x2c77936419a72ea377245906451bf2b38277e64c",
-    "CreatorShareToken": "0xc65877c78151038b5cbf35d8a0d078510e1df0c9",
-    "LiquidISAFactory": "0x9698e237201c88be262523ef4917b144e857ca73"
+    "LiquidISA": "0xb2a511d967202950e3b259c7420de1a7729a2f15",
+    "CreatorShareToken": "0x8e483e26b05ee86f414a4f502457ee8fa3f05071",
+    "LiquidISAFactory": "0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e"
   }
 }

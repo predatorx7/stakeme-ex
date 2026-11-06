@@ -198,17 +198,21 @@ call's gas limit to `estimateGas` plus 20%.
 
 ## Verification
 
-All four Hedera testnet contracts are verified on Sourcify with an exact match
-(runtime and creation), which HashScan reads (verified 2026-11-06):
+All four Hedera testnet contracts are verified on Sourcify with an exact (runtime
+bytecode) match, which HashScan reads (verified 2026-11-06). Sourcify reports
+`match: exact_match` and `runtimeMatch: exact_match`; `creationMatch` is not
+reported:
 
 | Contract | Address | Status |
 | --- | --- | --- |
 | MockUSDC | [`0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`](https://hashscan.io/testnet/contract/0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f) | exact match |
-| LiquidISA (implementation) | [`0x2c77936419a72ea377245906451bf2b38277e64c`](https://hashscan.io/testnet/contract/0x2c77936419a72ea377245906451bf2b38277e64c) | exact match |
-| CreatorShareToken (implementation) | [`0xc65877c78151038b5cbf35d8a0d078510e1df0c9`](https://hashscan.io/testnet/contract/0xc65877c78151038b5cbf35d8a0d078510e1df0c9) | exact match |
-| LiquidISAFactory | [`0x9698e237201c88be262523ef4917b144e857ca73`](https://hashscan.io/testnet/contract/0x9698e237201c88be262523ef4917b144e857ca73) | exact match |
+| LiquidISA (implementation) | [`0xb2a511d967202950e3b259c7420de1a7729a2f15`](https://hashscan.io/testnet/contract/0xb2a511d967202950e3b259c7420de1a7729a2f15) | exact match |
+| CreatorShareToken (implementation) | [`0x8e483e26b05ee86f414a4f502457ee8fa3f05071`](https://hashscan.io/testnet/contract/0x8e483e26b05ee86f414a4f502457ee8fa3f05071) | exact match |
+| LiquidISAFactory | [`0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`](https://hashscan.io/testnet/contract/0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e) | exact match |
 
-Clones (for example ISA `0x041d7ecc12172a2c1bbf5cdf6daf48fd31be9d43`) are
+Historical note: an earlier factory (`0x9698e237201c88be262523ef4917b144e857ca73`) and its implementations were superseded by the 2026-11-06T18:53Z redeploy and are no longer used.
+
+Clones (for example ISA `0x8f2868df0f4156d728c3fc703af33d1b7d210e5c`) are
 45-byte EIP-1167 proxies. Sourcify cannot match a proxy to source, so a clone
 shows no source of its own; it delegates to the verified `LiquidISA`
 implementation above (and each token clone to the verified `CreatorShareToken`).
