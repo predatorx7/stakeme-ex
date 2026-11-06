@@ -173,6 +173,16 @@
 	min-inline-size: 44px;
 }
 
+/* Audit cell: wrap ids, reasoning and badges instead of scrolling. */
+.rc-table td[data-col='audit'] {
+	min-inline-size: 0;
+	overflow-wrap: anywhere;
+}
+
+.rc-table td[data-col='audit'] .rc-pill {
+	white-space: normal;
+}
+
 @media (max-width: 35rem) {
 	.rc-table [data-col] {
 		display: none;

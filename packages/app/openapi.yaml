@@ -1335,7 +1335,10 @@ paths:
       operationId: GetMockBankLogin
       tags:
         - Income
-      description: Login form for the mock bank. Any non-empty values work.
+      description: >-
+        Login form for the mock bank. Any non-empty values work. Renders even
+        with a bank session cookie, so a signed-in browser can log in again
+        with another income scenario.
       security:
         - {}
       responses:
@@ -1345,12 +1348,6 @@ paths:
             text/html:
               schema:
                 $ref: '#/components/schemas/HtmlContent'
-        '302':
-          description: Already signed in; redirect to the statement.
-          headers:
-            Location:
-              schema:
-                type: string
         default:
           $ref: '#/components/responses/ProblemResponse'
     post:
