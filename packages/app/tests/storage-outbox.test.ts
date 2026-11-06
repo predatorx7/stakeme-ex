@@ -89,7 +89,7 @@ describe('storage outbox', () => {
 		const [event] = await events(id)
 		assert.strictEqual(event.ref, ROOT)
 		assert.strictEqual(event.kind, 'LISA_TERMS')
-		assert.match(event.url, /^https:\/\/storagescan-galileo\.0g\.ai\//)
+		assert.match(event.url, /^https:\/\/indexer-storage-testnet-turbo\.0g\.ai\/file\/info\//)
 	})
 
 	it('never uploads a content hash that is already UPLOADED', async() => {

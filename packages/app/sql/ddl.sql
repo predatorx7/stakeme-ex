@@ -871,7 +871,7 @@ BEGIN
 				'kind', v_row.kind,
 				'ref', p_ref,
 				'contentHash', v_row.content_hash,
-				'url', 'https://storagescan-galileo.0g.ai/tool/file?root=' || p_ref
+				'url', 'https://indexer-storage-testnet-turbo.0g.ai/file/info/' || p_ref
 			));
 	END IF;
 

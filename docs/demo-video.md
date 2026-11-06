@@ -78,7 +78,7 @@ voiceover, and the proof that a sponsor integration is real.
   - **0G Storage:** "0G Storage ref" on the L-ISA terms card reads "0G Storage:
     pending", then flips to the root hash after about 30 seconds (the
     `STORAGE_CONFIRMED` event reloads the region over SSE). Click the hash to
-    open `https://storagescan-galileo.0g.ai/tool/file?root=<root>`.
+    open `https://indexer-storage-testnet-turbo.0g.ai/file/info/<root>`.
     **Unconfirmed:** this URL form has not been checked in a browser.
 - **Editing note:** the upload takes about 30 seconds. Do not wait on camera.
   Cut to shot 3 and return to the creator page in shot 5, or insert the
@@ -124,7 +124,7 @@ voiceover, and the proof that a sponsor integration is real.
   - **Reclaim:** the QR flow plus the verified proof row in **Income proofs**.
     Show the Reclaim verification screen on the second window.
   - **0G:** "0G AI detected ... income" text, and the "0G Storage log ref" link
-    on the proof row, which opens `storagescan-galileo.0g.ai` the same way as
+    on the proof row, which opens `indexer-storage-testnet-turbo.0g.ai/file/info/<root>` the same way as
     in shot 2.
 - **Unconfirmed:** the live Reclaim loop end to end. The mock bank provider
   URL is a Cloudflare quick tunnel (see CONTEXT.md), which changes on restart
@@ -244,7 +244,7 @@ Prepare these before you start recording:
    dry-run (CONTEXT.md records a verified end-to-end run: paste the IDKit link
    into Paste code). Staging actions verify only in the Simulator.
 4. **Window D (HashScan):** `https://hashscan.io/testnet` ready.
-5. **Window E (0G Storage explorer):** `https://storagescan-galileo.0g.ai`.
+5. **Window E (0G Storage explorer):** `https://indexer-storage-testnet-turbo.0g.ai/file/info/<root>`.
 6. **Terminal:** the `curl` command from shot 6, typed but not run.
 7. **Notes:** the field values for the launch form.
 
@@ -308,7 +308,7 @@ runs with the real Hedera and 0G keys and `DEMO_MODE` from `.env`.
 1. **0:00. Exchange.** Open `/`. See the KPIs, the three seeded creators, and
    the live oracle feed.
 2. **0:10. Token page.** Click `$MUSH`. Find the L-ISA terms, the "0G Storage
-   ref" link (storagescan), the "Token on Hedera" address, and the transaction
+   ref" link (indexer-storage-testnet-turbo), the "Token on Hedera" address, and the transaction
    hashes (HashScan).
 3. **0:25. Defaulted creator.** Go back and click `$RAHUL`. If a default was
    triggered, read the danger notice (refund, slash, blacklist).
