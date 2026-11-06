@@ -99,3 +99,46 @@ Draw every diagram (architecture, flows, sequences, state machines) as a
 slashes, or colons. Render-check new diagrams with
 `npx -p @mermaid-js/mermaid-cli mmdc -i <file>.mmd -o /tmp/out.svg`. File
 trees stay in ` ```text ` blocks.
+
+## Hard-won conventions
+
+### Hedera
+
+- Hashio is flaky. Go through `chain.ts`: it retries and waits for the mirror
+  node. Don't bypass it with raw relay calls.
+- Gas limit = estimate +20%. Hedera bills 80% of the limit.
+- Never run two processes that sign with `ORACLE_PRIVATE_KEY` at once (dev
+  server plus a script, two workers). Nonces collide.
+- The factory blocks reused nullifiers. Reseeding needs fresh nullifiers or a
+  new factory.
+
+### 0G
+
+- Approval needs 0G Private Computer (Router). The rules-engine fallback runs
+  only with `ZG_ALLOW_RULES_FALLBACK=1`; never fall back silently.
+- 0G Storage uploads go through the `storage_uploads` outbox and the worker.
+  Don't upload inline in a request.
+- Respect the storage balance floor (`ZG_STORAGE_MIN_BALANCE`); skip, don't
+  fail, below it.
+
+### World ID
+
+Use real IDKit only when configured. In that case never show simulators.
+
+### Deploy
+
+- Deploy through `deploy/gcp.sh`.
+- Build tarballs on macOS with `COPYFILE_DISABLE=1`. AppleDouble `._*` files
+  broke the Solidity build.
+
+### Copy and avatars
+
+- No festival words in UI copy.
+- Never credit an external website as design inspiration in code, comments, or
+  commits.
+- Run the AI-tell check on user-facing copy.
+- Seed Gravatar by account or creator ID, never by wallet.
+
+### Commits
+
+One-line, human-style messages. No AI co-author trailer.

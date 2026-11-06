@@ -91,3 +91,15 @@ every handler, because pgmb leaves the connection on its own `search_path`.
 
 `npm test` warms a PGlite snapshot of all migrations, then runs
 `tests/*.test.ts`. Boot the app with `bootApp()` from `tests/utils.ts`.
+
+## Integrations
+
+- Chain calls go through `chain.ts` (retry, mirror-node wait). Gas limit is
+  estimate +20%. One signer process for `ORACLE_PRIVATE_KEY` at a time.
+- Audit approval needs 0G Private Computer. Rules fallback only with
+  `ZG_ALLOW_RULES_FALLBACK=1`. 0G Storage writes go through the outbox.
+- Render real World ID (IDKit) only when configured, never simulators beside it.
+- Avatars: seed Gravatar by account or creator ID, never wallet.
+- UI copy: no festival words, no external design credits, run the AI-tell check.
+
+See the root `AGENTS.md` for the full list.
