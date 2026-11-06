@@ -1,0 +1,47 @@
+/* SponsorProof: "Verified on" card (World ID, Hedera, 0G). */
+.smx-proof {
+	display: grid;
+	gap: var(--rc-space-2);
+	padding: var(--rc-space-3) var(--rc-space-4);
+	border: 1px solid var(--rc-color-border, currentColor);
+	border-radius: var(--rc-radius-md, 8px);
+	font-size: var(--rc-font-size-caption);
+}
+
+.smx-proof__title {
+	margin: 0;
+	font-size: var(--rc-font-size-caption);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--rc-color-text-secondary);
+}
+
+.smx-proof__row {
+	display: grid;
+	grid-template-columns: 4.5rem 1fr;
+	gap: var(--rc-space-2);
+	align-items: start;
+}
+
+.smx-proof__name {
+	font-weight: 600;
+}
+
+.smx-proof__body,
+.smx-proof__tx {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--rc-space-2);
+}
+
+.smx-proof__chip {
+	padding: 0 var(--rc-space-2);
+	border: 1px solid var(--rc-color-border, currentColor);
+	border-radius: 999px;
+	text-decoration: none;
+}
+
+.smx-proof__muted {
+	color: var(--rc-color-text-secondary);
+}

@@ -29,6 +29,7 @@ import { PageHeader } from '../PageHeader.tsx'
 import { LinearProgress } from '../Progress.tsx'
 import { ProofAudit } from '../ProofAudit.tsx'
 import { SectionCard } from '../SectionCard.tsx'
+import { SponsorProof } from '../SponsorProof.tsx'
 import { TxLink } from '../TxLink.tsx'
 import { ZeroGBalance } from '../ZeroGBalance.tsx'
 
@@ -171,6 +172,9 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 						</HxForm>
 					)
 				}
+				<SponsorProof
+					creator={c}
+					proofs={proofs} />
 				<div class='rc-kpi-grid'>
 					<article class='rc-kpi smx-dw-hub-time'>
 						<span class='rc-kpi__label'>

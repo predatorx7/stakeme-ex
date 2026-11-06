@@ -37,6 +37,7 @@ import { PageHeader } from '../PageHeader.tsx'
 import { ProofAudit } from '../ProofAudit.tsx'
 import { SectionCard } from '../SectionCard.tsx'
 import { Skeleton } from '../Skeleton.tsx'
+import { SponsorProof } from '../SponsorProof.tsx'
 import { HashRef, StorageRef, TxLink } from '../TxLink.tsx'
 
 const TRANCHE_TONE = {
@@ -655,6 +656,9 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					<Fundamentals
 						fundamentals={market.fundamentals}
 						ticker={c.ticker} />
+					<SponsorProof
+						creator={c}
+						proofs={page.proofs} />
 				</div>
 			</aside>
 		</div>
