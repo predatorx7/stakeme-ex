@@ -56,22 +56,24 @@ otherwise.
 | `GET /mock-bank/api/transactions` | JSON statement for the chosen scenario (see below). `401` without the cookie. |
 
 The provider proves `$.transactions[0].amount` and `$.transactions[0].date`,
-so the first row is always the proven deposit. You choose one of six scenarios on the login form (default
-"Salary on time"):
+so the first row is always the proven deposit. You choose one of six
+scenarios on the login form (default "Salary on time"):
 
 | Scenario | First row |
 | --- | --- |
-| Salary on time | $5,000.00 deposit dated today. |
+| Salary on time | $5,000.00 deposit dated today. Approved with a $250.00 dividend; the tranche is released. |
 | Low month | $800.00 deposit, below the minimum income. Approved with a $40.00 dividend at 5%; the next tranche stays locked. |
-| Big month | $25,000.00 deposit. |
-| Several deposits | A $5,000.00 row with the month's total, then the separate deposits. |
+| Big month | $25,000.00 deposit. Approved with a $1,250.00 dividend. |
+| Several deposits | A $5,000.00 row with the month's total, then the separate deposits. Approved. |
 | No income | $0.00. Approved with no dividend; the next tranche stays locked. |
-| Late deposit | $5,000.00 deposit dated 40 days ago. |
+| Late deposit | $5,000.00 deposit dated 40 days ago. Denied by the date pre-check. |
 
-Size never causes a denial: an honest low or zero month is approved, and only income at or above the minimum (default $1,000) releases the next tranche. The auditor denies a deposit dated outside the reporting period (the last 30
-days for monthly creators, 90 for quarterly) with "Deposit is outside the
-reporting period". SMX checks this before calling 0G, so the audit log shows
-engine `pre-check`. A proof with no date (demo fixtures) skips the check.
+Dividends in the table assume a 5% share. Size never causes a denial: an
+honest low or zero month is approved, and only income at or above the creator's
+minimum (default $1,000) releases the next tranche. A deposit dated outside the
+reporting period (the last 30 days for monthly creators, 90 for quarterly) is
+denied with "Deposit is outside the reporting period". SMX checks this before
+calling 0G, so the audit log shows engine `pre-check`. A proof with no date (demo fixtures) skips the check.
 
 The amount parameter name the provider extracts may be `amount`,
 `deposit_amount`, `depositAmount` or `income` (`extractIncomeAmount`). The

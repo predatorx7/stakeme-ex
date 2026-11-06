@@ -76,9 +76,11 @@ voiceover, and the proof that a sponsor integration is real.
     transaction hash links under Escrow. Click one `TxLink`; it opens
     `https://hashscan.io/testnet/transaction/<hash>`. Show the SUCCESS result
     for 2 seconds, then return.
-  - **Hedera ATS:** the creator's ATS equity token address (`ATS_MODE=live`)
-    opens on HashScan as a contract. If the live mint errors, the token is
-    simulated and has no HashScan page; say so on camera.
+  - **Hedera ATS:** one real ATS equity token is minted (`$MUSH`,
+    `0xe3abC950d9daf866653931a314FF3F19E5276AFb`); show it on HashScan. New live
+    mints currently revert (custom error `0x76f138fb`) and fall back to a
+    simulated token with no HashScan page. Say "one real ATS token minted" and
+    say so on camera when a new creator's token is simulated.
   - **0G Storage:** "0G Storage ref" on the L-ISA terms card reads "0G Storage:
     pending", then flips to the root hash after about 30 seconds (the
     `STORAGE_CONFIRMED` event reloads the region over SSE). Click the hash to
@@ -139,29 +141,34 @@ voiceover, and the proof that a sponsor integration is real.
   points at the production mock bank, so recording against `localhost` needs
   a public URL that matches the provider version. Verify before recording. If
   the live loop is unavailable, use the fallback in section "Fallback plan".
-- **Late scenario:** pick **Late** to show the pre-check. The auditor denies
-  the 40-day-old deposit with "Deposit is outside the reporting period" and
+- **Low-month scenario:** pick **Low $800**. The proof is approved, the
+  dividend is $40 (5% of $800), and the next tranche stays locked because the
+  income is under the creator's minimum ($1,000 by default). The auditor judges
+  authenticity and period, not size, so an honest low month is never frozen.
+- **Late scenario:** pick **Late** to show the denial. The 40-day-old deposit
+  fails the date pre-check with "Deposit is outside the reporting period" and
   the audit log shows engine `pre-check`, with no 0G call.
 
-### Shot 5: Dividend on Hedera (2:00 to 2:20)
+### Shot 5: Dividend in USDC, claimed on Hedera (2:00 to 2:20)
 
-- **Screen:** `$APP/hub`, **Pending dividend** card.
+- **Screen:** `$APP/hub`, **Pending dividend** card, then `$APP/portfolio`.
 - **Clicks:**
-  1. Click **Pay 0.025 HBAR on Hedera** (the testnet rate is 0.0001 HBAR per
-     USDC, so $250 is 0.025 HBAR). In live mode, the signer dialog opens: choose **Generate a new wallet** (a funded key prepared in advance,
-     see the checklist) or WalletConnect.
-  2. The status line next to the button shows progress, then the dividend
-     moves to **Dividends paid** with receipt links.
-  3. Click a receipt link to open the HashScan transaction.
-- **Voiceover:** "Mushaheed pays the dividend. One Hedera transaction pays
-  every holder, split by how many tokens they hold. Then the next tranche
-  unlocks on its own."
-- **Proves:** **Hedera:** the HashScan testnet transaction page showing a
-  transfer to the holder accounts. Live settlement ran on testnet (for example
-  `0.0.11340822@1793996054.174485762`). Outside production, a server without
-  `HEDERA_OPERATOR_*` returns `sim:` receipts with no HashScan page. Check
-  that `GET /dividends/{id}/payment-request` returns `mode: "live"` before
-  recording.
+  1. On the Hub, click the pay button. The creator's wallet signs a MockUSDC
+     `approve` and `LiquidISA.distributeDividend(amount)`. The server verifies
+     the `DividendDistributed` receipt and the dividend moves to **Dividends
+     paid**.
+  2. In the holder window, open `/portfolio`. Under **Dividends to claim**,
+     click **Claim**. The wallet signs `claim()` and the server verifies the
+     `Claimed` event.
+  3. Click the receipt link to open the HashScan transaction.
+- **Voiceover:** "Mushaheed pays the dividend in USDC from his own wallet. Each
+  holder claims their share, split by the tokens they hold onchain. Then the
+  next tranche unlocks on its own."
+- **Proves:** **Hedera:** the HashScan testnet pages for the pay and claim
+  transactions. Payouts follow onchain token ownership, so tokens moved outside
+  SMX still earn. Use a seeded onchain creator (`MUSH`, `RAVI`, `RAHUL`). A
+  DB-only creator uses the legacy HBAR rail (testnet rate 0.0001 HBAR per USDC)
+  and its receipts can be simulated.
 
 ### Shot 6: Scam protection (2:20 to 2:40)
 
@@ -237,9 +244,9 @@ voiceover, and the proof that a sponsor integration is real.
 | Resource | Needed for | Notes |
 | --- | --- | --- |
 | Hedera testnet HBAR (server relay and oracle key) | Chain jobs: `createISA`, `initializeIPO`, `invest`, dividends, liquidation | `createISA` costs about 0.76 HBAR per IPO. Every take that launches an IPO spends real testnet HBAR. A fresh factory deploy costs about 3.7 HBAR. Fund from the Hedera faucet. |
-| Hedera account for the dividend signer | Shot 5 | The key generated in the signer dialog needs a Hedera account on testnet: fund its printed EVM address from the faucet once (CONTEXT.md). The server pays network fees; the account needs only the dividend amount. |
+| Creator wallet and holder wallet | Shot 5 | Both sign onchain, so both need HBAR for gas. The creator also needs MockUSDC for the dividend (**Get test USDC** on `/portfolio`). Fund the printed EVM address from the faucet once. |
 | 0G Galileo (`ZG_PRIVATE_KEY`) | Terms upload (shot 2) and audit log (shot 4) | About 0.0013 0G per storage upload, so about 0.0026 per full take. Uploads are skipped below `ZG_STORAGE_MIN_BALANCE` (default 0.1), so keep the balance above that. |
-| `HEDERA_OPERATOR_*` | Live dividend payment and the ATS mint | Without it the rail is simulated and the production server refuses payment requests. |
+| `HEDERA_OPERATOR_*` | Chain jobs, the ATS mint, and the legacy HBAR rail | Dividends for onchain creators are paid from the creator's wallet, not the operator. |
 | MockUSDC for investors | Shot 3 | Each investor wallet clicks **Get test USDC** (1,000 per click, 50,000 cap). |
 
 Budget the take count: plan for at most 5 full takes. At about 1 HBAR and
@@ -340,8 +347,9 @@ instance runs with the real Hedera and 0G keys. **Unconfirmed:** whether
 5. **0:45. Prove income.** On the Hub, click **Simulate deposit**. See
    the $250 pending dividend and the 0G audit text. Click **Verify income with
    Reclaim** to see the real zkTLS session QR.
-6. **0:55. Pay.** Click **Pay 0.025 HBAR on Hedera** (needs a funded Hedera
-   account) or **Mark as paid (demo)**. Open a receipt link in HashScan.
+6. **0:55. Pay and claim.** On the Hub, pay the USDC dividend from the
+   creator wallet (needs test USDC and gas), then claim it on `/portfolio`
+   under **Dividends to claim**. Open the receipt link in HashScan.
 
 Tell judges that a launched IPO spends real testnet gas on our relay, so
 launch at most one.

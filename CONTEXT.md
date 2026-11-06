@@ -31,11 +31,11 @@ Reference clones (read-only, may be deleted; re-clone with `gh repo clone`):
   Computer through the 0G Router. If the call fails the proof stays `PENDING`
   ("0G audit unavailable, retry"). The rules engine runs only behind
   `ZG_ALLOW_RULES_FALLBACK=1` and is labelled in the UI.
-- **Hedera ATS is live, with a simulated fallback.** With `ATS_MODE=live`,
-  `integrations/hedera-ats.ts` mints the creator's equity token through the
-  public ATS testnet Factory (for example `$MUSH`,
-  `0xe3abC950d9daf866653931a314FF3F19E5276AFb`). A live error falls back to a
-  simulated token, so an IPO never fails; the default mode is simulated.
+- **Hedera ATS: one real token, simulated fallback.** `$MUSH`
+  (`0xe3abC950d9daf866653931a314FF3F19E5276AFb`) was minted through the public
+  ATS testnet Factory by `integrations/hedera-ats.ts` (`ATS_MODE=live`). New
+  live mints currently revert (custom error `0x76f138fb`) and fall back to a
+  simulated token, so an IPO never fails. Say "one real ATS token minted".
   `CreatorShareToken` is the source of truth; the ATS token only mirrors it.
 - **Trading and investing are user-signed onchain.** Each creator has a
   `CreatorPool` constant-product AMM (EIP-1167 clone, 0.3% fee kept in the
@@ -45,15 +45,39 @@ Reference clones (read-only, may be deleted; re-clone with `gh repo clone`):
   receipt and indexes the events into SQL (`ingest_onchain_swap`,
   `ingest_onchain_invest`). The chain is the truth; SQL is the index. Creators
   without a pool (old factory or simulated chain mode) use the SQL AMM.
+- **Stake rule.** Launch is rejected if the stake is under 5% of the target
+  raise (`launch_ipo`); the launch form hints it and the terms calculator
+  respects it.
+- **Low-month approval.** The 0G auditor judges authenticity and reporting
+  period, not size. Any genuine in-period proof is APPROVED; dividend = income x
+  share ($800 x 5% = $40; $0 gives no dividend). The next tranche releases only
+  if income >= the creator's minimum ($1,000 default), otherwise it stays
+  locked. No freeze for an honest low month. Rejection only for invalid or
+  non-genuine proofs, a duplicate period, or an out-of-period date (TS
+  pre-check, no 0G call).
 - **Money rules.** Tranche 0 releases at raise close. A default refunds the
   current token holders (by holdings). After the term ends, the token is sell
   only and the stake returns to the creator. An unpaid dividend for a full
   cadence freezes the escrow like a missed proof. Supply = holdings + pool
   tokens, and the pool is excluded from dividends and refunds.
-- **Dividends settle live on Hedera.** A creator-signed (or, with
-  `HEDERA_OPERATOR_PAYOUT=1`, operator) HBAR multi-transfer pays holders at the
-  testnet rate `DIVIDEND_HBAR_PER_USDC=0.0001`. There is no simulated fallback
-  in production.
+- **Dividends are USDC for onchain creators.** The creator signs MockUSDC
+  `approve` and `LiquidISA.distributeDividend(amount)` on the Hub; the server
+  verifies the `DividendDistributed` receipt and marks the dividend PAID
+  (`pay_dividend_onchain`). Holders `claim()` from Portfolio ("Dividends to
+  claim"); the server verifies `Claimed` and records `dividend_claims`. Payouts
+  follow onchain token ownership (the pool is excluded). The oracle no longer
+  pays these dividends.
+- **HBAR is for three things only**: gas, the 0.1 HBAR x402 audit-report fee
+  (paid to the operator), and a legacy HBAR multi-transfer rail for DB-only or
+  simulated creators (testnet rate `DIVIDEND_HBAR_PER_USDC=0.0001`). Mainnet
+  fails closed without an explicit rate or `HEDERA_DIVIDEND_TOKEN_ID`.
+- **Revenue today** is x402 fees only. Proposed, not built (needs contract
+  changes): 1% listing fee, 0.5% dividend fee, 0.05% protocol share of the swap
+  fee, x402 data fees, optional $1 per proof pass-through. EBITDA model in
+  `stakeme-presentation/PITCH.md` sections 16 and 17.
+- **Deck** has 6 slides: hook, solution, architecture, happy path, sad path,
+  close. Tagline "Raise human potential. Stake your future." No "world's first"
+  claims.
 - **MockUSDC, not Circle USDC.** Circle testnet USDC (0.0.429274) exists, but
   its faucet is too small. MockUSDC has an in-app faucet (1,000 per click,
   50,000 cap).
@@ -93,8 +117,8 @@ Secrets live only in `.env` (gitignored). The IDs below are public.
 | 0G Private Computer | Live through the 0G Router (`ZG_ROUTER_API_KEY`, model per `ZG_ROUTER_MODEL`, trust mode `private`). Router credits: $11; the Hub shows the balance. Example request ID: `3a1c2f3b-6177-4ab8-aa52-c1b5ff80dc8c`. The proof row shows model, request ID and provider; "TEE verified" shows only when the Router returns `tee_verified: true`. |
 | 0G Storage | Live on Galileo with the same account (about 0.0012 0G per upload, faucet refills about 0.5 0G every 25 h). A worker uploads terms and audit logs in the background. |
 | Reclaim | Provider `3fefebae-05cb-4d6b-b319-f3f639a31201` ("SMX Mock Bank Deposit", private) at v0.1.2, pointing at the production mock bank (`https://stakeme.magnificlabs.org/mock-bank`). Proof verified through the Reclaim MCP `run_proof` (`amount`, `deposit_date`). A full in-app session is not yet confirmed. |
-| Hedera ATS | Live mint on testnet through the public ATS Factory (`0xd1F118A40f3b02883D35909eF2517e7EDd78379d`). `$MUSH`: [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (0.0.11345067), about 0.23 HBAR. Details in `docs/integrations/hedera.md`. |
-| Dividend settlement | Live on Hedera: [0.0.11340822@1793996054.174485762](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762), one multi-transfer to holders at 0.0001 HBAR per USDC. |
+| Hedera ATS | One real token minted on testnet through the public ATS Factory (`0xd1F118A40f3b02883D35909eF2517e7EDd78379d`); new live mints now revert and fall back to simulated. `$MUSH`: [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (0.0.11345067), about 0.23 HBAR. Details in `docs/integrations/hedera.md`. |
+| Dividend settlement | Onchain creators: USDC `distributeDividend` and holder `claim()`. Legacy HBAR rail evidence: [0.0.11340822@1793996054.174485762](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762), one multi-transfer to holders at 0.0001 HBAR per USDC. |
 | x402 payments | The audit report (`GET /creators/{ticker}/audit-report`, 0.1 HBAR) is paywalled and bought by `packages/app/scripts/x402-research-agent.ts` with spend controls. Settled testnet transactions (run against a local second instance on 2026-11-07, because the public site did not serve the route then): [CHEF](https://hashscan.io/testnet/transaction/0.0.9185802@1793992761.545261642), [LOFI](https://hashscan.io/testnet/transaction/0.0.9185802@1793992766.013363358), [MUSH](https://hashscan.io/testnet/transaction/0.0.9185802@1793992768.127890663); earlier single-payer run [0.0.9185802@1793985016.835902874](https://hashscan.io/testnet/transaction/0.0.9185802@1793985016.835902874). Details and the over-cap refusal: `docs/x402-agent.md`. |
 | WalletConnect | Project created, public project ID in `.env`; the deployment domains are allowlisted (done by hand). QR pairing is verified in Chrome. |
 | Seed | `npm run seed:demo` seeds 8 creators (MUSH, RAVI, RAHUL, PRIYA, KART, ANANYA, ROHAN, TIFFIN) and closes each raise. |
@@ -109,17 +133,23 @@ Secrets live only in `.env` (gitignored). The IDs below are public.
 | Invest and stake | Real, onchain: user-signed `approve` and `LiquidISA.invest`, server-verified. The creator stake is locked by `initializeIPO`. |
 | Pool liquidity | Protocol-provided: MockUSDC and tokens minted into the pool at raise close (10% of target, minimum 100 USDC). Not investor funds. |
 | USDC | Mock: `MockUSDC` with a faucet (1,000 per click, 50,000 cap). Not Circle USDC. |
-| ATS equity token | Real with `ATS_MODE=live` (public ATS testnet Factory, `$MUSH` above). A live error falls back to a simulated token (`sim:0x...`); the default mode is simulated. |
-| Dividend settlement | Real: creator-signed or operator HBAR multi-transfer on Hedera at the testnet rate. No simulated fallback in production. |
-| Mock bank | Mock data source with six scenarios (salary $5,000, low $800, big $25,000, several deposits, none, late); the zkTLS proof is real. The auditor pre-checks the deposit date window and denies out-of-period deposits without a 0G call (engine `pre-check`). |
+| ATS equity token | One real token (`$MUSH`, public ATS testnet Factory). New live mints revert and fall back to a simulated token (`sim:0x...`). |
+| Dividend settlement | Real, onchain: creator-signed `distributeDividend` in USDC, holder-signed `claim()`, server-verified receipts. Legacy HBAR multi-transfer only for DB-only or simulated creators. |
+| Mock bank | Mock data source with six scenarios; the zkTLS proof is real. Outcomes: salary $5,000 approved, $250 dividend, tranche released; low $800 approved, $40, tranche locked; big $25,000 approved, $1,250; several deposits ($5,000 total) approved; none $0 approved, no dividend, tranche locked; late (40 days old) denied by the date pre-check (engine `pre-check`, no 0G call). "Switch user" works while signed in. |
+| Launch options | Tranche presets 2 to 5 or "No tranches" (all at raise close, shown to traders), monthly or quarterly cadence, social links, terms suggestion calculator, creator updates (5 per day). |
 | World ID | Staging app and Simulator, not production Orb credentials. Production is possible (`docs/world-id-debrief.md`). |
 | 0G | Router audit and Storage are live. 0G Compute through the SDK broker is off (`ZG_COMPUTE_ENABLED`; needs a 3 0G ledger deposit). |
 | Demo routes | Locked down: `trigger-default` needs `DEMO_MODE=1` and the admin key; demo proofs need the signed-in creator owner and allow 3 per creator per hour. |
+| Still mock | MockUSDC, mock bank data source, protocol-seeded pool liquidity, World ID staging with the Simulator. |
 | Other | Chain calls and proofs have a demo fallback (`DEMO_MODE=1` fixture proofs, simulated chain mode). |
 
 ## Remaining
 
-Deadline: submission by Saturday 2026-11-07 09:00 IST. Today is that day.
+Hand-off state: main is at 11e321d. Onchain USDC dividends, low-month
+approval, the 5% stake rule and the 6-slide deck are done. What is left is
+below.
+
+Deadline: submission by Saturday 2026-11-07 09:00 IST.
 
 1. **Finish the production redeploy** with `deploy/gcp.sh` (in progress). Only
    MUSH, RAVI and RAHUL are onchain on the new factory; the other 5 seeded
@@ -136,15 +166,20 @@ Deadline: submission by Saturday 2026-11-07 09:00 IST. Today is that day.
    site, sign in on the hosted client, confirm `PROOF_VERIFIED` and the 0G
    audit.
 5. **Demo video** (2:30 to 3:00, plan in `docs/demo-video.md`).
-6. **Submit** by 09:00 IST: repo link (confirm public), video, live URL,
+6. **Verify the dividend flow live**: a creator `distributeDividend` and a
+   holder `claim()` on the public site for MUSH, RAVI or RAHUL.
+7. **Submit** by 09:00 IST: repo link (confirm public), video, live URL,
    contract addresses, team contacts, AI disclosure (`docs/ai-usage.md`), and the
    three partner prizes. Track status is in `docs/prize-checklist.md`.
-7. Optional: a phone-wallet signature test; the `no e2e test for
+8. Optional: a fix for new live ATS mints (custom error `0x76f138fb`); a phone-wallet signature test; the `no e2e test for
    AuditMilestone` gap; unused `DRAFT` creator status; a production World ID
    app.
 
 ## Known issues
 
+- Contract gaps: the contract does not check the dividend amount against
+  `shareBps`; `distributeDividend` is callable by anyone; trading outside SMX
+  cannot be frozen; the oracle key still signs lifecycle calls.
 - Public site: `GET /creators` returned 404 in a 30-minute window on 2026-11-07
   (00:18 to 00:48 IST); it now returns 200, and the audit-report route returns
   402 unpaid.
@@ -293,7 +328,7 @@ Rules: `verifyIncomeProof` does not dedupe; store `proofId` under a unique index
 Full guide: [`docs/backend.md`](docs/backend.md). Paths under `packages/app/`.
 
 - Tables: `creators`, `tranches`, `investments`, `holdings`, `pools`, `trades`, `price_ticks`, `income_proofs`, `dividends`, `payouts`, `oracle_events`, `chain_jobs`, `blacklisted_nullifiers`, `creator_updates`, `watchlists`, `storage_uploads`, `reclaim_sessions`. The base migration is `migrations/20261106111202382.domain.sql` (two manual `SET` header lines; see its comment); later migrations add the instrument view, portfolio, creator profile, `onchain_ingest` and `raise_close`. To re-plan the base after a `ddl.sql` change, delete the domain migration, run `npm run migrate:plan`, rename, and keep the header.
-- SQL functions (`sql/ddl.sql`): `launch_ipo`, `record_investment`, `finish_raise`, `close_raise`, `amm_swap`, `ingest_onchain_swap`, `ingest_onchain_invest`, `post_creator_update`, `submit_income_proof`, `audit_income_proof`, `pay_dividend`, `sweep_deadlines`, `liquidate_creator`, `complete_chain_job`, `emit_oracle_event`, `demo_trigger_default`, `demo_spread_history`; JSON builders `creator_json`, `creator_summary_json`, `exchange_json`, `creator_page_json`, `creator_hub_json`, etc. Queries in `sql/queries.sql`.
+- SQL functions (`sql/ddl.sql`): `launch_ipo`, `record_investment`, `finish_raise`, `close_raise`, `amm_swap`, `ingest_onchain_swap`, `ingest_onchain_invest`, `post_creator_update`, `submit_income_proof`, `audit_income_proof`, `pay_dividend`, `pay_dividend_onchain`, `sweep_deadlines`, `liquidate_creator`, `complete_chain_job`, `emit_oracle_event`, `demo_trigger_default`, `demo_spread_history`; JSON builders `creator_json`, `creator_summary_json`, `exchange_json`, `creator_page_json`, `creator_hub_json`, etc. Queries in `sql/queries.sql`.
 - Routes (`src/routes/`): GetExchange (`/`), GetCreator (instrument view), GetCreatorHub, GetLaunch, GetPortfolio, RequestTestUsdc, GetCreatorChain, CloseRaise, CreateCreatorUpdate, watchlist routes, GetMockBank, LaunchIpo, Invest, Trade, CreateReclaimSession, ReclaimCallback, AuditMilestone, TriggerDefault, PayDividend, StreamEvents. All GET pages already load data and return JSON on negotiation; mutations use `utils/mutation.ts` `respondMutation` (htmx 204 + `HX-Trigger`/`HX-Redirect`, JSON 201). Types: `src/types/domain.ts` (schema aliases).
 - Worker (`src/worker/`): chain jobs (pgmb wake-up, boot drain, 15 s poll), dividend streaming on `DIVIDEND_PAID`, deadline sweep timer (`SWEEP_INTERVAL_S`).
 - SSE `GET /events` (replays up to 50 missed oracle events from `Last-Event-ID` or `?since=`; oracle messages carry `id:` = `oracle_events.seq`, `chain-job` has none; migration `20261106170000000.oracle_event_seq.sql`): `oracle-event` (HTML from `components/events/OracleEventItem.tsx`), `oracle-event-json`, `chain-job` (JSON `{id, creatorId, fn, status, txHash}`). `?ticker=` filters.

@@ -25,7 +25,8 @@ Production URL: https://stakeme.magnificlabs.org
 
 ## Deploy
 
-All commands are idempotent. `SMX_DOMAIN` defaults to `stakeme.magnificlabs.org`.
+Run one deploy at a time. Two concurrent `push` or `up` runs race on the
+`/opt/smx/src` swap and the `smx-build` unit. All commands are idempotent. `SMX_DOMAIN` defaults to `stakeme.magnificlabs.org`.
 
 ```sh
 deploy/gcp.sh provision   # first time only: enable APIs, reserve the IP, add firewall rules, create the VM, attach the stop schedule
@@ -35,7 +36,9 @@ deploy/gcp.sh up     # add swap, build the image, start the stack, wait for /hea
 
 `push` generates `.env.prod` with `NODE_ENV=production`, `DEMO_MODE` (copied from
 `.env`, default `1`), `CANONICAL_ORIGIN`, `SMX_DOMAIN`, `PORT`, `POSTGRES_PASSWORD`,
-and a `DB_URI` that points at the Compose Postgres. It archives `HEAD`, so commit
+a `DB_URI` that points at the Compose Postgres, and three fixed values:
+`CHAIN_NULLIFIER_SALT` (currently `prod-2026-11-07b`), `ATS_MODE=live`, and
+`DIVIDEND_HBAR_PER_USDC=0.0001` (the HBAR rail for DB-only creators). It archives `HEAD`, so commit
 first; uncommitted files under `deploy/`, plus `Dockerfile` and `docs/deployment.md`,
 are overlaid from your working tree. The database password is created once and kept on the VM.
 
@@ -56,11 +59,25 @@ deploy/gcp.sh logs app
 ## Seed demo data
 
 The seed sends real Hedera testnet transactions with the oracle key. Run only one
-seed at a time per key to avoid nonce collisions.
+process that signs with that key at a time, or nonces collide.
 
 ```sh
 deploy/gcp.sh ssh 'cd /opt/smx/src && sudo docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod run --rm -v /opt/smx/users.json:/users.json:ro -e SMX_DEMO_USERS=/users.json app npm run seed:demo -- --pg'
 ```
+
+### Reseed production
+
+Production puts only `MUSH`, `RAVI` and `RAHUL` onchain. The other five seeded
+creators are DB-only. The worker runs inside the `app` container and signs with
+the same oracle key, so pause it while you seed:
+
+1. Stop the app: `deploy/gcp.sh ssh 'cd /opt/smx/src && sudo docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod stop app'`.
+2. Run the seed command above with `--onchain=MUSH,RAVI,RAHUL` after `--pg`.
+3. Start the app again: `deploy/gcp.sh up`.
+
+The factory blocks reused World ID nullifiers. To reseed a database that
+already launched onchain creators, change `CHAIN_NULLIFIER_SALT` in
+`deploy/gcp.sh` first (or deploy a new factory), then `push`.
 
 ## Other commands
 

@@ -25,7 +25,7 @@ reviewed the results.
 | Tool | Provider | Use |
 | --- | --- | --- |
 | Claude Code (CLI agent) | Anthropic | Planning, code, tests, docs, refactors, running checks and live testnet scripts |
-| Claude Code subagents | Anthropic | Parallel workstreams with disjoint file ownership (see the agent ownership table in [`diwali-theme.md`](diwali-theme.md#ownership)) |
+| Claude Code subagents | Anthropic | Parallel workstreams with exclusive file ownership; implementation and doc sweeps go to Sonnet subagents (see the ownership table in [`diwali-theme.md`](diwali-theme.md#ownership)) |
 | Reclaim MCP server | Reclaim | Used by the agent to build and test the mock-bank provider (capture, replay, run proof, publish) |
 | Chrome DevTools MCP server | Google | Used by the agent for browser checks of the UI |
 
@@ -74,6 +74,18 @@ decided, directed, set up, and checked.
   example "previous original background was much better"), told them to fix a
   stuck deployment, and passed on judge feedback about last year's projects so
   the pitch and docs described the project honestly.
+
+## How the agents worked
+
+A lead agent (the orchestrator) read `CONTEXT.md`, planned a workstream, and
+gave each subagent a brief with an exclusive set of files or packages. A
+subagent that wanted a change outside its files had to describe it and ask. The
+subagents ran in parallel, checked their own work, and reported back in a few
+lines. The lead agent merged the results, ran lint, typecheck and tests, and
+updated `CONTEXT.md`. Agents don't commit or push on their own: the developer
+or the lead agent commits when asked, with one-line messages. The same pattern
+ran the final documentation sweep, where each agent owned a fixed set of docs
+and checked its claims against the code.
 
 The prompt log shows direction and feedback, not the agents' replies. The
 agents' output is the code and docs in this repository.
@@ -130,13 +142,14 @@ AI output can contain errors. Where a check did not run live, the docs say so.
 | All human prompts, verbatim | [`prompts/session-user-prompts.md`](prompts/session-user-prompts.md) | Every message the developer sent to the AI agent, exported from the Claude Code session log |
 | Key decisions, summarized | [`prompts/`](prompts/README.md) | Short summaries of the main decisions, reconstructed from the repository |
 
-Note on prompts: `session-user-prompts.md` is the verbatim export (79 prompts,
-with email addresses, keys, and one transaction hash redacted). The other files
+Note on prompts: `session-user-prompts.md` is the verbatim export (79 prompts
+from 2026-11-06, with email addresses, keys, and one transaction hash
+redacted). Later direction is in the Git history and `CONTEXT.md`. The other files
 in `docs/prompts/` are summaries reconstructed from the repository, and only
 the text in quotation marks in them is quoted from a repo file.
 
 ## Version control
 
-The work is in Git: 60 commits on 2026-11-06 and 2026-11-07. The first
+The work is in Git: 69 commits on 2026-11-06 and 2026-11-07. The first
 commits were few and large (the bootstrap commit has 64 files); later commits
 are smaller.

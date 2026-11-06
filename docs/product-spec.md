@@ -28,7 +28,7 @@ the zkTLS proof source, not a sponsor target. Other sponsors were dropped.
 | Sponsor | Role in SMX | Demo fallback |
 | --- | --- | --- |
 | World ID | v4 proof of unique human at IPO. The server signs the RP request (`POST /api/rp-signature`) and verifies the proof; `POST /api/world-id/check` rejects a used or blacklisted nullifier before submit. The nullifier is stored in Postgres and on the factory contract. | World ID Simulator (staging app); `DEMO_MODE=1` fixture proofs. |
-| Hedera | EVM testnet (chain 296) for the `LiquidISA` clone factory, escrow, share tokens and the `CreatorPool` AMM. Creator equity token minted through the public Asset Tokenization Studio (ATS) testnet Factory when `ATS_MODE=live`. x402-style dividend payouts: the creator signs one Hedera multi-transfer in their wallet and the server settles it live. Safe-stop escrow freeze. | Simulated chain mode (`CHAIN_RPC_URL` unset); simulated receipts, and a simulated ATS token if a live ATS call errors. Dividends have no simulated fallback in production. |
+| Hedera | EVM testnet (chain 296) for the `LiquidISA` clone factory, escrow, share tokens and the `CreatorPool` AMM. One real ATS equity token (`$MUSH`) minted through the public Asset Tokenization Studio (ATS) testnet Factory when `ATS_MODE=live`. USDC dividends: the creator signs `distributeDividend` in their wallet and holders `claim()`. HBAR pays gas and the x402 audit-report fee (0.1). Safe-stop escrow freeze. | Simulated chain mode (`CHAIN_RPC_URL` unset); simulated receipts, and a simulated ATS token if a live ATS call errors. The legacy HBAR dividend rail has no simulated fallback in production. |
 | 0G | Auditor agent that approves or denies milestones and computes dividends. It runs on 0G Private Computer through the 0G Router; 0G Compute through the SDK broker is opt-in, and the rules engine runs only behind `ZG_ALLOW_RULES_FALLBACK=1`. L-ISA terms and every audit log go to 0G Storage through a background outbox. Triggers the safe-stop freeze. | Rules engine; `local:<sha256>` refs. |
 | Reclaim Protocol | zkTLS proof of a Web2 bank deposit that the 0G agent verifies. The mock bank (`/mock-bank`) stands in for a real bank and shows the deposits of the income scenario picked at login (six scenarios: salary $5,000 by default, low $800, big $25,000, several deposits, none, late). | `DEMO_MODE=1` fixture proof. |
 
@@ -86,6 +86,7 @@ Money is `money_amount NUMERIC(18,6)` (USDC has 6 decimals). Token amounts are
 | `price_ticks` | Price history for charts (`at`, `price`). One tick per trade and per oracle event. |
 | `income_proofs` | Reclaim proof per period: `period` (month index), `provider`, `reclaim_proof_id`, `verified_amount`, `status proof_status ('PENDING','APPROVED','REJECTED')`, `audit jsonb` (agent output; `engine` shows `0g-router`, `0g-compute`, `rules-engine` or `pre-check`), `audit_log_ref` (0G Storage root, or `local:<sha256>` until uploaded). |
 | `dividends` | `amount_due` = `verified_amount * share_bps / 10000`, `status dividend_status ('DUE','PAID')`, `paid_tx_hash`. |
+| `dividend_claims` | One row per verified `Claimed` transaction: `creator_id`, `wallet`, `tx_hash` (unique), USDC `amount`. |
 | `oracle_events` | Live feed: `kind oracle_event_kind ('IPO','INVESTED','PROOF_VERIFIED','PROOF_REJECTED','TRANCHE_RELEASED','DIVIDEND_PAID','GRACE_STARTED','DEFAULTED','TRADE','ESCROW_FROZEN','ESCROW_UNFROZEN','STORAGE_CONFIRMED','CREATOR_UPDATE','STAKE_RETURNED')`, `creator_id`, `payload jsonb`. Published to pgmb for SSE. |
 | `chain_jobs` | Outbox of onchain calls (`fn`, `args jsonb`, `status ('QUEUED','SENT','CONFIRMED','FAILED','SIMULATED')`, `tx_hash`). Optimistic UI reads DB state; the worker confirms later. |
 | `blacklisted_nullifiers` | World ID nullifiers banned after default. |
@@ -121,7 +122,8 @@ stateDiagram-v2
 
 Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
 
-- `smx.launch_ipo(...)`: asserts the nullifier isn't blacklisted or used,
+- `smx.launch_ipo(...)`: asserts the creator stake is at least 5% of the target
+  raise and the nullifier isn't blacklisted or used,
   creates the creator (social links, proof cadence), tranches (1 to 5 entries
   summing to 10000 bps), pool, first tick, `IPO` event, and `chain_jobs` rows
   for `createISA` and `initializeIPO`. All tranches start `LOCKED`. The L-ISA
@@ -155,8 +157,15 @@ Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
   approval in `GRACE` also emits `ESCROW_UNFROZEN` and queues `unfreezeEscrow`.
   The audit log is committed with a `local:<sha256>` ref and queued in
   `storage_uploads`.
-- `smx.pay_dividend(dividend_id, tx_hash)`: marks paid and emits
-  `DIVIDEND_PAID` with a per-holder split (pro rata by holdings).
+- `smx.pay_dividend_onchain(dividend_id, tx_hash, holders, user)`: for an
+  onchain creator, marks the dividend `PAID` from the creator's own verified
+  `distributeDividend` transaction, settles the queued oracle job by that hash
+  (the oracle doesn't pay it a second time), and drops per-holder HBAR payouts.
+  Holders claim USDC onchain; the server records each verified `Claimed`
+  receipt in `dividend_claims`.
+- `smx.pay_dividend(dividend_id, tx_hash)`: the legacy HBAR rail for DB-only or
+  simulated creators. Marks paid and emits `DIVIDEND_PAID` with a per-holder
+  split (pro rata by holdings).
 - `smx.enqueue_storage_upload`, `claim_storage_upload`,
   `complete_storage_upload`: the 0G Storage outbox. On upload, the root hash
   replaces the local ref and `STORAGE_CONFIRMED` is emitted.
@@ -196,9 +205,13 @@ Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
     and releases tranche 0.
   - `unlockNextTranche()`: only the oracle. Transfers the next tranche to the
     creator.
-  - `distributeDividend(amount)`: anyone (usually the creator) deposits USDC;
-    accrues through a dividend-per-share accumulator (`magnifiedDividendPerShare`),
-    holders `claim()`. O(1) gas regardless of holder count.
+  - `distributeDividend(amount)`: the creator signs `approve` and this call from
+    their wallet to deposit USDC. It accrues through a dividend-per-share
+    accumulator (`magnifiedDividendPerShare`); holders `claim()`. O(1) gas
+    regardless of holder count. Payouts follow onchain token ownership, so
+    tokens moved outside SMX still earn; the pool is excluded. Known gaps: the
+    contract doesn't check the amount against `shareBps`, and anyone can call
+    it.
   - `freezeEscrow()` / `unfreezeEscrow()`: only the oracle. A frozen escrow
     blocks `unlockNextTranche`, `reclaimStake`, the automatic tranche 0
     release and pool trading; claims and liquidation still work.
@@ -231,7 +244,7 @@ Pages render HTML; the same handler returns JSON by content negotiation.
 | `GET /watchlist`, `PUT`, `DELETE /watchlist/{ticker}` | `GetWatchlist`, `PutWatchlistItem`, `DeleteWatchlistItem` | The viewer's watchlist. |
 | `GET`, `POST /creators/{ticker}/updates` | `ListCreatorUpdates`, `CreateCreatorUpdate` | Creator updates (owner only, 5 per day). |
 | `GET /hub` | `GetCreatorHub` | Viewer's creator dashboard: escrow, Reclaim proof button, pending dividend, collateral. |
-| `GET /launch` | `GetLaunch` | IPO form gated by World ID: social links, tranche preset (none, or 2 to 5), proof cadence. |
+| `GET /launch` | `GetLaunch` | IPO form gated by World ID: social links, tranche preset ("No tranches", or 2 to 5; with none, everything releases at raise close and traders see that), monthly or quarterly proof cadence, the terms suggestion calculator, and a hint that the stake must be at least 5% of the target raise. |
 | `POST /api/rp-signature` | `CreateRpSignature` | Signs the World ID v4 request on the server. The signal is the session wallet. |
 | `POST /api/world-id/check` | `CheckWorldId` | Verifies a proof and rejects a used (409) or blacklisted (403) nullifier. Read-only. |
 | `POST /creators` | `LaunchIpo` | Body includes the World ID proof; server verifies it. The 0G upload is queued, not awaited. |
@@ -243,8 +256,9 @@ Pages render HTML; the same handler returns JSON by content negotiation.
 | `POST /reclaim/callback` | `ReclaimCallback` | Reclaim posts the proof here. |
 | `POST /api/audit-milestone` | `AuditMilestone` | Accepts a Reclaim proof JSON, verifies, runs the 0G audit, calls `audit_income_proof`. A demo fixture needs `DEMO_MODE=1`, the signed-in creator owner, and at most 3 per creator per hour. |
 | `POST /api/trigger-default` | `TriggerDefault` | Demo only (`DEMO_MODE=1` and an `X-Admin-Key` header equal to `SMX_ADMIN_KEY`; `403` otherwise): fast-forwards the deadline and liquidates. |
-| `POST /dividends/{dividendId}/payment-request` | `CreateDividendPaymentRequest` | Returns x402 payment requirements, one per holder, built from SQL. |
-| `POST /dividends/{dividendId}/payment` | `PayDividend` | Creator pays the dividend. An optional `paymentPayload` (the creator-signed transfer) is settled first. |
+| `POST /dividends/{dividendId}/payment-request` | `CreateDividendPaymentRequest` | Legacy HBAR rail: x402 payment requirements, one per holder, built from SQL. |
+| `POST /dividends/{dividendId}/payment` | `PayDividend` | Onchain creator: body is the `txHash` of the creator-signed `distributeDividend`; the server verifies the `DividendDistributed` receipt. A live creator without a `txHash` gets `409`. Legacy rail: an optional `paymentPayload` is settled first. |
+| `POST /portfolio/claims` | `CreateDividendClaim` | Records a holder's `claim()` after the server verifies the `Claimed` receipt. |
 | `GET /events` | `StreamEvents` | SSE stream of `oracle_events` via pgmb. |
 | `GET`, `POST /mock-bank/login` | `GetMockBankLogin`, `MockBankLogin` | Fake bank login (any non-empty credentials) with an income scenario picker. |
 | `GET /mock-bank` | `GetMockBank` | Fake bank statement page for the chosen scenario. Needs the login cookie. |
@@ -305,28 +319,32 @@ The freeze is the safe stop: while the escrow is frozen, the creator can't
 receive tranches or reclaim the stake. Liquidation still follows if the grace
 period ends without an approved proof.
 
-## Dividend payout (x402 style)
+## Dividend payout
 
-When the agent approves a proof, a dividend becomes `DUE`. The creator pays it
-from the Hub:
+When the agent approves a proof, a dividend becomes `DUE`. For an onchain
+creator, USDC moves directly between wallets:
 
-1. The browser calls `CreateDividendPaymentRequest`. The server returns one
-   x402 payment requirement per holder, computed from SQL.
-2. The creator signs one Hedera multi-transfer in their own wallet
-   (WalletConnect with HashPack or Kabila, or a generated or imported ECDSA
-   key).
-3. The browser posts the signed payload to `PayDividend`. The server rebuilds
-   the requirements, checks every transfer, adds the operator fee-payer
-   signature, and executes the transaction on Hedera. HBAR amounts use the
-   testnet rate `DIVIDEND_HBAR_PER_USDC` (default 0.0001 HBAR per USDC).
-4. `pay_dividend` marks the dividend `PAID` and emits `DIVIDEND_PAID`.
+1. The creator signs `MockUSDC.approve` and `LiquidISA.distributeDividend(amount)`
+   from their wallet on the Hub.
+2. The browser posts the `txHash` to `PayDividend`. The server verifies the
+   `DividendDistributed` receipt, and `pay_dividend_onchain` marks the dividend
+   `PAID`. The oracle no longer pays these dividends.
+3. Holders click "Dividends to claim" on the Portfolio and sign `claim()`. The
+   server verifies the `Claimed` receipt and records it in `dividend_claims`.
 
-The stock x402 `exact` facilitator verifies one payee, so SMX settles the
-multi-payee transfer itself. Dividends settle live on Hedera testnet (for
-example `0.0.11340822@1793996054.174485762`). In production there is no
-simulated fallback: without operator keys, payment requests fail with `503`
-unless `HEDERA_ALLOW_SIMULATED=1`. Outside production, the rail returns
-simulated `sim:0x...` receipts without keys.
+Payouts follow onchain token ownership: tokens moved outside SMX still earn,
+and the pool is excluded.
+
+HBAR is now used only for gas, the x402 audit-report fee (0.1 HBAR, paid by
+agents and API buyers to the operator), and a legacy HBAR multi-transfer rail
+for DB-only or simulated creators (testnet rate `DIVIDEND_HBAR_PER_USDC`,
+default 0.0001 HBAR per USDC). The earlier live HBAR dividend
+`0.0.11340822@1793996054.174485762` is historical evidence of that rail. On
+mainnet the HBAR rail fails closed without an explicit rate or
+`HEDERA_DIVIDEND_TOKEN_ID`. In production the rail has no simulated fallback:
+without operator keys, payment requests fail with `503` unless
+`HEDERA_ALLOW_SIMULATED=1`. Outside production, it returns simulated
+`sim:0x...` receipts.
 
 ## Terms calculator
 
@@ -359,8 +377,8 @@ SMX is a hackathon build. This table shows the state as of 2026-11-07. See
 | Invest | Live onchain. Users sign `approve` and `LiquidISA.invest`; the server verifies the receipt. |
 | USDC | Mock. `MockUSDC` (not Circle USDC; Circle testnet USDC 0.0.429274 exists, but its faucet is too small) with an in-app faucet of 1,000 per click and a 50,000 cap. |
 | Pool liquidity | Protocol-provided: the protocol mints 10% of the target (minimum 100 USDC) of `MockUSDC` plus tokens at 1 USDC at raise close. |
-| Hedera ATS equity token | Live. With `ATS_MODE=live`, the operator key mints the token through the public ATS testnet Factory (for example `$MUSH`, `0xe3abC950d9daf866653931a314FF3F19E5276AFb`). A live error falls back to a simulated token. The default mode is simulated. `CreatorShareToken` stays the source of truth. |
-| Dividend payout | Live on Hedera: a creator-signed or operator HBAR multi-transfer to holders (tx `0.0.11340822@1793996054.174485762`). No simulated fallback in production. |
+| Hedera ATS equity token | One real ATS token minted: `$MUSH` (`0xe3abC950d9daf866653931a314FF3F19E5276AFb`) through the public ATS testnet Factory with `ATS_MODE=live`. New live mints currently revert (custom error `0x76f138fb`) and fall back to a simulated token. The default mode is simulated. `CreatorShareToken` stays the source of truth. |
+| Dividend payout | USDC for onchain creators: the creator signs `distributeDividend`, holders `claim()`, the server verifies both receipts. Onchain today: MUSH, RAVI, RAHUL; the other five creators are DB-only and use the legacy HBAR rail (no simulated fallback in production). |
 | World ID v4 | Live on a staging app; verified end to end with the Simulator. Production is possible; see [`world-id-debrief.md`](world-id-debrief.md). |
 | 0G audit | Live on 0G Private Computer through the 0G Router. If the call fails, the proof stays pending. |
 | 0G Storage | Live on Galileo. Uploads run in the background; refs start as `local:<sha256>`. |
@@ -368,7 +386,8 @@ SMX is a hackathon build. This table shows the state as of 2026-11-07. See
 | Reclaim | Provider live on the production mock bank; the end-to-end in-app callback test is pending. |
 | Bank | Mock. The mock bank stands in for a real bank with six scenarios; the zkTLS proof is real. |
 | Wallets | WalletConnect QR pairing verified. A full phone-wallet signature is not. |
-| Gaps | The Exchange "Dividends paid" and "Total raised" KPIs are approximate. |
+| Platform revenue | Only x402 fees today. Fees such as a listing or dividend fee are proposed, not built. |
+| Gaps | The Exchange "Dividends paid" and "Total raised" KPIs are approximate. The contract doesn't check the dividend amount against `shareBps`; `distributeDividend` is callable by anyone; trading outside SMX can't be frozen; the oracle key still signs lifecycle calls. |
 
 ## Optimistic UI
 

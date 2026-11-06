@@ -89,6 +89,10 @@ sequenceDiagram
 	I->>C: release tranche 0 (unless frozen)
 	V->>P: swapExactUsdcForTokens / swapExactTokensForUsdc
 	O->>I: unlockNextTranche() per milestone
+	C->>I: approve USDC, distributeDividend(amount)
+	I-->>C: DividendDistributed
+	V->>I: claim()
+	I-->>V: USDC dividend (Claimed)
 	alt missed deadline
 		O->>I: freezeEscrow()
 		Note over I,P: tranches stop, tradingOpen() is false
@@ -114,7 +118,16 @@ sequenceDiagram
    the amount raised, so they resize automatically.
 5. The oracle calls `unlockNextTranche()` after each verified milestone (never
    for a single-tranche ISA). The last tranche sweeps any rounding remainder.
-6. Anyone calls `distributeDividend(amount)`. Holders call `claim()`.
+6. After each approved income proof, the creator approves USDC to the ISA and
+   calls `distributeDividend(amount)` from their own wallet. The call emits
+   `DividendDistributed`, and the server verifies that receipt and marks the
+   dividend paid (`pay_dividend_onchain`). Holders call `claim()` to withdraw
+   USDC and the contract emits `Claimed`. The server verifies that receipt and
+   stores it in `dividend_claims` (`POST /portfolio/claims`). The oracle doesn't
+   pay these dividends. Payouts follow onchain token balances, so tokens moved
+   outside SMX still earn. The pool is excluded. The contract doesn't check the
+   amount against `shareBps`, and anyone can call `distributeDividend`; the
+   server checks that the amount matches the dividend due.
 7. After the term ends without a default, the creator calls `reclaimStake()`.
 8. The oracle can call `freezeEscrow()` and `unfreezeEscrow()` at any time (see
    [Safe-stop](#safe-stop)).

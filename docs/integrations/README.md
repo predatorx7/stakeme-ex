@@ -9,7 +9,7 @@ gotchas. Sponsors dropped from scope have no guides here.
 | --- | --- | --- | --- | --- | --- |
 | World ID | [world-id.md](world-id.md) | `@worldcoin/idkit-core` 4.6.0 | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION`, `WORLD_ENV` | Simulator (staging action); `DEMO_MODE=1` fixture with a fake nullifier | MVP, implemented |
 | Reclaim Protocol | [reclaim.md](reclaim.md) | `@reclaimprotocol/client` 0.1.43 | `RECLAIM_ORG_SECRET`, `RECLAIM_PROVIDER_ID`, `RECLAIM_ORG_ETH_PRIVATE_KEY` (optional) | `DEMO_MODE=1` fixture proof | MVP, implemented |
-| Hedera | [hedera.md](hedera.md) | `@hiero-ledger/sdk`, `viem` | `CHAIN_RPC_URL`, `ORACLE_PRIVATE_KEY`, `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_DIVIDEND_TOKEN_ID` | Simulated chain mode; simulated payouts | MVP, implemented |
+| Hedera | [hedera.md](hedera.md) | `@hiero-ledger/sdk`, `viem` | `CHAIN_RPC_URL`, `ORACLE_PRIVATE_KEY`, `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_DIVIDEND_TOKEN_ID` | Simulated chain mode; simulated HBAR payouts and ATS tokens | MVP, implemented |
 | 0G | [zero-g.md](zero-g.md) | `@0gfoundation/0g-compute-ts-sdk` 0.9.0, `@0gfoundation/0g-storage-ts-sdk` 1.2.13, `ethers` 6 | `ZG_RPC_URL`, `ZG_PRIVATE_KEY`, `ZG_INDEXER_URL`, `ZG_PROVIDER_ADDRESS`, `STORAGE_PROVIDER` | SQL rules engine and `local:<sha256>` refs | MVP, implemented |
 
 ## Adapters
@@ -26,8 +26,9 @@ Routes and workers never import a sponsor SDK. They call the adapters in
 
 ## Corrections to the product spec
 
-- **Hedera x402 moves HBAR or HTS tokens**, not EVM ERC-20 balances. See
-  [hedera.md](hedera.md).
+- **Hedera x402 moves HBAR or HTS tokens**, not EVM ERC-20 balances. HBAR is
+  now only gas, the x402 audit fee and a legacy rail; onchain dividends are
+  USDC through the ISA. See [hedera.md](hedera.md).
 - **0G packages were renamed** to `@0gfoundation/*`. The `@0glabs/*` packages
   are deprecated.
 - **World ID is now 4.0.** Sign the RP request on the server and verify with
@@ -63,14 +64,14 @@ Routes and workers never import a sponsor SDK. They call the adapters in
   the callback (the org currently delivers plaintext results; pass
   `RECLAIM_ORG_ETH_PRIVATE_KEY` only if encryption is on). See
   [reclaim.md](reclaim.md).
-- **0G.** The model call is `temperature: 0`, JSON only. A model answer that
-  accepts more than the deposit is rejected as
-  a Router failure and the proof stays PENDING (see
+- **0G.** The model call is `temperature: 0`, JSON only. The auditor judges authenticity and period, not size, but an answer that
+  accepts more than the deposit is rejected as a Router failure and the proof stays PENDING (see
   [zero-g.md](zero-g.md#router-mode-audit-verdict)). The L-ISA legal
   terms and every approve or deny log go to 0G Storage; the refs are stored in
   Postgres (`creators.terms_ref`, `income_proofs.audit_log_ref`).
 - **Live status.** World ID runs against the staging app and the Simulator, 0G
   Router audits and 0G Storage uploads run on Galileo, and contracts and
-  dividends run on Hedera testnet. Dividends are computed in MockUSDC and paid
-  as an HBAR multi-transfer at the fixed testnet rate `DIVIDEND_HBAR_PER_USDC`
-  (default `0.0001`). The details and the open gaps are in `CONTEXT.md`.
+  dividends run on Hedera testnet. Dividends are computed in MockUSDC. Onchain creators
+  pay them in MockUSDC through the ISA and holders claim; DB-only creators use
+  a legacy HBAR multi-transfer at `DIVIDEND_HBAR_PER_USDC` (default `0.0001`).
+  One real ATS token (`$MUSH`) is minted; new live mints currently revert. The details and the open gaps are in `CONTEXT.md`.

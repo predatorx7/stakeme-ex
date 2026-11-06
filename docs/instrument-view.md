@@ -84,3 +84,11 @@ Watchlist (signed in): `GET /watchlist`, `PUT /watchlist/{ticker}`,
 | Chart intervals and candles | `components/charts/CandleChart.tsx`, `client/chart-interval.ts` | `instrument-chart.css` |
 | Watchlist drawer | `components/instrument/Watchlist.tsx`, `client/watchlist.ts` | `instrument-watchlist.css` |
 | Price flash | `client/price-flash.ts` | `instrument-flash.css` |
+
+## Dividend claims
+
+The instrument page shows `DIVIDEND_PAID` in the corporate-actions timeline and
+the holder's position, but it doesn't claim dividends. Holders claim from
+`/portfolio` under **Dividends to claim**. Payouts follow onchain token
+ownership, so the claimable amount can differ from the `position` shown here
+when tokens moved outside SMX.

@@ -30,7 +30,7 @@ flowchart TD
 	t0["Tranche 0 released to creator, pool opens"]
 	proof["Each period: prove income on /hub (see income proof)"]
 	approved["Approved: audit_income_proof() creates dividend, releases next tranche"]
-	pay["Pay dividend from own wallet: POST /dividends/{id}/payment"]
+	pay["Pay USDC dividend from own wallet: distributeDividend, then POST /dividends/{id}/payment"]
 	term["Term ends: sweep_deadlines() returns stake, token is sell only"]
 
 	wallet --> siwe --> world --> launch --> ipo --> raise --> close --> t0 --> proof --> approved --> pay
@@ -51,6 +51,8 @@ Notes:
 - With the **No tranches** preset (`single`), 100% of the raise releases at
   close and no escrow milestones remain, so approved proofs only create
   dividends.
+- The launch form rejects a stake under 5% of the target raise. Tranche presets
+  run 2 to 5, with monthly or quarterly cadence.
 
 ## Investor journey
 
@@ -68,7 +70,7 @@ flowchart TD
 	buy["approve + pool swap, then POST /creators/{ticker}/trades"]
 	audit["Read audit logs: GET /creators/{ticker}, proofs and 0G Storage refs"]
 	hold["Hold token"]
-	div["Receive dividends: Hedera payout, see portfolio"]
+	div["Claim dividends on /portfolio: claim(), then POST /portfolio/claims"]
 	sell["Sell on the pool: POST /creators/{ticker}/trades"]
 
 	connect --> faucet --> browse --> choice
@@ -141,7 +143,11 @@ Notes:
   didn't decide it.
 - The rules engine runs only with `ZG_ALLOW_RULES_FALLBACK=1`, and the UI
   labels it. A model answer that breaks the rules is overridden in SQL.
-- The mock bank offers six income scenarios. A real bank works the same way
+- The mock bank offers six income scenarios: salary ($5,000, approved, $250
+  dividend, tranche released), low ($800, approved, $40, tranche locked), big
+  ($25,000, approved, $1,250), several deposits ($5,000 total, approved), none
+  ($0, approved, no dividend, tranche locked), and late (40 days old, denied by
+  the date pre-check). Switch user works while signed in. A real bank works the same way
   through its own Reclaim provider.
 - In `DEMO_MODE=1`, the Hub can post a fixture proof to `POST /api/audit-milestone`
   instead.
@@ -210,42 +216,40 @@ Notes:
 
 ## Dividend payment
 
-After an approved proof, the dividend is `DUE`. The creator funds their own
-Hedera wallet, signs one multi-transfer, and SMX settles it. The operator pays
-only in demo mode.
+After an approved proof, the dividend is `DUE`. For an onchain creator, the
+creator pays USDC into the `LiquidISA` contract from their own wallet, and each
+holder claims their share from Portfolio. The oracle doesn't pay these
+dividends.
 
 ```mermaid
 sequenceDiagram
 	autonumber
 	actor Creator
-	participant Browser as hedera-pay.ts
+	actor Holder
 	participant App as SMX app
-	participant Hedera
+	participant Chain as LiquidISA on Hedera
 	participant DB as Postgres
 
-	Creator->>Browser: Click pay on /hub
-	Browser->>App: POST /dividends/{id}/payment-request
-	App-->>Browser: x402 requirements, one per holder, total HBAR
-	Browser->>Hedera: Mirror node: read wallet balance
-	opt Balance below total
-		Browser-->>Creator: Fund wallet at the Hedera faucet
-	end
-	Creator->>Browser: Sign ONE HBAR multi-transfer (HashPack, Kabila, or local ECDSA key)
-	Browser->>App: POST /dividends/{id}/payment (paymentPayload)
-	App->>App: Rebuild requirements, check every transfer
-	App->>Hedera: Add fee-payer signature, execute
-	Hedera-->>App: Receipt, holders paid
-	App->>DB: pay_dividend(): PAID, DIVIDEND_PAID
-	Note over App,Hedera: Operator pays only when HEDERA_OPERATOR_PAYOUT=1 (demo)
+	Creator->>Chain: Sign MockUSDC approve + distributeDividend(amount)
+	Creator->>App: POST /dividends/{id}/payment (txHash)
+	App->>Chain: Verify DividendDistributed receipt
+	App->>DB: pay_dividend_onchain(): PAID, DIVIDEND_PAID
+	Holder->>Chain: Sign claim() on /portfolio, "Dividends to claim"
+	Holder->>App: POST /portfolio/claims (txHash)
+	App->>Chain: Verify Claimed event
+	App->>DB: Record in dividend_claims
 ```
 
 Notes:
 
-- HBAR amounts use the testnet rate `DIVIDEND_HBAR_PER_USDC`, 0.0001 HBAR per
-  USDC by default.
-- The worker (`streamPaidDividend`) handles `DIVIDEND_PAID` events. With live
-  Hedera keys, it spends the operator's HBAR only when
-  `HEDERA_OPERATOR_PAYOUT=1`, and it skips dividends the creator already
-  settled.
-- Without a signed payload, `PayDividend` only marks the dividend paid, and the
-  worker's operator payout covers holders in demo mode.
+- Payouts follow onchain token ownership. Tokens moved outside SMX still earn,
+  and the pool is excluded.
+- A low month still pays. The dividend is income times share ($800 at 5% is
+  $40), and $0 income creates no dividend. The next tranche releases only when
+  income meets the creator's minimum ($1,000 by default); otherwise it stays
+  locked.
+- DB-only creators use a legacy HBAR multi-transfer rail at the testnet rate
+  `DIVIDEND_HBAR_PER_USDC` (0.0001 HBAR per USDC). On mainnet it fails closed
+  without an explicit rate or `HEDERA_DIVIDEND_TOKEN_ID`.
+- Known gaps: the contract doesn't check the dividend amount against
+  `shareBps`, and anyone can call `distributeDividend`.

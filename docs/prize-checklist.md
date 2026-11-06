@@ -20,11 +20,11 @@ change.
 ## Summary
 
 You can pick up to 3 partner prizes, and several tracks from one partner count
-as one prize. SMX uses exactly three sponsors, so it fits.
+as one prize. SMX enters exactly three sponsors (Hedera, World, 0G), so it fits the limit of 3 partner prizes.
 
 | Sponsor | Best-fit track | Prize | Fit today | Biggest blocker |
 | --- | --- | --- | --- | --- |
-| Hedera | Tokenize Anything with Hedera Studios | $5,000 | Partly | ATS equity token minted live on testnet (`$MUSH`); the ATS token mirrors the cap table, and a live error falls back to simulated; contracts verified; video pending |
+| Hedera | Tokenize Anything with Hedera Studios | $5,000 | Partly | One real ATS equity token minted on testnet (`$MUSH`); it mirrors the cap table, and new live mints currently revert and fall back to simulated; contracts verified; video pending |
 | Hedera | AI Agents That Pay: x402 on Hedera | $6,500 | Partly | Paid endpoint and agent met with tx links; recorded run was on a local instance, public-site rerun pending; video pending |
 | World | Best Use of IDKit | $2,500 (2 x $1,250) | Met | Debrief written (`docs/world-id-debrief.md`, about 8 minutes to first success); video pending |
 | World | World ID Agent Pass | $5,000 | Not met | SMX uses IDKit proof of human, not Agent Pass |
@@ -65,20 +65,20 @@ freeze, liquidation).
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| "Use Asset Tokenization Studio or Stablecoin Studio to issue or manage a tokenized asset or stablecoin." | Met | With `ATS_MODE=live`, `packages/app/src/integrations/hedera-ats.ts` calls the public ATS testnet Factory (`deployEquity`, then `mint`) with viem. `$MUSH` is [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (about 0.23 HBAR). Honest limits: the default mode is simulated, a live error falls back to a simulated token, and the ATS token mirrors the cap table while `CreatorShareToken` is the source of truth. |
-| "Deploy and demo on Hedera testnet" | Met | Own contracts are live on chain 296 (addresses above), the ATS equity token is live, and a dividend settled live on Hedera ([`0.0.11340822@1793996054.174485762`](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762)). |
+| "Use Asset Tokenization Studio or Stablecoin Studio to issue or manage a tokenized asset or stablecoin." | Met | With `ATS_MODE=live`, `packages/app/src/integrations/hedera-ats.ts` calls the public ATS testnet Factory (`deployEquity`, then `mint`) with viem. `$MUSH` is [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (about 0.23 HBAR). Honest limits: one real ATS token minted; the default mode is simulated, new live mints currently revert (custom error `0x76f138fb`) and fall back to a simulated token, and the ATS token mirrors the cap table while `CreatorShareToken` is the source of truth. |
+| "Deploy and demo on Hedera testnet" | Met | Own contracts are live on chain 296 (addresses above), the ATS equity token is live, and dividends are USDC (creator signs `distributeDividend`, holders `claim()`). The earlier live HBAR dividend ([`0.0.11340822@1793996054.174485762`](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762)) is historical evidence of the legacy HBAR rail; No USDC dividend transaction is listed here yet. |
 | "with contracts verified on HashScan where applicable" | Met | All five contracts are verified on Sourcify (exact runtime match), which HashScan displays; factory `0xc6b7af9392538bc596caed4a5758b9d92f650e59`. |
-| Public repo and demo video of 5 minutes or less "covering issuance, configuration, and at least one lifecycle operation" | Partly | Lifecycle (tranche release, freeze, liquidation, live dividend) ran on Hedera testnet and a local Hardhat node. Video pending. |
+| Public repo and demo video of 5 minutes or less "covering issuance, configuration, and at least one lifecycle operation" | Partly | Lifecycle (tranche release, freeze, liquidation, dividend) ran on Hedera testnet and a local Hardhat node. Video pending. |
 
 Extra points listed on the page that SMX already has: compliance freezes
 (`freezeEscrow`/`unfreezeEscrow`), and dividend distributions.
 
 Actions, by impact:
 
-1. Show the `$MUSH` ATS token on HashScan in the video, then a live dividend
-   transaction.
-2. Say plainly that the ATS token mirrors the cap table, and that a live ATS
-   error falls back to a simulated token.
+1. Show the `$MUSH` ATS token on HashScan in the video, then a USDC
+   `distributeDividend` and `claim()` transaction.
+2. Say plainly that the ATS token mirrors the cap table, and that new live ATS
+   mints currently revert and fall back to a simulated token.
 3. Done: contracts verified on Sourcify and linked in `README.md`.
 
 ### Track: AI Agents That Pay: x402 on Hedera ($6,500)
@@ -88,7 +88,7 @@ endpoint (the audit report) and runs a research agent that pays for it.
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| "Deploy at least one x402-protected endpoint that settles on Hedera testnet or mainnet, via a listed facilitator or your own." | Met | `GET /creators/{ticker}/audit-report` (0.1 HBAR) answers 402 unpaid on the public site and settles via the `x402.org` facilitator. See `docs/x402-agent.md`. |
+| "Deploy at least one x402-protected endpoint that settles on Hedera testnet or mainnet, via a listed facilitator or your own." | Met | `GET /creators/{ticker}/audit-report` (0.1 HBAR, the one place the platform earns revenue today) answers 402 unpaid on the public site and settles via the `x402.org` facilitator. See `docs/x402-agent.md`. |
 | "Have an agent or client find the endpoint and complete at least one paid request with no human approving." | Met | `packages/app/scripts/x402-research-agent.ts` paid three audit reports (CHEF, LOFI, MUSH) with spend controls and no human approval; links in `docs/x402-agent.md`. The run used a local instance; a public-site rerun is pending. |
 | Public repo README "covers setup, architecture, and the payment flow, including a Hedera transaction ID" | Met | Settled Hedera testnet transaction IDs are in `docs/x402-agent.md` and `CONTEXT.md`. Public-site rerun pending. |
 | Demo video of 5 minutes or less "showing a settled payment linked on HashScan" | Partly | Settled payments are linked on HashScan in `docs/x402-agent.md`; video pending. |
@@ -187,8 +187,8 @@ Not eligible. It is for Continuity Track projects.
 
 ## Top actions across all sponsors
 
-Done: hosted app, 0G request IDs, Sourcify verification, live ATS mint, live
-dividend settlement, onchain trading, World debrief, AI disclosure, commit
+Done: hosted app, 0G request IDs, Sourcify verification, one real ATS mint,
+USDC dividends and claims, onchain trading, World debrief, AI disclosure, commit
 history. Remaining:
 
 1. Finish the production redeploy and confirm the site answers 200 again.

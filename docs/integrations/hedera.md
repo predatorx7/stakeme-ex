@@ -4,30 +4,31 @@ Verified against npm, the Asset Tokenization Studio (ATS) packages, and
 docs.hedera.com on 2026-11-06.
 
 **Status:** live on testnet, with SIMULATED fallbacks for runs without keys.
-The ATS equity mint ran live on 2026-11-07 (see
-[Live result on testnet](#live-result-on-testnet)); the default mode stays
-simulated (`ATS_MODE=simulated`). Dividends settle live as an HBAR
-multi-transfer (see [Dividend payout](#dividend-payout)), and the audit-report
-x402 paywall settles real HBAR payments (see
-[x402 research agent](../x402-agent.md)).
+One real ATS equity token (`$MUSH`) was minted live; new live mints currently
+revert, so they fall back to simulated (see
+[Live result on testnet](#live-result-on-testnet)). The default mode stays
+simulated (`ATS_MODE=simulated`). Dividends for onchain creators are USDC
+through the ISA (see [Dividend payout](#dividend-payout)). HBAR pays only gas,
+the 0.1 HBAR x402 audit-report fee (see [x402 research agent](../x402-agent.md))
+and a legacy multi-transfer rail for DB-only or simulated creators.
 
-SMX uses these Hedera features, all through native Hedera transactions:
+SMX uses these Hedera features:
 
 | Feature | What it does | Code |
 | --- | --- | --- |
 | Hedera EVM | Hosts `LiquidISAFactory`, `LiquidISA`, `CreatorShareToken`, `CreatorPool` and `MockUSDC` (chain `296`). | `packages/contracts`, `integrations/chain.ts` |
 | Asset Tokenization Studio | Mints the creator's equity token (for example `$MUSH`) through the public ATS Factory on testnet when `ATS_MODE=live`; otherwise simulated. | `integrations/hedera-ats.ts` |
-| x402 dividend loop | The creator's wallet signs one Hedera transfer that pays every holder. | `services/payment/hedera-*.ts`, `client/hedera-pay.ts` |
+| Legacy HBAR dividend rail | For DB-only or simulated creators, the creator's wallet signs one Hedera transfer that pays every holder. Onchain creators pay USDC through the ISA instead. | `services/payment/hedera-*.ts`, `client/hedera-pay.ts` |
 | x402 audit paywall | `GET /creators/{ticker}/audit-report` answers 402 until the caller pays 0.1 HBAR. | `routes/GetCreatorAuditReport.ts`, `services/payment/x402-paywall.ts` |
 
 ```mermaid
 flowchart LR
 	A["0G agent approves income"] --> B["Dividend DUE"]
 	B --> C["Creator clicks Pay on the Hub"]
-	C --> D["x402 payment request"]
-	D --> E["Wallet signs one Hedera transfer"]
-	E --> F["Server settles on Hedera"]
-	F --> G["Holders receive HBAR"]
+	C --> D["Wallet signs USDC approve + distributeDividend"]
+	D --> E["Server verifies DividendDistributed receipt"]
+	E --> F["Dividend PAID, holders claim USDC"]
+	C -.->|"DB-only creator"| G["Legacy HBAR multi-transfer"]
 	H["IPO: createISA"] --> I["ATS equity token (live or simulated)"]
 	H --> J["LiquidISA escrow on Hedera EVM"]
 	K["Missed proof deadline"] --> L["freezeEscrow"]
@@ -59,11 +60,11 @@ Hashio is for development only and can throttle. Keep a fallback relay URL in
 
 | Variable | Secret | Description |
 | --- | --- | --- |
-| `HEDERA_OPERATOR_ID` | No | `0.0.x` operator account. It pays network fees for dividend payments (the x402 fee payer). Legacy alias: `HEDERA_ACCOUNT_ID`. |
+| `HEDERA_OPERATOR_ID` | No | `0.0.x` operator account. It is the x402 fee payer and receives the audit-report fee. Legacy alias: `HEDERA_ACCOUNT_ID`. |
 | `HEDERA_OPERATOR_KEY` | Yes | ECDSA key of the operator, raw `0x` hex or Hedera DER hex. Legacy alias: `HEDERA_PRIVATE_KEY`. Create an ECDSA account in the [Hedera portal](https://portal.hedera.com). |
 | `HEDERA_NETWORK` | No | `testnet` (default) or `mainnet`. |
-| `HEDERA_DIVIDEND_TOKEN_ID` | No | HTS token id for the dividend asset (a testnet USDC, 6 decimals). Unset means HBAR. |
-| `DIVIDEND_HBAR_PER_USDC` | No | Testnet conversion for HBAR dividends: HBAR sent per 1 USDC due. Default `0.0001` on testnet, so a $250 dividend sends 0.025 HBAR. No default on mainnet: unset there (without a token id) turns the HBAR rail off. Up to 8 decimals. Not a market price. |
+| `HEDERA_DIVIDEND_TOKEN_ID` | No | HTS token id for the legacy rail's dividend asset (a testnet USDC, 6 decimals). Unset means HBAR. |
+| `DIVIDEND_HBAR_PER_USDC` | No | Testnet conversion for the legacy HBAR rail: HBAR sent per 1 USDC due. Default `0.0001` on testnet, so a $250 dividend sends 0.025 HBAR. No default on mainnet: unset there (without a token id) turns the HBAR rail off. Up to 8 decimals. Not a market price. |
 | `HEDERA_ALLOW_SIMULATED` | No | In production, `1` allows SIMULATED receipts when no operator keys are set. Outside production they are always allowed. |
 | `HEDERA_OPERATOR_PAYOUT` | No | `1` lets the worker pay holders from the operator's own HBAR when the creator did not sign (the demo "Mark as paid"). Default off. |
 | `HEDERA_RPC_URL` | No | JSON-RPC relay for ATS calls when `CHAIN_RPC_URL` is unset. Default Hashio. |
@@ -148,6 +149,9 @@ in the ATS repo. No deployment of your own is needed.
 | `deployEquity` tx | [`0x02f86bdb...c063df8`](https://hashscan.io/testnet/transaction/0x02f86bdb93777d03b4868e09d0f67789c4bf892c84e0f4f939803d909c063df8) |
 | `mint` tx | [`0x734d4aa3...cd1c77fdf`](https://hashscan.io/testnet/transaction/0x734d4aa32ce0efce009b9c705ccbad57005fd7243f864eabf19ea50cd1c77fdf) |
 | Cost | about 0.23 HBAR |
+
+This is the only real ATS token. New live mints currently revert (custom error
+`0x76f138fb`) and fall back to simulated.
 
 ### Prerequisites and limits
 

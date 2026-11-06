@@ -5,19 +5,20 @@
 SMX is a liquid stock market for human potential. A creator sells a share of
 future income, 5% for 5 years by default, to investors who fund the raise in
 USDC and receive tradable creator tokens such as `$MUSH`. The creator proves
-income with a bank proof, an AI auditor approves it, and holders earn
-dividends. If the creator stops proving income, the escrow freezes and
-investors get refunds.
+income with a bank proof, an AI auditor checks that it is genuine and in
+period, and holders earn USDC dividends. If the creator stops proving income,
+the escrow freezes and investors get refunds.
 
 Live app: <https://stakeme.magnificlabs.org>. It runs on Hedera testnet, World
 ID staging and 0G testnet, with a mock bank and MockUSDC.
 
 ## How it works
 
-1. **Launch.** The creator verifies as one human with World ID, stakes $500
-   USDC, and sets the terms: income share, social links, proof cadence and a
-   tranche preset. The terms go to 0G Storage and the equity token is minted
-   on Hedera.
+1. **Launch.** The creator verifies as one human with World ID, stakes at
+   least 5% of the target raise in USDC, and sets the terms: income share,
+   social links, proof cadence and a tranche preset. The terms go to 0G Storage
+   and an equity token is minted through Hedera ATS (one real ATS token so far,
+   `$MUSH`).
 2. **Fund.** Investors sign `approve` and `LiquidISA.invest` in their own
    wallet. The money sits in a Hedera escrow. The creator picks 2 to 5
    tranches, or "No tranches", which releases everything when the raise closes.
@@ -26,12 +27,18 @@ ID staging and 0G testnet, with a mock bank and MockUSDC.
 3. **Prove income.** The creator proves a bank deposit with a Reclaim zkTLS
    proof, without sharing bank credentials. The demo bank is a mock with six
    income scenarios, chosen at login.
-4. **Audit.** The auditor agent on 0G Private Computer checks the proof
-   against the terms and approves or denies it. Approval releases the next
-   tranche and creates a dividend.
-5. **Pay and trade.** The creator signs one Hedera multi-transfer that pays
-   every holder (x402 style). From raise close, holders trade the token in a
-   `CreatorPool` AMM.
+4. **Audit.** The auditor agent on 0G Private Computer checks that the proof
+   is genuine and in the reporting period. It does not judge size. Any genuine
+   in-period proof is approved and creates a dividend of income times share
+   ($800 at 5% is $40; $0 means no dividend). The next tranche releases only if
+   income meets the creator's minimum (default $1,000); a low month stays
+   approved with the tranche locked, with no freeze. Invalid or duplicate
+   proofs and out-of-period dates are rejected.
+5. **Pay and trade.** For onchain creators, the creator signs a MockUSDC
+   `approve` and `LiquidISA.distributeDividend` in their wallet. The server
+   verifies the `DividendDistributed` receipt. Holders claim with `claim()` from
+   Portfolio, and payouts follow onchain token ownership (the pool is
+   excluded). From raise close, holders trade the token in a `CreatorPool` AMM.
 6. **Default.** A missed proof deadline or an unpaid dividend freezes the
    escrow. If no approved proof arrives within 14 days, SMX refunds the
    escrow to current token holders, slashes the stake to them, and blacklists
@@ -40,10 +47,10 @@ ID staging and 0G testnet, with a mock bank and MockUSDC.
 
 ```mermaid
 flowchart LR
-	ipo["World ID check, $500 stake, terms on 0G Storage, ATS token"] --> raise["Raise into Hedera escrow, tranche 0 paid at close"]
+	ipo["World ID check, 5% stake, terms on 0G Storage, ATS token"] --> raise["Raise into Hedera escrow, tranche 0 paid at close"]
 	raise --> proof{"Reclaim proof by deadline?"}
-	proof -->|"Yes"| audit["0G agent approves, 5% dividend due"]
-	audit --> pay["Next tranche unlocked, x402 payout on Hedera"]
+	proof -->|"Yes"| audit["0G agent approves, dividend due"]
+	audit --> pay["USDC dividend claimable, tranche released if income meets minimum"]
 	proof -->|"No"| freeze["0G agent freezes escrow"]
 	freeze --> grace{"Proof within 14 days?"}
 	grace -->|"Yes"| audit
@@ -61,14 +68,15 @@ exhaustive.
 
 | Area | Status |
 | --- | --- |
-| Hedera contracts, invest, trading | Real on testnet (chain 296), verified on Sourcify. Users sign `approve`, `invest` and swaps in their wallet. |
-| Dividend payout | Real HBAR multi-transfer at the testnet rate `DIVIDEND_HBAR_PER_USDC=0.0001`. No simulated fallback in production. |
-| Hedera ATS equity token | Real with `ATS_MODE=live`. A live error falls back to a simulated token. The default mode is simulated. |
+| Hedera contracts, invest, trading | Real on testnet (chain 296), verified on Sourcify. Users sign `approve`, `invest` and swaps in their wallet. Production: `$MUSH`, `$RAVI` and `$RAHUL` are onchain; the other 5 seeded creators are DB-only. |
+| Dividends | Real USDC for onchain creators: the creator signs `distributeDividend`, holders sign `claim()`. A legacy HBAR multi-transfer rail remains only for DB-only or simulated creators (testnet rate 0.0001 HBAR per USDC). |
+| HBAR | Gas, the 0.1 HBAR x402 audit-report fee, and the legacy rail. |
+| Hedera ATS equity token | One real ATS token minted (`$MUSH`). New live mints currently revert and fall back to a simulated token. |
 | World ID | Real v4 proof on a staging app, verified with the Simulator. |
 | 0G audit | Real, on 0G Private Computer. If the call fails, the proof stays pending. |
 | 0G Storage | Real on Galileo. Uploads run in the background; the ref is `local:<sha256>` until done. |
 | Reclaim | The zkTLS proof is real. The end-to-end in-app callback test is pending. |
-| Bank | Mock. |
+| Bank | Mock (six income scenarios). |
 | USDC | Mock (`MockUSDC`), with a faucet of 1,000 per click and a 50,000 cap. |
 | Pool liquidity | Protocol-provided at raise close. |
 | Wallets | WalletConnect QR pairing is verified. A full phone-wallet signature is not. |
@@ -103,6 +111,58 @@ curl -X POST localhost:4020/api/trigger-default \
 	-H "X-Admin-Key: $SMX_ADMIN_KEY" -d '{"ticker":"RAHUL"}'
 ```
 
+## Payment flows
+
+Dividends and the paywalled audit report use different rails.
+
+```mermaid
+sequenceDiagram
+	participant C as Creator wallet
+	participant S as SMX server
+	participant H as Hedera EVM
+	participant U as Holder wallet
+	C->>H: "approve MockUSDC, then distributeDividend(amount)"
+	C->>S: "Submit tx hash"
+	S->>H: "Verify DividendDistributed receipt"
+	S->>S: "pay_dividend_onchain marks dividend PAID"
+	U->>H: "claim()"
+	U->>S: "Submit tx hash"
+	S->>H: "Verify Claimed, record in dividend_claims"
+```
+
+- **Dividends (USDC).** Payouts follow onchain token ownership, so tokens moved
+  outside SMX still earn. The oracle no longer pays them.
+- **x402 audit report (HBAR).** `GET /creators/{ticker}/audit-report` returns
+  `402` with a price of 0.1 HBAR. An agent or API buyer signs a Hedera transfer
+  to the operator, retries with `X-PAYMENT`, and reads the Hedera transaction ID
+  from `X-PAYMENT-RESPONSE`. See [x402-agent.md](docs/x402-agent.md).
+- **Legacy HBAR rail.** One multi-transfer pays all holders. Only DB-only or
+  simulated creators use it. On mainnet it fails closed without an explicit rate
+  or `HEDERA_DIVIDEND_TOKEN_ID`.
+
+```mermaid
+sequenceDiagram
+	participant A as Agent or buyer
+	participant S as SMX server
+	participant H as Hedera
+	A->>S: "GET /creators/MUSH/audit-report"
+	S-->>A: "402, 0.1 HBAR to operator"
+	A->>H: "Signed HBAR transfer"
+	A->>S: "Retry with X-PAYMENT"
+	S-->>A: "200 report, X-PAYMENT-RESPONSE with tx ID"
+```
+
+## Known gaps
+
+- The contract does not check the dividend amount against `shareBps`, and
+  anyone can call `distributeDividend`.
+- Trading outside SMX cannot be frozen.
+- The oracle key still signs lifecycle calls.
+- MockUSDC, the mock bank, protocol-seeded pool liquidity and World ID staging
+  with the Simulator are not production.
+- Platform revenue today is x402 fees only. Listing, dividend and swap fees are
+  proposed, not built.
+
 ## Learn more
 
 - [Product spec](docs/product-spec.md): what SMX does, data model, routes
@@ -119,7 +179,7 @@ curl -X POST localhost:4020/api/trigger-default \
 
 | Sponsor | What SMX uses | Guide |
 | --- | --- | --- |
-| Hedera | `LiquidISA` escrow, `CreatorPool` AMM and factory on Hedera EVM testnet (chain 296). Equity token minted through the public ATS testnet Factory (`ATS_MODE=live`). x402 dividend payouts. Safe-stop escrow freeze. | [hedera.md](docs/integrations/hedera.md), [contracts.md](docs/contracts.md) |
+| Hedera | `LiquidISA` escrow, `CreatorPool` AMM and factory on Hedera EVM testnet (chain 296). Equity token minted through the public ATS testnet Factory (`ATS_MODE=live`). USDC dividends and claims. Safe-stop escrow freeze. HBAR for gas and x402 fees. | [hedera.md](docs/integrations/hedera.md), [contracts.md](docs/contracts.md) |
 | World ID | v4 proof of human at IPO. Server signs the request (`POST /api/rp-signature`) and verifies the proof. Nullifier stored in Postgres and on the factory. | [world-id.md](docs/integrations/world-id.md) |
 | 0G | Auditor agent on 0G Private Computer (Router); request ID, model and provider shown per proof. Without it, no proof is approved. Rules engine only behind `ZG_ALLOW_RULES_FALLBACK=1`. Terms and every audit log go to 0G Storage through a background outbox. Triggers the safe-stop freeze. | [zero-g.md](docs/integrations/zero-g.md) |
 
@@ -128,8 +188,7 @@ demo proves a deposit on a mock bank (`/mock-bank`, six income scenarios) with a
 built in the Reclaim developer tools. See [reclaim.md](docs/integrations/reclaim.md).
 
 Most integrations have a demo fallback, so the app runs end to end with no keys:
-chain calls end as `SIMULATED`, and `DEMO_MODE=1` accepts fixture proofs. Dividend
-settlement has no simulated fallback in production.
+chain calls end as `SIMULATED`, and `DEMO_MODE=1` accepts fixture proofs.
 
 Chainlink CRE, Arkiv, and Arc were dropped from scope. Their notes are no
 longer in this repo.
@@ -143,13 +202,13 @@ Links checked on 2026-11-07.
 | --- | --- |
 | App and code | Live app: [stakeme.magnificlabs.org](https://stakeme.magnificlabs.org). Repo: [predatorx7/stakeme-ex](https://github.com/predatorx7/stakeme-ex). |
 | Hedera contracts | Verified on Sourcify (exact match): LiquidISAFactory [`0xc6b7af9392538bc596caed4a5758b9d92f650e59`](https://hashscan.io/testnet/contract/0xc6b7af9392538bc596caed4a5758b9d92f650e59), MockUSDC [`0x40027d9375311fa44b95ef881a92374b1dbf8ec4`](https://hashscan.io/testnet/contract/0x40027d9375311fa44b95ef881a92374b1dbf8ec4), LiquidISA implementation [`0x3f61050ad9fb221992742f10b34237b06a97e361`](https://hashscan.io/testnet/contract/0x3f61050ad9fb221992742f10b34237b06a97e361), CreatorShareToken implementation [`0x81521abe9ddc7dc792b4c6f4262a48bc744426ff`](https://hashscan.io/testnet/contract/0x81521abe9ddc7dc792b4c6f4262a48bc744426ff), CreatorPool implementation [`0xe310d76b357be72439e78fff84a82fe486fba84b`](https://hashscan.io/testnet/contract/0xe310d76b357be72439e78fff84a82fe486fba84b). Details in [contracts.md](docs/contracts.md#verification). |
-| Hedera ATS | `$MUSH` equity token minted through the public ATS testnet Factory: [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (0.0.11345067). `deployEquity` tx [`0x02f86bdb...c063df8`](https://hashscan.io/testnet/transaction/0x02f86bdb93777d03b4868e09d0f67789c4bf892c84e0f4f939803d909c063df8), `mint` tx [`0x734d4aa3...cd1c77fdf`](https://hashscan.io/testnet/transaction/0x734d4aa32ce0efce009b9c705ccbad57005fd7243f864eabf19ea50cd1c77fdf). Details in [hedera.md](docs/integrations/hedera.md#live-result-on-testnet). |
-| Hedera dividend | Live holder dividend, one HBAR multi-transfer: [`0.0.11340822@1793996054.174485762`](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762). |
+| Hedera ATS | One real ATS token, `$MUSH`, minted through the public ATS testnet Factory: [`0xe3abC950d9daf866653931a314FF3F19E5276AFb`](https://hashscan.io/testnet/contract/0xe3abC950d9daf866653931a314FF3F19E5276AFb) (0.0.11345067). `deployEquity` tx [`0x02f86bdb...c063df8`](https://hashscan.io/testnet/transaction/0x02f86bdb93777d03b4868e09d0f67789c4bf892c84e0f4f939803d909c063df8), `mint` tx [`0x734d4aa3...cd1c77fdf`](https://hashscan.io/testnet/transaction/0x734d4aa32ce0efce009b9c705ccbad57005fd7243f864eabf19ea50cd1c77fdf). Details in [hedera.md](docs/integrations/hedera.md#live-result-on-testnet). |
+| Hedera dividend (legacy HBAR rail) | Earlier live holder dividend, one HBAR multi-transfer: [`0.0.11340822@1793996054.174485762`](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762). Dividends for onchain creators are now USDC claims, shown in the contract links above. |
 | Hedera x402 | `GET /creators/{ticker}/audit-report` answers 402 until paid in HBAR. Settled payments: [`0.0.9185802@1793985016.835902874`](https://hashscan.io/testnet/transaction/0.0.9185802@1793985016.835902874) (first), [`0.0.9185802@1793992761.545261642`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992761.545261642), [`0.0.9185802@1793992766.013363358`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992766.013363358), [`0.0.9185802@1793992768.127890663`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992768.127890663). Run log in [x402-agent.md](docs/x402-agent.md). |
 | World ID | App `app_0b5a20d804cb26e5008896d976fc4193` (staging, World ID Simulator). Server verifies with the v4 verify route. Walkthrough: [world-id-debrief.md](docs/world-id-debrief.md). |
 | 0G | Private Computer request ID `3a1c2f3b-6177-4ab8-aa52-c1b5ff80dc8c`, model `0gm-1.0-35b-a3b`. 0G Storage root [`0xaf42ce4081e282b15c052880ad6ab351a3a2d4d2b8bc63d15dff91929b9bb394`](https://indexer-storage-testnet-turbo.0g.ai/file/info/0xaf42ce4081e282b15c052880ad6ab351a3a2d4d2b8bc63d15dff91929b9bb394) (finalized). |
 | Reclaim | Provider ID `3fefebae-05cb-4d6b-b319-f3f639a31201`, v0.1.2, run against the production mock bank. |
-| Simulated or mock | MockUSDC stands in for Circle USDC. The bank is a mock (the zkTLS proof is real). Pool liquidity is protocol-provided. World ID runs on staging. |
+| Simulated or mock | MockUSDC stands in for Circle USDC. The bank is a mock (the zkTLS proof is real). Pool liquidity is protocol-provided. World ID runs on staging with the Simulator. |
 
 ### Architecture
 
@@ -194,7 +253,7 @@ directly:
 | --- | --- | --- |
 | `IStorageProvider` | `ZeroGravityStorage` (0G Storage) | Local content hash |
 | `IOracle` | `ZeroGravityAgent` (fetches and verifies Reclaim proofs, audits on 0G Compute) | Rules engine with fixture proofs |
-| `IPaymentRail` (in `PaymentService`) | Hedera rail (native transfers, x402) | Simulated receipts |
+| `IPaymentRail` (in `PaymentService`) | Hedera rail (x402 fees, legacy HBAR dividends) | Simulated receipts |
 
 ### Connect real testnets
 
@@ -203,7 +262,7 @@ demo mode.
 
 | Sponsor | Variables |
 | --- | --- |
-| Hedera | `CHAIN_RPC_URL` (Hashio), `ORACLE_PRIVATE_KEY`, `FACTORY_ADDRESS`, `USDC_ADDRESS`, `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_DIVIDEND_TOKEN_ID` (optional HTS token; HBAR otherwise) |
+| Hedera | `CHAIN_RPC_URL` (Hashio), `ORACLE_PRIVATE_KEY`, `FACTORY_ADDRESS`, `USDC_ADDRESS`, `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_DIVIDEND_TOKEN_ID` (optional HTS token for the legacy rail; HBAR otherwise) |
 | Hedera ATS | `ATS_MODE=live` (signs with the operator key). `ATS_FACTORY_ADDRESS` and `ATS_RESOLVER_ADDRESS` default to the public testnet deployment. |
 | World ID | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION`, `WORLD_ENV` (`staging` for the Simulator) |
 | 0G | `ZG_PRIVATE_KEY`, `ZG_RPC_URL`, `ZG_INDEXER_URL`, `STORAGE_PROVIDER` (`0g` or `local`), `ZG_STORAGE_MIN_BALANCE`; for Compute (opt-in) also `ZG_COMPUTE_ENABLED`, `ZG_PROVIDER_ADDRESS`, `ZG_LEDGER_DEPOSIT` |
