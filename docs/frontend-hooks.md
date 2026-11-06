@@ -110,7 +110,7 @@ the vanilla JavaScript path in the WalletConnect App SDK docs, wrapped as an
 EIP-1193 provider for viem's `custom()`. It keeps its sessions under the
 storage prefix `smx-evm`. 1inch Wallet's WalletConnect id is looked up with
 the WalletConnect explorer API (`search=1inch`) at connect time, so the id
-isn't hard-coded; if the lookup fails the wallet list just isn't reordered.
+isn't hard-coded. If the lookup fails, the wallet list keeps its default order.
 
 ## Export a local key (`key-export.ts`)
 
@@ -240,7 +240,7 @@ attributes, with slippage presets (`[data-slippage-bps]`) or a custom value
 ## Hedera dividend payment (`hedera-pay.ts`)
 
 The creator pays a due dividend from the Hub. The module asks the server for
-x402 payment requirements, signs **one** Hedera `TransferTransaction` that pays
+x402 payment requirements, signs one Hedera `TransferTransaction` that pays
 every holder, and posts it back for settlement.
 
 ```html
@@ -327,4 +327,4 @@ gzipped) load only when the user picks WalletConnect.
 - Don't render the Reclaim app secret or the World ID signing key anywhere.
   The browser only ever sees request URLs and RP signatures.
 - The bundle loads IDKit and `qrcode` lazily (separate chunks), so pages
-  without these hooks pay nothing for them.
+  without these hooks don't download them.

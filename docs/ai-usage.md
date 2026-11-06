@@ -13,12 +13,12 @@ fetched 2026-11-06:
 
 ## Summary
 
-The developer, working solo, used **Claude Code** (Anthropic) as an AI coding agent. The lead
-agent planned the work, split it into workstreams, and delegated them to
-parallel subagents. Most of the code, tests, and documentation in this
-repository was written by AI agents. The developer directed the product, made
-the scope decisions, gave design feedback, did every step an agent cannot do,
-and reviewed the results.
+The developer, working solo, used Claude Code (Anthropic) as an AI coding agent.
+The lead agent planned the work, split it into workstreams, and delegated them
+to parallel subagents. AI agents wrote most of the code, tests, and
+documentation in this repository. The developer directed the product, made the
+scope decisions, gave design feedback, did every step an agent cannot do, and
+reviewed the results.
 
 ## Tools used
 
@@ -75,14 +75,10 @@ decided, directed, set up, and checked.
   stuck deployment, and passed on judge feedback about last year's projects so
   the pitch and docs described the project honestly.
 
-Honest summary: AI agents wrote most of the code, tests, and docs. The developer
-directed the work through the prompts above, made the product and scope
-decisions, did the account and infrastructure steps that agents cannot do, and
-verified results (see below). The prompt log shows direction and feedback, not
-the agents' replies; the agents' output is the code and docs in this
-repository.
+The prompt log shows direction and feedback, not the agents' replies. The
+agents' output is the code and docs in this repository.
 
-## The developer's role in short
+## The developer's role
 
 - Set the product direction: the liquid income share agreement (L-ISA) idea,
   the user journeys, and the pitch. See [`pitch.md`](pitch.md).
@@ -116,7 +112,7 @@ repository.
   from the Simulator, and 0G Storage uploads on Galileo. Results and known gaps
   are in `CONTEXT.md` ("Live testnet status", "Remaining", "Known issues").
 - Browser checks of the UI.
-- Honest labeling of what is simulated. See "What is real and what is
+- Labels on what is simulated. See "What is real and what is
   simulated" in [`pitch.md`](pitch.md) and [`prize-checklist.md`](prize-checklist.md).
 
 AI output can contain errors. Where a check did not run live, the docs say so.
@@ -141,5 +137,5 @@ the text in quotation marks in them is quoted from a repo file.
 
 ## Version control
 
-The work is committed to Git in small steps. Earlier commits were few and
-large; the developer commits in smaller steps from now on.
+The work is in Git. Earlier commits were few and large; later commits are
+smaller.

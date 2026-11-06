@@ -15,10 +15,10 @@ creator tokens (for example, `$MUSH`). Token holders earn dividends from
 verified Web2 income and can trade tokens on an exchange.
 
 Built for ETHGlobal Mumbai (hackathon MVP). The demo runs end to end on a
-laptop with no paid services and no testnet keys (simulated chain mode). With
-keys, the same app runs against Hedera testnet, World ID staging, and 0G
-Galileo. See [Implementation status](#implementation-status) for what is live
-and what is simulated.
+laptop without paid services or testnet keys (simulated chain mode). With keys,
+the same app runs against Hedera testnet, World ID staging, and 0G Galileo. See
+[Implementation status](#implementation-status) for what is live and what is
+simulated.
 
 ### Sponsor integrations
 
@@ -297,9 +297,9 @@ flowchart TD
 	liquidate --> job["Queue executeLiquidation onchain"]
 ```
 
-The freeze is the safe stop: while the escrow is frozen the creator can't
-receive tranches or reclaim the stake. Liquidation still follows after the
-grace period.
+The freeze is the safe stop: while the escrow is frozen, the creator can't
+receive tranches or reclaim the stake. Liquidation still follows if the grace
+period ends without an approved proof.
 
 ## Dividend payout (x402 style)
 
@@ -326,7 +326,7 @@ simulated `sim:0x...` receipts without keys.
 
 ## Implementation status
 
-SMX is a hackathon build. This table is the honest state as of 2026-11-07. See
+SMX is a hackathon build. This table shows the state as of 2026-11-07. See
 [`../CONTEXT.md`](../CONTEXT.md) for details and known issues.
 
 | Area | Status |
@@ -357,5 +357,5 @@ SSE event confirms. In simulated mode (no `CHAIN_RPC_URL`), jobs end as
 
 ## Demo script
 
-See [`pitch.md`](pitch.md). The happy
-path (Ravi) and sad path (Rahul) must be reproducible with `npm run seed:demo`.
+See [`pitch.md`](pitch.md). `npm run seed:demo` must reproduce the happy path
+(Ravi) and the sad path (Rahul).

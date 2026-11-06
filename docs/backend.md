@@ -5,7 +5,7 @@ the SQL functions that hold the business rules, the routes, the worker, and the
 demo seed. The spec is [`product-spec.md`](product-spec.md); code style is in
 [`engineering-guide.md`](engineering-guide.md).
 
-## Design in one paragraph
+## Design
 
 All business rules live in Postgres functions in
 `packages/app/sql/ddl.sql`. A route verifies external proofs (World ID,
@@ -247,8 +247,9 @@ trigger works from either state.
 
 `packages/app/tests/domain.test.ts` runs against a PGlite snapshot and covers
 the dividend math, tranche release and duplicate periods, AMM invariants and
-guards, liquidation payouts and the blacklist, and the deadline sweep. `tests/onchain.test.ts` covers the onchain swap and
-invest ingest (idempotency, replayed hashes, receipt decoding).
+guards, liquidation payouts and the blacklist, and the deadline sweep.
+`tests/onchain.test.ts` covers the onchain swap and invest ingest (idempotency,
+replayed hashes, receipt decoding).
 
 ## Safe-stop fallback
 

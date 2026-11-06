@@ -15,12 +15,12 @@ securities exchange: investors buy a share of one creator's future income. Befor
 creator can raise money, investors need to know one thing about that person: **this is
 one human who has not already launched, and has not already defaulted.**
 
-World ID changes what an investor can trust at exactly this point:
+World ID gives investors two guarantees at this point:
 
-- **One creator, one IPO.** The proof yields a nullifier scoped to the action
+- One creator, one IPO. The proof yields a nullifier scoped to the action
   `smx-launch-ipo`. The same human always produces the same nullifier, so a second
   launch under a second wallet is rejected (HTTP 409, or `NullifierUsed` onchain).
-- **Defaulters cannot come back.** When a creator defaults, the oracle blacklists the
+- Defaulters cannot come back. When a creator defaults, the oracle blacklists the
   nullifier (`blacklisted[nullifierHash]` on `LiquidISAFactory`). A new wallet, new
   email and new SIWE session still map to the same human, so the relaunch is
   refused (HTTP 403, or `NullifierBlacklisted` onchain). Without this, default is
@@ -28,17 +28,16 @@ World ID changes what an investor can trust at exactly this point:
 
 **Why Proof of Human is the minimum sufficient assurance.** SMX needs uniqueness of a
 person, not identity, age, nationality or document data. Proof of Human (requested with
-the `proofOfHuman` preset) is the credential that gives a per-person, action-scoped,
-unlinkable nullifier, which is exactly "one person, one IPO". We chose it over the
-alternatives on purpose:
+the `proofOfHuman` preset) gives a per-person, action-scoped, unlinkable nullifier,
+which is what "one person, one IPO" needs. We rejected the alternatives:
 
-- **Passport/NFC** collects document data SMX does not need (nationality, age) and adds
+- Passport/NFC collects document data SMX does not need (nationality, age) and adds
   no uniqueness we lack.
-- **Selfie Check** returns a Sybil score. A score is a probabilistic signal, and a
-  weaker one than a per-person nullifier for a case with financial liability, where a
-  defaulter relaunching under a new wallet costs investors real money.
+- Selfie Check returns a Sybil score. A score is probabilistic, so it is weaker than a
+  per-person nullifier when a defaulter relaunching under a new wallet costs investors
+  real money.
 
-We use one credential and no more.
+SMX uses one credential.
 
 ```mermaid
 sequenceDiagram
@@ -96,8 +95,8 @@ banned have their World ID permanently blocked, so they cannot re-stake from
 a new account. That applies the ban to node operators, not to credit or
 income.
 
-SMX applies the same idea to a person raising money from investors. The
-trust moment is one human, one IPO, enforced at two layers: the server
+SMX applies the same idea to a person raising money from investors. It enforces
+one human, one IPO at two layers: the server
 verifies the World ID v4 proof and stores the nullifier, and the Hedera
 escrow factory keeps an onchain nullifier registry. On default, the
 nullifier is blacklisted, so the same human cannot raise again from any
@@ -202,14 +201,13 @@ leaves the Verify button usable. Error codes come from `IDKitErrorCodes` in
   used" lookup (we keep our own); no documented way to pre-check a nullifier before the
   user opens World App, so a blacklisted human still goes through the approval before
   being refused; no documented way to close a pending request from the dApp (we
-  only abort our local poll); no
-  Simulator walkthrough for IDKit v4 URIs with the exact paste format.
+  only abort our local poll); no Simulator walkthrough for IDKit v4 URIs with the exact paste format.
 - **Single improvement with the greatest impact:** one end-to-end, framework-neutral
   v4 quickstart (browser plus server, with the RP signature, verify call and the error
   codes), linked from the top of the IDKit docs, with the old v2/v3 endpoints clearly
   marked as legacy.
 
-## What we cannot meet, honestly
+## What we do not meet
 
 - **World ID Agent Pass ($5,000):** not met. SMX integrates IDKit proof of human only.
   We did not integrate Agent Pass, so we are not entering that track. Best Use of IDKit

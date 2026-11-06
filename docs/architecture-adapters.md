@@ -2,8 +2,8 @@
 
 Routes and workers depend on three small interfaces. Sponsor SDKs live behind
 them in `packages/app/src/services/`. A new backend (another storage network,
-oracle, or payment rail) is one class plus one line in a factory; no route,
-worker, or SQL changes.
+oracle, or payment rail) is one class plus one line in a factory. Routes, workers, and SQL don't
+change.
 
 ```mermaid
 classDiagram

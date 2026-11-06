@@ -2,7 +2,7 @@
 
 This page maps StakeMe Exchange (SMX) to the Hedera, World, and 0G prize tracks
 at ETHGlobal Mumbai, lists what each track requires, and shows what is still
-missing. Status values are **Met**, **Partly**, and **Not met**.
+missing. Status values are Met, Partly, and Not met.
 
 Sources (fetched 2026-11-06, the day the event started):
 
@@ -14,8 +14,8 @@ Sources (fetched 2026-11-06, the day the event started):
   [0G](https://ethglobal.com/events/mumbai/prizes/0g).
 - Rules: [Rules, project submission and judging](https://ethglobal.com/events/mumbai/info/details).
 
-The event page exists, so no other event is used as a stand-in. Quotes below are
-short excerpts; the linked pages are authoritative and can change.
+Quotes below are short excerpts. The linked pages are authoritative and can
+change.
 
 ## Summary
 
@@ -194,8 +194,6 @@ Done since this list was written: hosted app, 0G request IDs, HashScan/Sourcify
 verification, live ATS mint, live dividend settlement, onchain trading,
 World debrief, AI disclosure. Remaining: demo video and the public-site x402
 rerun.
-
-Ordered by impact on qualification.
 
 1. Deploy a hosted app and a stable mock-bank host, and record the 2:30 to 3:00
    video. Without them, no track qualifies.

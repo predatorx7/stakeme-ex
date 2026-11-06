@@ -62,7 +62,7 @@ flowchart LR
 
 ## How SMX differs
 
-Earlier projects that touched income sharing used social scores, self-reported numbers or platform-pulled API revenue, and a defaulter could start over with a new wallet. SMX proves income from a bank session with Reclaim zkTLS, lets an AI auditor on 0G freeze the Hedera escrow, and releases investor money in tranches. A default blacklists the World ID on the escrow factory, so the same human cannot raise again from any wallet. The closest precedent for the ban is "not so secret agent" (ETHGlobal London, 2024), which blocked a banned oracle node's World ID. We found no earlier project that combines all of these, though our search was not exhaustive.
+Earlier income-sharing projects used social scores, self-reported numbers or platform-pulled API revenue, and a defaulter could start over with a new wallet. SMX proves income from a bank session with Reclaim zkTLS, lets an AI auditor on 0G freeze the Hedera escrow, and releases investor money in tranches. A default blacklists the World ID on the escrow factory, so the same human cannot raise again from any wallet. The closest precedent for the ban is "not so secret agent" (ETHGlobal London, 2024), which blocked a banned oracle node's World ID. We found no earlier project that combines all of these, though our search was not exhaustive.
 
 ## Sponsors
 
@@ -152,7 +152,7 @@ Each mutation commits its final state to Postgres and returns at once
 (optimistic UI). The worker sends the onchain calls from a `chain_jobs` outbox
 and confirms them over SSE.
 
-What is reused from Reclaim Builder and other libraries, and what is new, is listed in [docs/reuse.md](docs/reuse.md).
+[docs/reuse.md](docs/reuse.md) lists what the app reuses from Reclaim Builder and other libraries, and what is new.
 
 Sponsors plug in through small adapters, so the app logic never imports an SDK
 directly:
@@ -247,7 +247,7 @@ CONTEXT.md     Hand-off notes: status, decisions, known issues
 
 ## AI use
 
-The developer built SMX alone with Claude Code, an AI coding agent that the developer directed. Agents wrote most of the code, tests, and docs; the developer set the product direction and scope, and reviewed the results. For the full disclosure, see [docs/ai-usage.md](docs/ai-usage.md). For the prompt records, see [docs/prompts/README.md](docs/prompts/README.md). The specs the agents followed are [docs/engineering-guide.md](docs/engineering-guide.md) and [docs/product-spec.md](docs/product-spec.md).
+The developer built SMX alone with Claude Code, an AI coding agent that the developer directed. Agents wrote most of the code, tests, and docs. The developer set the product direction and scope, and reviewed the results. The full disclosure is in [docs/ai-usage.md](docs/ai-usage.md) and the prompt records are in [docs/prompts/README.md](docs/prompts/README.md). The agents followed [docs/engineering-guide.md](docs/engineering-guide.md) and [docs/product-spec.md](docs/product-spec.md).
 
 ## Team
 
@@ -257,8 +257,8 @@ Solo builder: Mushaheed Syed ([@_predatorx7](https://x.com/_predatorx7) on X,
 
 ## Status
 
-Hackathon build in progress. See [CONTEXT.md](CONTEXT.md) for what works
-today, what's simulated, and what's left.
+Hackathon build in progress. [CONTEXT.md](CONTEXT.md) lists what works,
+what's simulated, and what's left.
 
 ## License
 

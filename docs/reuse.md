@@ -1,8 +1,8 @@
 # Code reuse disclosure
 
-**Summary:** SMX's app skeleton (infrastructure, UI components, build scripts) was adapted from Reclaim Builder, a private Reclaim Protocol project that the developer contributes to; all StakeMe domain logic, contracts, integrations and pages were written during the hackathon; the UI library and other dependencies are published packages.
+**Summary:** SMX's app skeleton (infrastructure, UI components, build scripts) was adapted from Reclaim Builder, a private Reclaim Protocol project that the developer contributes to. All StakeMe domain logic, contracts, integrations, and pages were written during the hackathon. The UI library and other dependencies are published packages.
 
-This file lists what is reused, what was adapted from reused code, and what is new. The comparison was a file-by-file heuristic (path and content diff against the Builder source), not a line-level audit.
+This file lists what is reused, adapted, and new. The comparison was a file-by-file heuristic (path and content diff against the Builder source), not a line-level audit.
 
 ## Reused
 

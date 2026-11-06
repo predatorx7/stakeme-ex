@@ -64,9 +64,9 @@ flowchart LR
   `ISACreated(creator, isa, token, ticker)`. `LiquidISA.initialize(params, token, pool)`
   takes the pool address.
 
-Because a fresh factory is cheap, reseeding a demo means deploying a new
-factory. This keeps the one-ISA-per-nullifier Sybil check intact; there is no
-nullifier reset function.
+A fresh factory is cheap, so reseeding a demo means deploying a new factory.
+There is no nullifier reset function, which keeps the one-ISA-per-nullifier
+Sybil check intact.
 
 ## Lifecycle
 
@@ -229,9 +229,10 @@ While `frozen` is true:
 ## Hedera ATS equity token (ATS-ready, simulated)
 
 `setAtsToken(address)` (oracle-only, once) records the Hedera Asset
-Tokenization Studio equity token for the ISA (ATS-ready; minting runs in simulated mode on testnet) and emits `AtsTokenSet`.
-`CreatorShareToken` stays the source of truth for escrow and dividend math; the
-ATS token is the regulated registry mirror. See
+Tokenization Studio equity token for the ISA and emits `AtsTokenSet`. Minting
+runs in simulated mode on testnet. `CreatorShareToken` stays the source of truth
+for escrow and dividend math; the ATS token mirrors it in the regulated
+registry. See
 [Hedera integration](integrations/hedera.md#mint-a-creator-equity-token-with-ats).
 
 ## Nullifiers
@@ -307,9 +308,9 @@ call's gas limit to `estimateGas` plus 20%.
 
 ## Verification
 
-All five Hedera testnet contracts below are verified on Sourcify with an exact (runtime
-bytecode) match, which HashScan reads (verified 2026-11-07). Sourcify reports
-`match: exact_match`; `creationMatch` is not reported:
+Sourcify verified all five Hedera testnet contracts below with an exact
+runtime-bytecode match, and HashScan reads it (verified 2026-11-07). Sourcify
+reports `match: exact_match` and doesn't report `creationMatch`:
 
 | Contract | Address | Status |
 | --- | --- | --- |
@@ -319,7 +320,9 @@ bytecode) match, which HashScan reads (verified 2026-11-07). Sourcify reports
 | CreatorPool (implementation) | [`0xe310d76b357be72439e78fff84a82fe486fba84b`](https://hashscan.io/testnet/contract/0xe310d76b357be72439e78fff84a82fe486fba84b) | exact match |
 | LiquidISAFactory (with `poolImplementation`) | [`0xc6b7af9392538bc596caed4a5758b9d92f650e59`](https://hashscan.io/testnet/contract/0xc6b7af9392538bc596caed4a5758b9d92f650e59) | exact match |
 
-Historical note: an earlier factory (`0x9698e237201c88be262523ef4917b144e857ca73`) and its implementations were superseded by the 2026-11-06T18:53Z redeploy and are no longer used.
+An earlier factory (`0x9698e237201c88be262523ef4917b144e857ca73`) and its
+implementations are no longer used. The 2026-11-06T18:53Z redeploy replaced
+them.
 
 Clones (for example ISA `0x8f2868df0f4156d728c3fc703af33d1b7d210e5c`) are
 45-byte EIP-1167 proxies. Sourcify cannot match a proxy to source, so a clone

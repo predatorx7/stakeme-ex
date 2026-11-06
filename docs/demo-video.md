@@ -1,8 +1,8 @@
 # Demo video plan
 
 This document is the plan for the three-minute ETHGlobal submission video of
-StakeMe Exchange (SMX). It contains the shot list, the pre-recording checklist,
-a fallback plan, and a 60-second judge walkthrough. It follows the stage
+StakeMe Exchange (SMX): shot list, pre-recording checklist, fallback plan, and
+a 60-second judge walkthrough. It follows the stage
 timing in [pitch.md](pitch.md), adjusted to the sponsors that are built for the
 MVP: Hedera, World ID, 0G and Reclaim. Chainlink CRE and Arkiv are not in the
 build, so the video does not show or claim them. The 0G agent audits the proof
@@ -37,11 +37,10 @@ voiceover, and the proof that a sponsor integration is real.
   table, and the "Live oracle events" feed.
 - **Clicks:** None. Slowly scroll from the KPIs to the trending table
   ($MUSH, $RAVI, $RAHUL, with price, 24h change and sparkline) and the feed.
-- **Voiceover:** "Day traders speculate on dead corporations while banks refuse
-  to lend to brilliant young talent. StakeMe Exchange lets you IPO your future
-  income. Investors fund you today and receive enforced dividends from your
-  real income. This is the world's first liquid stock market for human
-  potential."
+- **Voiceover:** "Day traders bet on dead corporations, and banks won't lend to
+  brilliant young people. On StakeMe Exchange you IPO your future income.
+  Investors back you today, and you pay them dividends from what you really
+  earn. It's the world's first liquid stock market for human potential."
 - **Proves:** Nothing sponsor-specific yet. Establishes that the market is live
   with seeded data.
 
@@ -65,10 +64,10 @@ voiceover, and the proof that a sponsor integration is real.
      enables.
   6. Click **Launch IPO**. The page redirects to the Hub.
 - **Voiceover:** "Mushaheed connects a wallet and sets his terms: raise
-  $10,000, stake $500, share 5% of income for five years. World ID proves one
-  human, one IPO. No fake accounts. He launches, and the L-ISA terms are
-  written to 0G Storage and his equity token is minted through Hedera's Asset
-  Tokenization Studio."
+  $10,000, stake $500, share 5% of his income for five years. World ID checks
+  he's one real human, so one person gets one IPO. When he launches, the L-ISA
+  terms go to 0G Storage and his equity token gets minted through Hedera's
+  Asset Tokenization Studio."
 - **Proves:**
   - **World ID:** the "Verified" pill after the Simulator approval. Optionally
     flash the Simulator window showing the approved request. Cut to the next
@@ -101,8 +100,8 @@ voiceover, and the proof that a sponsor integration is real.
   "Released to creator" advance, and tranche 0 is released. The pool opens for
   trading.
 - **Voiceover:** "Investors fund Mushaheed from their own wallets. When the
-  raise closes, 20% releases now. The rest stays in escrow and only unlocks as
-  he proves income."
+  raise closes, 20% is released to him right away. The rest stays in escrow
+  until he proves his income."
 - **Proves:** Escrow and tranche releases with Hedera transaction links
   (`TxLink`), and an onchain pool seeded at raise close.
 - **Cost warning:** Invest and close-raise cost testnet gas. If the take count
@@ -127,9 +126,9 @@ voiceover, and the proof that a sponsor integration is real.
      Scroll to **Pending dividend**: "0G AI detected $5,000.00 income. You owe
      $250.00 USDC."
 - **Voiceover:** "At the month-three deadline, Mushaheed proves a $5,000 bank
-  deposit with Reclaim zkTLS. His bank never shares a password with us. The 0G
-  agent audits the proof against his terms, writes the audit log to 0G
-  Storage, and computes the dividend: 5% of $5,000 is $250."
+  deposit with Reclaim zkTLS, and we never see his bank password. The 0G agent
+  checks the proof against his terms, saves the audit log to 0G Storage, and
+  works out the dividend: 5% of $5,000 is $250."
 - **Proves:**
   - **Reclaim:** the QR flow plus the verified proof row in **Income proofs**.
     Show the Reclaim verification screen on the second window.
@@ -155,8 +154,8 @@ voiceover, and the proof that a sponsor integration is real.
      moves to **Dividends paid** with receipt links.
   3. Click a receipt link to open the HashScan transaction.
 - **Voiceover:** "Mushaheed pays the dividend. One Hedera transaction pays
-  every holder in proportion to their tokens. The next tranche unlocks
-  automatically."
+  every holder, split by how many tokens they hold. Then the next tranche
+  unlocks on its own."
 - **Proves:** **Hedera:** the HashScan testnet transaction page showing a
   transfer to the holder accounts. Live settlement ran on testnet (for example
   `0.0.11340822@1793996054.174485762`). Outside production, a server without
@@ -183,9 +182,10 @@ voiceover, and the proof that a sponsor integration is real.
   The page reloads over SSE. A danger notice reports the default and the
   status badge reads Defaulted.
 - **Voiceover:** "Rahul takes his first tranche and disappears. No proof
-  arrives. The agent freezes his escrow and starts a 14-day grace period. When
-  it ends, locked escrow is refunded to the current token holders, his stake
-  is slashed to them, and his World ID is blacklisted. He can never IPO again."
+  shows up. The agent freezes his escrow and starts a 14-day grace period.
+  When it ends, the locked escrow goes back to the current token holders, his
+  stake is slashed to them, and his World ID is blacklisted. He can't IPO
+  again."
 - **Proves:** **World ID** blacklisting is shown by the defaulted state. For a
   stronger proof, return to `/launch` with a second wallet and click
   **Simulate Sybil** if available (`DEMO_MODE=1`); it reports a used or
@@ -202,9 +202,9 @@ voiceover, and the proof that a sponsor integration is real.
   **Buy** on camera unless you accept the gas cost (the wallet signs `approve`
   and the pool swap). Open `/portfolio` to show funds, holdings and P&L.
   Return to the Exchange and show the price chart and the feed.
-- **Voiceover:** "Hold the token for dividends, or trade it on life events.
-  Scan the QR code to try it. Five percent of any prize streams to token
-  holders. StakeMe Exchange: invest in people."
+- **Voiceover:** "Hold the token for the dividends, or trade it as his life
+  events play out. Scan the QR code and try it yourself. Five percent of any
+  prize he wins goes to token holders. StakeMe Exchange: invest in people."
 - **Proves:** The live oracle feed showing `DIVIDEND_PAID` and `DEFAULTED`
   events from the previous shots.
 
@@ -344,4 +344,4 @@ instance runs with the real Hedera and 0G keys. **Unconfirmed:** whether
    account) or **Mark as paid (demo)**. Open a receipt link in HashScan.
 
 Tell judges that a launched IPO spends real testnet gas on our relay, so
-please launch at most one.
+launch at most one.

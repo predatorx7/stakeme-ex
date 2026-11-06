@@ -81,7 +81,7 @@ Reference clones (read-only, may be deleted; re-clone with `gh repo clone`):
 
 ## Live status (2026-11-07)
 
-Secrets live only in `.env` (gitignored). Public IDs below are safe to share.
+Secrets live only in `.env` (gitignored). The IDs below are public.
 
 | Area | Status |
 | --- | --- |
@@ -230,11 +230,11 @@ lives on the VM in `/opt/smx/.pgpass-smx`. The seed command for production is in
 
 ## Reference
 
-Stable notes on the codebase. Section names below are kept for cross-links.
+Stable notes on the codebase. Keep the section names; other docs link to them.
 
 ## Skeleton map
 
-Reference for the codebase. All paths are under `packages/app/` unless noted.
+All paths are under `packages/app/` unless noted.
 
 Server and infra:
 - `src/app.ts` `createApp(pg)`: CORS, `/healthz`, Better Auth mount at `/auth`, parsers, pino-http, static `/public`, Vite (dev), OpenAPI validator and route resolver, ErrorPage, problem+json errors.
@@ -325,7 +325,7 @@ Docs: [`docs/architecture-adapters.md`](docs/architecture-adapters.md) (class di
 
 ## 0G Storage outbox (2026-11-06)
 
-Each 0G upload takes ~30 s and ~0.0012 0G, so no request waits for it. Details: `docs/backend.md` (Worker), `docs/integrations/zero-g.md`.
+Each 0G upload takes ~30 s and ~0.0012 0G, so requests never wait for it. Details: `docs/backend.md` (Worker), `docs/integrations/zero-g.md`.
 
 - `LaunchIpo` (`prepareTerms`) and the audit pipeline (`ZeroGravityAgent.audit()` returns `logRef = local:<sha256>` plus `logDocument`) compute the canonical document and hash synchronously. `launch_ipo(..., p_terms_document)` / `audit_income_proof(..., p_log_document)` commit with the local ref and call `enqueue_storage_upload` into table `storage_uploads` (QUEUED | UPLOADED | FAILED | SKIPPED; `attempts`, `next_attempt_at`).
 - `worker/storage-uploads.ts` (woken by `smx.storage_uploads.insert` + 15 s poll; `createUploadProvider()` = raw `ZeroGravityStorage`, no local fallback) runs `claim_storage_upload` then `complete_storage_upload`: UPLOADED swaps the root hash into `terms_ref` / `audit_log_ref` and emits oracle event `STORAGE_CONFIRMED` (`kind`, `ref`, `contentHash`, `url`; no price tick). SKIPPED (no key, `STORAGE_PROVIDER=local`, balance under `ZG_STORAGE_MIN_BALANCE`) keeps the local ref. Transient failures back off 30 s / 2 min, 3 attempts, then FAILED. A content hash already UPLOADED is never uploaded twice.

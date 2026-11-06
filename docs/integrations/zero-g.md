@@ -4,13 +4,13 @@ Verified against npm and docs.0g.ai on 2026-11-06.
 
 **Status:** implemented (see [Implementation notes](README.md#implementation-notes)).
 
-SMX uses 0G for two things:
+SMX uses 0G for three things:
 
-- **0G Private Computer (Router)**: run the LLM audit prompt through the
+- 0G Private Computer (Router): run the LLM audit prompt through the
   OpenAI-compatible Router (default path, see [Router mode](#router-mode-audit-verdict)).
-- **0G Compute (Galileo broker)**: the same prompt through the SDK broker
+- 0G Compute (Galileo broker): run the same prompt through the SDK broker
   (opt-in). The audit checks a Reclaim proof against the L-ISA terms.
-- **0G Storage**: store the audit log (JSON) and keep its root hash in
+- 0G Storage: store the audit log (JSON) and keep its root hash in
   `income_proofs.audit_log_ref`.
 
 ## Real and simulated
@@ -105,8 +105,8 @@ const providerAddress = process.env.ZG_PROVIDER_ADDRESS ?? chat[0].provider;
 The docs say `broker.ledger.transferFund(provider, 'inference', amount)`
 auto-acknowledges the provider's signer. The SDK also exposes
 `broker.inference.acknowledgeProviderSigner(provider)` if you need it
-explicitly. We saw the method in the package types but not in the current docs,
-so try `transferFund` first.
+explicitly. The method appears in the package types but not in the current
+docs, so try `transferFund` first.
 
 ```ts
 export async function runAudit(input: { terms: unknown; proof: unknown }) {
@@ -167,8 +167,9 @@ and `provider_identity`. `tee_verified` is documented as present only when
 `verify_tee` is set. In two live calls on 2026-11-06 (`glm-5.2` standard and
 `glm-5.3` private) the field was absent even with `verify_tee: true`, so the
 audit records `teeVerified: null` and the UI shows "TEE verified" only when it
-is `true`. For a `private` request the UI shows "Private routing (TEE provider)" instead
-(tooltip: "Routed to a TEE provider by 0G; no attestation returned"), which is the Router's routing guarantee, not a signature check. There is no
+is `true`. For a `private` request the UI shows "Private routing (TEE provider)"
+instead (tooltip: "Routed to a TEE provider by 0G; no attestation returned").
+That label is the Router's routing guarantee, not a signature check. There is no
 `ZG-Res-Key` header on Router responses, so the SDK's independent
 `processResponse` check cannot run against them.
 
@@ -240,7 +241,10 @@ In SMX the upload runs in the background: the request commits a
 0.0012 0G on Galileo. Uploads are skipped below `ZG_STORAGE_MIN_BALANCE`, retry
 up to 3 times, and are deduplicated on the document's content hash.
 
-Link the log in the UI: storagescan has no page keyed by root hash (only `/submission/<sequence>` and `/address/<addr>`; checked 2026-11-07), so the link is `https://indexer-storage-testnet-turbo.0g.ai/file/info/<root>`, which returns the root, size and `finalized` flag as JSON.
+Storagescan has no page keyed by root hash (only `/submission/<sequence>` and
+`/address/<addr>`; checked 2026-11-07), so the UI links the log to
+`https://indexer-storage-testnet-turbo.0g.ai/file/info/<root>`. That URL returns
+the root, size and `finalized` flag as JSON.
 The upload transaction appears on `https://chainscan-galileo.0g.ai/tx/<tx>`.
 
 Notes on the storage API: older docs return `[tx, err]` tuples. The call shape
@@ -281,7 +285,7 @@ approval.
 - Storage has two networks (turbo and standard) with different indexers. Use
   turbo for speed.
 - The RPC is for development. Rate limits appear under load.
-- We did not verify the minimum ledger deposit. Start with 3 0G, and read the
+- The minimum ledger deposit is unverified. Start with 3 0G, and read the
   error message if it's rejected.
 - Ask the 0G booth (pitch playbook) which storage telemetry logs the judges
   want for the "safe-stop" fallback.

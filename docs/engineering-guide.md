@@ -23,13 +23,13 @@ Replace these placeholders before you start:
 - Ask before changing a package you don't own, and explain why.
 - Reuse first: before you write a component, CSS rule, helper, or SQL
   function, search for an existing one.
-- Put business logic in SQL. TypeScript only orchestrates: it validates
-  nothing the OpenAPI schema already validates, and it moves data between the
+- Put business logic in SQL. TypeScript only orchestrates: it doesn't
+  re-validate what the OpenAPI schema validates, and it moves data between the
   database, the network, and templates.
 
 ## Technology choices
 
-Use these and don't substitute without asking.
+Don't substitute without asking.
 
 | Concern | Choice |
 | --- | --- |
@@ -56,7 +56,7 @@ Use these and don't substitute without asking.
 
 ## Package architecture
 
-Split by consumer, not by layer. Builder has three packages; start with the
+Split by consumer, not by layer. Builder has three packages. Start with the
 ones you need.
 
 ```
@@ -189,7 +189,7 @@ TypeScript.
 - Soft state through enums: `entity_status AS ENUM ('ACTIVE', 'ARCHIVED')`,
   `entity_visibility AS ENUM ('PRIVATE', 'PUBLIC')`. Enum values are
   UPPER_SNAKE.
-- Value-kind **domains** hold validation in one place: `safe_url`,
+- Value-kind domains hold validation in one place: `safe_url`,
   `email_address` (CITEXT), `money_amount NUMERIC(12,2) CHECK (>= 0)`,
   `usage_count INTEGER CHECK (>= 0)`, `hex_color`, slugs, and so on. Map each
   domain to a TS type in `pgtyped.config.json` `typesOverrides`.
@@ -198,7 +198,7 @@ TypeScript.
 - Invariants live in the database: triggers for immutability (for example,
   published versions can't change), provisioning (a default org on user
   insert), and protection of system rows.
-- Authorization is enforced **per query**, not with RLS. Every query takes
+- Enforce authorization per query, not with RLS. Every query takes
   `:viewer_id` and filters through helper functions such as
   `user_can_edit_org(user, org)` and `user_can_own_org(user, org)`, which
   centralize the admin bypass.
@@ -274,7 +274,7 @@ Use `@reclaimprotocol/design` for all tokens, components, and icons. Read its
 @import '../../public/styles/index.css' layer(app);
 ```
 
-Visual contract (from `DESIGN.md`):
+From `DESIGN.md`:
 
 - IBM Plex Mono for structural labels, IBM Plex Sans for explanatory text.
 - 2px corners, 1px borders, no resting shadow.
@@ -316,7 +316,7 @@ Use public `rc-` classes and `data-variant` / `data-tone` attributes
 
 Use pgmb, not an external queue. Producers publish inside the request's
 transaction through `req.pg`. Consumers live in `src/worker/*.ts`, are
-registered in `worker/register.ts`, and run on a **separate** pool (pgmb
+registered in `worker/register.ts`, and run on a separate pool (pgmb
 changes the session `search_path`). Push live updates to the browser with SSE
 fed by pgmb events, not polling.
 
@@ -362,7 +362,7 @@ and `test` on the `.nvmrc` Node version.
 
 ## Definition of done
 
-Before you report a task finished:
+Before you report a task done:
 
 1. `npm run lint:fix` and `npm run check` pass from the root.
 2. `npm run gen:check` passes.
@@ -376,7 +376,7 @@ Before you report a task finished:
 ## How to run this with multiple agents
 
 For large features, one planning agent (Opus) splits the work into parallel
-workstreams with **exclusive file ownership** and gives them to implementation
+workstreams with exclusive file ownership and gives them to implementation
 agents (Sonnet). Typical split: (1) `openapi.yaml` + codegen, (2) `ddl.sql` +
 `queries.sql`, (3) routes, (4) components + CSS + client JS, (5) tests. The
 planner owns the migration: it runs `npm run migrate:plan` once at the end.

@@ -2,8 +2,8 @@
 
 `packages/app/scripts/x402-research-agent.ts` is an autonomous buyer for the
 SMX x402 paywall (`GET /creators/{ticker}/audit-report`, 0.1 HBAR on Hedera
-testnet). Given a budget, it decides what to buy, pays, and writes a memo. No
-human approves anything.
+testnet). Given a budget, it decides what to buy, pays, and writes a memo without
+human approval.
 
 ## What it does
 
@@ -35,7 +35,7 @@ node --env-file=../../.env scripts/x402-research-agent.ts [baseUrl] \
 
 ## Spend controls
 
-Enforced in the agent before anything is signed, never by trusting the server:
+The agent enforces these before it signs anything. It doesn't trust the server.
 
 | Control | Behavior |
 | --- | --- |
@@ -53,8 +53,8 @@ Every refusal is logged with its reason.
 The public site did not serve the route during an earlier 30-minute window
 (00:18 to 00:48 IST on 2026-11-07). It now returns 402 unpaid at
 `https://stakeme.magnificlabs.org/creators/MUSH/audit-report`, but the recorded
-run below targets a **local second instance** (port 4031, its own PGlite data dir, `CHAIN_RPC_URL` unset, three
-seeded creators `MUSH`, `LOFI`, `CHEF`). The payments are real Hedera testnet
+run below targets a local second instance (port 4031, its own PGlite data dir,
+`CHAIN_RPC_URL` unset, three seeded creators `MUSH`, `LOFI`, `CHEF`). The payments are real Hedera testnet
 transfers settled by the `x402.org` facilitator. A public-site rerun is pending.
 
 Payer `0.0.11344435`, payee `0.0.11340822`, budget 0.3 HBAR, cap 0.1 HBAR:
@@ -82,5 +82,5 @@ Earlier single-payer run (hard-coded payer, before the agent):
 ## Limits
 
 - The server cannot enforce the agent's controls; they protect the payer.
-- The payee is the SMX operator, so the loop is a demonstration of mechanics,
-  not external revenue.
+- The payee is the SMX operator, so the loop demonstrates the mechanics and
+  earns no external revenue.
