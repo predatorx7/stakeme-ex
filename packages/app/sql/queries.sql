@@ -36,7 +36,8 @@ WHERE c.owner_user_id = :viewer_id!;
 
 /* @name LaunchIpo */
 -- Creates the L-ISA in one statement (creator, tranches, pool, tick, event,
--- chain jobs) and returns the creator document. Route: LaunchIpo.
+-- chain jobs, 0G Storage upload) and returns the creator document. The terms
+-- ref is `local:<sha256>` until the worker uploads. Route: LaunchIpo.
 SELECT smx.creator_json(c) AS j
 FROM smx.launch_ipo(
 	:owner!,
@@ -51,7 +52,8 @@ FROM smx.launch_ipo(
 	:nullifier!,
 	:terms_ref,
 	:terms_hash,
-	:chain_id
+	:chain_id,
+	:terms_document::JSONB
 ) AS c;
 
 
@@ -158,7 +160,8 @@ WHERE d.id = :dividend_id! AND smx.assert_creator_owner(d.creator_id, :viewer_id
 -- ReclaimCallback.
 SELECT smx.audit_result_json(p) AS j
 FROM smx.audit_income_proof(
-	:proof_id!, :verified_amount!::NUMERIC, :audit!::JSONB
+	:proof_id!, :verified_amount!::NUMERIC, :audit!::JSONB,
+	:log_document::JSONB
 ) AS p;
 
 
@@ -302,9 +305,35 @@ WHERE j.status = 'FAILED'
 	AND (
 		NOT :transient_only!::BOOLEAN
 		OR (
-			j.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed)'
+			j.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed|FAIL_INVALID)'
 			-- Back off so a struggling relay isn't hammered every poll.
 			AND j.updated_at < now() - interval '30 seconds'
 		)
 	)
 RETURNING j.id, j.fn, c.ticker;
+
+
+/* @name ListDueStorageUploads */
+-- Queued 0G Storage uploads whose backoff has passed, oldest first. Worker.
+SELECT id FROM smx.storage_uploads
+WHERE status = 'QUEUED' AND next_attempt_at <= now()
+ORDER BY seq
+LIMIT :batch!::INTEGER;
+
+
+/* @name ClaimStorageUpload */
+-- Leases one upload (counts the attempt). Returns no row when it isn't due;
+-- an already-UPLOADED content hash comes back UPLOADED (don't upload). Worker.
+SELECT s.id, s.creator_id, s.kind, s.document, s.content_hash, s.status,
+	s.attempts
+FROM smx.claim_storage_upload(:id!) AS s
+WHERE s.id IS NOT NULL;
+
+
+/* @name CompleteStorageUpload */
+-- Settles an upload: UPLOADED swaps the ref in and emits STORAGE_CONFIRMED;
+-- FAILED with :transient retries with backoff. Worker.
+SELECT s.id, s.status
+FROM smx.complete_storage_upload(
+	:id!, :status!::smx.storage_upload_status, :ref, :error, :transient!::BOOLEAN
+) AS s;

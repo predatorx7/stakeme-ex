@@ -931,7 +931,11 @@ components:
             termsRef:
               type: string
               maxLength: 200
-              description: 0G Storage root hash of the L-ISA legal terms.
+              description: >-
+                0G Storage root hash of the L-ISA legal terms, or
+                `local:<sha256>` until the background upload finishes.
+            termsStorage:
+              $ref: '#/components/schemas/StorageStatus'
             termsHash:
               type: string
               maxLength: 200
@@ -1105,8 +1109,17 @@ components:
         auditLogRef:
           type: string
           maxLength: 500
+        auditLogStorage:
+          $ref: '#/components/schemas/StorageStatus'
         createdAt:
           $ref: '#/components/schemas/Timestamp'
+    StorageStatus:
+      type: string
+      description: >-
+        State of the 0G Storage upload behind a ref. `PENDING` keeps a
+        `local:<sha256>` ref until `STORAGE_CONFIRMED` swaps in the root hash;
+        `SKIPPED` (no key or low balance) and `FAILED` keep the local ref.
+      enum: [PENDING, UPLOADED, SKIPPED, FAILED]
     Dividend:
       type: object
       required: [id, creatorId, ticker, proofId, amountDue, status, createdAt]
@@ -1157,6 +1170,7 @@ components:
             - TRADE
             - ESCROW_FROZEN
             - ESCROW_UNFROZEN
+            - STORAGE_CONFIRMED
         payload:
           type: object
           description: Kind-specific details; always includes `ticker`.

@@ -17,7 +17,7 @@ import { HxForm } from '../forms/HxForm.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { LinearProgress } from '../Progress.tsx'
 import { SectionCard } from '../SectionCard.tsx'
-import { HashRef, TxLink } from '../TxLink.tsx'
+import { StorageRef, TxLink } from '../TxLink.tsx'
 import { HederaSignerDialog } from '../WalletDialogs.tsx'
 
 const FN_LABEL = {
@@ -446,8 +446,9 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 														!!p.auditLogRef && (
 															<>
 																{' '}
-																<HashRef
+																<StorageRef
 																	value={p.auditLogRef}
+																	status={p.auditLogStorage}
 																	label='0G Storage log ref' />
 															</>
 														)

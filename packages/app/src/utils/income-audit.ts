@@ -27,8 +27,10 @@ export type IncomeAuditOutcome =
 /**
  * The pipeline behind `AuditMilestone` and `ReclaimCallback`: verify the
  * delivery through the oracle, store the proof PENDING, let the 0G agent
- * audit it, then `audit_income_proof` decides. The expected session, org and
- * creator come from our own `reclaim_sessions` row, never from the body.
+ * audit it, then `audit_income_proof` decides and queues the audit log's 0G
+ * Storage upload (the proof commits with a `local:<sha256>` log ref). The
+ * expected session, org and creator come from our own `reclaim_sessions`
+ * row, never from the body.
  */
 export async function runIncomeAudit(
 	pg: IPgClientLike,
@@ -130,6 +132,7 @@ export async function runIncomeAudit(
 				model: audit.model,
 				logRef: audit.logRef,
 			},
+			log_document: audit.logDocument,
 		},
 		pg,
 	)

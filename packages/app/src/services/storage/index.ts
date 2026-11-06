@@ -11,7 +11,12 @@ import { ZeroGravityStorage } from './zero-gravity-storage.ts'
 export type * from './storage-provider.ts'
 export { LocalStorageProvider } from './local-storage.ts'
 export { ZeroGravityStorage } from './zero-gravity-storage.ts'
-export { hashTerms, storeTerms } from './terms.ts'
+export {
+	buildStorageDocument,
+	inputFromDocument,
+	prepareStorage,
+} from './storage-document.ts'
+export { hashTerms, prepareTerms } from './terms.ts'
 
 /** Uses `primary`; when a write fails, records it with `fallback` instead. */
 export class FallbackStorage implements IStorageProvider {
@@ -48,6 +53,7 @@ export class FallbackStorage implements IStorageProvider {
 }
 
 let cached: IStorageProvider | undefined
+let cachedUploader: IStorageProvider | undefined
 
 /**
  * Picks the storage adapter from `STORAGE_PROVIDER` (`0g` | `local`, default
@@ -62,9 +68,23 @@ export function createStorageProvider(): IStorageProvider {
 	return cached
 }
 
-/** Test hook: forget the cached provider. */
+/**
+ * The provider the upload worker uses: the raw 0G provider with no local
+ * fallback (a failed upload must retry, not silently become a local ref), or
+ * the local one when `STORAGE_PROVIDER=local` or no key is set (the worker
+ * then marks every upload SKIPPED).
+ */
+export function createUploadProvider(): IStorageProvider {
+	cachedUploader ||= STORAGE_PROVIDER === 'local' || !ZG_PRIVATE_KEY
+		? new LocalStorageProvider()
+		: new ZeroGravityStorage()
+	return cachedUploader
+}
+
+/** Test hook: forget the cached providers. */
 export function resetStorageProvider() {
 	cached = undefined
+	cachedUploader = undefined
 }
 
 function build(): IStorageProvider {

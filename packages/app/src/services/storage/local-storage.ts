@@ -29,6 +29,10 @@ export class LocalStorageProvider implements IStorageProvider {
 		return { ref, contentHash }
 	}
 
+	async skipReason() {
+		return 'local storage provider: nothing to upload'
+	}
+
 	async getJson(ref: string) {
 		const json = this.#docs.get(ref)
 		return json === undefined ? undefined : JSON.parse(json)

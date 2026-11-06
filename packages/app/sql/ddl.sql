@@ -222,7 +222,11 @@ CREATE TYPE dividend_status AS ENUM ('DUE', 'PAID');
 CREATE TYPE oracle_event_kind AS ENUM (
 	'IPO', 'INVESTED', 'PROOF_VERIFIED', 'PROOF_REJECTED', 'TRANCHE_RELEASED',
 	'DIVIDEND_PAID', 'GRACE_STARTED', 'DEFAULTED', 'TRADE',
-	'ESCROW_FROZEN', 'ESCROW_UNFROZEN'
+	'ESCROW_FROZEN', 'ESCROW_UNFROZEN', 'STORAGE_CONFIRMED'
+);
+CREATE TYPE storage_upload_kind AS ENUM ('LISA_TERMS', 'AUDIT_LOG');
+CREATE TYPE storage_upload_status AS ENUM (
+	'QUEUED', 'UPLOADED', 'FAILED', 'SKIPPED'
 );
 CREATE TYPE chain_job_status AS ENUM (
 	'QUEUED', 'SENT', 'CONFIRMED', 'FAILED', 'SIMULATED'
@@ -504,6 +508,46 @@ SELECT pgmb.push_table_mutations(
 	delete := FALSE
 );
 
+-- ─── storage_uploads ──────────────────────────────────────────
+-- Outbox of 0G Storage uploads. IPOs and audits commit with a local ref
+-- (`local:<sha256>`) and queue the document here; the worker uploads it (about
+-- 30 s) and `complete_storage_upload` swaps in the 0G root hash. `owner_id` is
+-- the creator (LISA_TERMS) or the income proof (AUDIT_LOG). `document` is the
+-- exact object the app canonicalizes and hashes; `content_hash` is its sha256.
+CREATE TABLE storage_uploads(
+	id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	seq             BIGINT GENERATED ALWAYS AS IDENTITY,
+	creator_id      UUID NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+	kind            storage_upload_kind NOT NULL,
+	owner_id        UUID NOT NULL,
+	document        JSONB NOT NULL,
+	content_hash    TEXT NOT NULL CHECK (content_hash ~ '^[0-9a-f]{64}$'),
+	status          storage_upload_status NOT NULL DEFAULT 'QUEUED',
+	ref             TEXT CHECK (length(ref) <= 200),
+	error           TEXT CHECK (length(error) <= 2000),
+	attempts        INTEGER NOT NULL DEFAULT 0,
+	-- Backoff after a transient failure, and the lease while one upload runs.
+	next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX storage_uploads_queue_idx
+	ON storage_uploads(seq) WHERE status = 'QUEUED';
+CREATE INDEX storage_uploads_owner_idx
+	ON storage_uploads(kind, owner_id, seq DESC);
+CREATE INDEX storage_uploads_hash_idx
+	ON storage_uploads(content_hash) WHERE status = 'UPLOADED';
+CREATE TRIGGER storage_uploads_touch_updated_at
+	BEFORE UPDATE ON storage_uploads
+	FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- Wake the worker the moment an upload is queued (`smx.storage_uploads.insert`).
+SELECT pgmb.push_table_mutations(
+	'smx.storage_uploads'::regclass,
+	update := FALSE,
+	delete := FALSE
+);
+
 -- ─── blacklisted_nullifiers ───────────────────────────────────
 -- World IDs banned after a default: the same human can't IPO again.
 CREATE TABLE blacklisted_nullifiers(
@@ -670,7 +714,7 @@ BEGIN
 
 	INSERT INTO price_ticks(creator_id, price)
 	SELECT p_creator, pool_price(p_creator)
-	WHERE pool_price(p_creator) IS NOT NULL;
+	WHERE pool_price(p_creator) IS NOT NULL AND p_kind <> 'STORAGE_CONFIRMED';
 
 	RETURN v_event;
 END;
@@ -686,6 +730,154 @@ AS $$
 	INSERT INTO chain_jobs(creator_id, fn, args)
 	VALUES (p_creator, p_fn, p_args)
 	RETURNING id
+$$;
+
+-- Queues a document for 0G Storage. A document whose content hash is already
+-- UPLOADED is never uploaded twice: the row is born UPLOADED and the stored
+-- ref applied at once. A NULL document or hash queues nothing.
+CREATE OR REPLACE FUNCTION enqueue_storage_upload(
+	p_creator UUID, p_kind storage_upload_kind, p_owner UUID,
+	p_document JSONB, p_content_hash TEXT
+)
+RETURNS storage_uploads
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_row storage_uploads;
+	v_done storage_uploads;
+BEGIN
+	IF p_document IS NULL OR p_content_hash IS NULL THEN
+		RETURN NULL;
+	END IF;
+
+	INSERT INTO storage_uploads(creator_id, kind, owner_id, document, content_hash)
+	VALUES (p_creator, p_kind, p_owner, p_document, p_content_hash)
+	RETURNING * INTO v_row;
+
+	SELECT * INTO v_done FROM storage_uploads u
+	WHERE u.content_hash = p_content_hash AND u.status = 'UPLOADED'
+	ORDER BY u.seq LIMIT 1;
+	IF FOUND THEN
+		v_row := complete_storage_upload(v_row.id, 'UPLOADED', v_done.ref);
+	END IF;
+
+	RETURN v_row;
+END;
+$$;
+
+-- Takes one due QUEUED upload (counts the attempt and leases it for 5 minutes
+-- so a second worker skips it). A document whose hash is already UPLOADED is
+-- completed from that ref instead; the returned row is then UPLOADED and the
+-- caller must not upload. Returns NULL when the row isn't due.
+CREATE OR REPLACE FUNCTION claim_storage_upload(p_id UUID)
+RETURNS storage_uploads
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_row storage_uploads;
+	v_done storage_uploads;
+BEGIN
+	UPDATE storage_uploads u SET
+		attempts = u.attempts + 1,
+		next_attempt_at = now() + interval '5 minutes'
+	WHERE u.id = p_id AND u.status = 'QUEUED' AND u.next_attempt_at <= now()
+	RETURNING * INTO v_row;
+	IF NOT FOUND THEN
+		RETURN NULL;
+	END IF;
+
+	SELECT * INTO v_done FROM storage_uploads u
+	WHERE u.content_hash = v_row.content_hash AND u.status = 'UPLOADED'
+	ORDER BY u.seq LIMIT 1;
+	IF FOUND THEN
+		RETURN complete_storage_upload(p_id, 'UPLOADED', v_done.ref);
+	END IF;
+
+	RETURN v_row;
+END;
+$$;
+
+-- Settles an upload. UPLOADED swaps the 0G root hash into the creator's
+-- `terms_ref` or the proof's `audit_log_ref` (only while it still holds this
+-- document's local ref) and emits STORAGE_CONFIRMED for the SSE stream.
+-- SKIPPED (no key, balance below the floor) keeps the local ref. FAILED with
+-- `p_transient` goes back to QUEUED with exponential backoff (30 s, 2 min)
+-- until 3 attempts are used, then FAILED.
+CREATE OR REPLACE FUNCTION complete_storage_upload(
+	p_id UUID, p_status storage_upload_status, p_ref TEXT DEFAULT NULL,
+	p_error TEXT DEFAULT NULL, p_transient BOOLEAN DEFAULT FALSE
+)
+RETURNS storage_uploads
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_row storage_uploads;
+	v_local TEXT;
+BEGIN
+	SELECT * INTO v_row FROM storage_uploads u
+	WHERE u.id = p_id AND u.status = 'QUEUED' FOR UPDATE;
+	IF NOT FOUND THEN
+		SELECT * INTO v_row FROM storage_uploads u WHERE u.id = p_id;
+		RETURN v_row;
+	END IF;
+
+	IF p_status = 'FAILED' AND p_transient AND v_row.attempts < 3 THEN
+		UPDATE storage_uploads u SET
+			error = left(p_error, 2000),
+			next_attempt_at = now() + interval '30 seconds' * power(4, greatest(v_row.attempts - 1, 0))
+		WHERE u.id = p_id
+		RETURNING * INTO v_row;
+		RETURN v_row;
+	END IF;
+
+	UPDATE storage_uploads u SET
+		status = p_status,
+		ref = CASE WHEN p_status = 'UPLOADED' THEN p_ref END,
+		error = CASE WHEN p_status = 'FAILED' THEN left(p_error, 2000) END
+	WHERE u.id = p_id
+	RETURNING * INTO v_row;
+
+	IF p_status = 'UPLOADED' THEN
+		PERFORM assert_that(p_ref IS NOT NULL, 400, 'Upload has no ref');
+		v_local := 'local:' || v_row.content_hash;
+		IF v_row.kind = 'LISA_TERMS' THEN
+			UPDATE creators c SET terms_ref = p_ref
+			WHERE c.id = v_row.owner_id AND c.terms_ref = v_local;
+		ELSE
+			UPDATE income_proofs ip SET audit_log_ref = p_ref
+			WHERE ip.id = v_row.owner_id AND ip.audit_log_ref = v_local;
+		END IF;
+
+		PERFORM emit_oracle_event(v_row.creator_id, 'STORAGE_CONFIRMED',
+			jsonb_build_object(
+				'kind', v_row.kind,
+				'ref', p_ref,
+				'contentHash', v_row.content_hash,
+				'url', 'https://storagescan-galileo.0g.ai/tool/file?root=' || p_ref
+			));
+	END IF;
+
+	RETURN v_row;
+END;
+$$;
+
+-- 'PENDING' while the upload is queued, else UPLOADED | SKIPPED | FAILED;
+-- NULL when nothing was ever queued (legacy rows). VOLATILE on purpose: it
+-- must see rows written earlier in the same statement (launch_ipo).
+CREATE OR REPLACE FUNCTION storage_status(
+	p_kind storage_upload_kind, p_owner UUID
+)
+RETURNS TEXT
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	SELECT CASE u.status WHEN 'QUEUED' THEN 'PENDING' ELSE u.status::TEXT END
+	FROM storage_uploads u
+	WHERE u.kind = p_kind AND u.owner_id = p_owner
+	ORDER BY u.seq DESC LIMIT 1
 $$;
 
 -- ─── launch_ipo ───────────────────────────────────────────────
@@ -708,6 +900,7 @@ CREATE OR REPLACE FUNCTION launch_ipo(
 	p_terms_ref TEXT,
 	p_terms_hash TEXT,
 	p_chain_id INTEGER DEFAULT NULL,
+	p_terms_document JSONB DEFAULT NULL,
 	p_tranche_bps INTEGER[] DEFAULT ARRAY[2000, 4000, 4000]
 )
 RETURNS creators
@@ -773,6 +966,12 @@ BEGIN
 		'shareBps', p_share_bps,
 		'termMonths', p_term_months
 	));
+
+	-- The terms ref is `local:<sha256>` until the worker uploads the document.
+	PERFORM enqueue_storage_upload(
+		v_creator.id, 'LISA_TERMS', v_creator.id, p_terms_document,
+		substring(p_terms_ref FROM '^local:([0-9a-f]{64})$')
+	);
 
 	PERFORM enqueue_chain_job(v_creator.id, 'createISA', jsonb_build_object(
 		'ticker', p_ticker,
@@ -1010,7 +1209,8 @@ $$;
 -- tranche, pushes the proof deadline out 30 days, clears grace, and emits
 -- events plus chain jobs. Rejection records why and emits PROOF_REJECTED.
 CREATE OR REPLACE FUNCTION audit_income_proof(
-	p_proof UUID, p_verified_amount money_amount, p_audit JSONB DEFAULT '{}'
+	p_proof UUID, p_verified_amount money_amount, p_audit JSONB DEFAULT '{}',
+	p_log_document JSONB DEFAULT NULL
 )
 RETURNS income_proofs
 LANGUAGE plpgsql
@@ -1053,6 +1253,10 @@ BEGIN
 			audit_log_ref = p_audit ->> 'logRef'
 		WHERE id = p_proof
 		RETURNING * INTO v_proof;
+		PERFORM enqueue_storage_upload(
+			v_creator.id, 'AUDIT_LOG', p_proof, p_log_document,
+			substring(p_audit ->> 'logRef' FROM '^local:([0-9a-f]{64})$')
+		);
 		PERFORM emit_oracle_event(v_creator.id, 'PROOF_REJECTED', jsonb_build_object(
 			'proofId', p_proof, 'period', v_proof.period, 'reason', v_reason,
 			'amount', p_verified_amount::TEXT
@@ -1067,6 +1271,12 @@ BEGIN
 		audit_log_ref = p_audit ->> 'logRef'
 	WHERE id = p_proof
 	RETURNING * INTO v_proof;
+
+	-- The log ref is `local:<sha256>` until the worker uploads the document.
+	PERFORM enqueue_storage_upload(
+		v_creator.id, 'AUDIT_LOG', p_proof, p_log_document,
+		substring(p_audit ->> 'logRef' FROM '^local:([0-9a-f]{64})$')
+	);
 
 	INSERT INTO dividends(creator_id, proof_id, amount_due)
 	VALUES (
@@ -1496,6 +1706,7 @@ AS $$
 		'rejectReason', p.audit ->> 'reason',
 		'model', p.audit ->> 'model',
 		'auditLogRef', p.audit_log_ref,
+		'auditLogStorage', storage_status('AUDIT_LOG', p.id),
 		'createdAt', p.created_at
 	))
 $$;
@@ -1633,6 +1844,7 @@ AS $$
 		'stakeAmount', c.stake_amount::TEXT,
 		'minIncome', c.min_income::TEXT,
 		'termsRef', c.terms_ref,
+		'termsStorage', storage_status('LISA_TERMS', c.id),
 		'termsHash', c.terms_hash,
 		'contractAddress', c.contract_address::TEXT,
 		'tokenAddress', c.token_address::TEXT,

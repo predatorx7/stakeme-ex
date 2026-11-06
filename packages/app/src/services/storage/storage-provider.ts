@@ -23,5 +23,11 @@ export type StoragePutResult = {
 export interface IStorageProvider {
 	readonly name: string
 	putJson(input: StoragePutInput): Promise<StoragePutResult>
+	/**
+	 * Why a background upload should be skipped right now (no key, balance
+	 * below the floor), or null when it may proceed. The upload worker marks
+	 * the document SKIPPED and keeps its local ref.
+	 */
+	skipReason?(): Promise<string | null>
 	getJson?(ref: string): Promise<unknown>
 }

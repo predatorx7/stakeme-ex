@@ -21,6 +21,22 @@ export class ZeroGravityStorage implements IStorageProvider {
 
 	readonly name = '0g'
 
+	async skipReason() {
+		if(!ZG_PRIVATE_KEY) {
+			return '0G key unset'
+		}
+
+		const { ethers } = await import('ethers')
+		const rpc = new ethers.JsonRpcProvider(ZG_RPC_URL)
+		const wallet = new ethers.Wallet(ZG_PRIVATE_KEY)
+		const balance = await rpc.getBalance(wallet.address)
+		const floor = ethers.parseEther(String(ZG_STORAGE_MIN_BALANCE))
+		return balance < floor
+			? `0G balance ${ethers.formatEther(balance)} is below the`
+				+ ` ${ZG_STORAGE_MIN_BALANCE} 0G storage floor`
+			: null
+	}
+
 	async putJson(input: StoragePutInput): Promise<StoragePutResult> {
 		const { json, contentHash } = buildStorageDocument(input)
 		const { ethers } = await import('ethers')

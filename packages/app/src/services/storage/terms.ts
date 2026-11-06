@@ -1,11 +1,11 @@
 import { parseUnits } from 'viem'
-import type { LisaTerms, StoredTerms } from '../../integrations/types.ts'
+import type { LisaTerms } from '../../integrations/types.ts'
 import {
 	canonicalJson,
 	nullifierHash,
 	sha256Hex,
 } from '../../integrations/util.ts'
-import type { IStorageProvider } from './storage-provider.ts'
+import { prepareStorage } from './storage-document.ts'
 
 const TERMS_VERSION = 1
 
@@ -34,19 +34,20 @@ export function hashTerms(terms: LisaTerms) {
 	return { canonical, termsHash: sha256Hex(canonical) }
 }
 
-/** Writes the L-ISA legal terms through the storage provider. */
-export async function storeTerms(
-	storage: IStorageProvider,
-	terms: LisaTerms,
-): Promise<StoredTerms> {
+/**
+ * Synchronous half of storing the L-ISA terms: the document, its content hash
+ * and the local ref the IPO commits with. The worker uploads `document` later
+ * (`storage_uploads` outbox) and swaps in the 0G root hash.
+ */
+export function prepareTerms(terms: LisaTerms) {
 	const { termsHash } = hashTerms(terms)
-	const { ref } = await storage.putJson({
+	const { document, localRef } = prepareStorage({
 		kind: 'LISA_TERMS',
 		key: `terms/${terms.ticker}`,
 		data: buildTermsPayload(terms),
 		attributes: { ticker: terms.ticker, termsHash },
 	})
-	return { termsRef: ref, termsHash }
+	return { termsRef: localRef, termsHash, document }
 }
 
 function microNumber(decimal: string) {

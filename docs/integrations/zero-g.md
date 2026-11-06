@@ -156,6 +156,12 @@ Download to verify:
 const err = await indexer.download(rootHash, './audit.json', true); // true = verify proof
 ```
 
+In SMX the upload runs in the background: the request commits a
+`local:<sha256>` ref and the worker uploads later (see the Worker section of
+[backend.md](../backend.md)). Each upload takes about 30 seconds and costs about
+0.0012 0G on Galileo. Uploads are skipped below `ZG_STORAGE_MIN_BALANCE`, retry
+up to 3 times, and are deduplicated on the document's content hash.
+
 Link the log in the UI: `https://storagescan-galileo.0g.ai` plus the root hash.
 The upload transaction appears on `https://chainscan-galileo.0g.ai/tx/<tx>`.
 

@@ -14,9 +14,41 @@ investors.
 | Contract | Purpose |
 | --- | --- |
 | `MockUSDC` | Six-decimal test token with a public `mint`. |
-| `CreatorShareToken` | ERC-20 share token with built-in dividend accounting. |
-| `LiquidISA` | One per creator. Holds escrow, stake and dividends. |
-| `LiquidISAFactory` | Deploys ISAs, maps each World ID nullifier to its ISA and keeps the default blacklist. |
+| `CreatorShareToken` | ERC-20 share token with built-in dividend accounting. Deployed once as an implementation; each ISA gets a clone. |
+| `LiquidISA` | One clone per creator. Holds escrow, stake and dividends. |
+| `LiquidISAFactory` | Clones ISAs and tokens, maps each World ID nullifier to its ISA and keeps the default blacklist. |
+
+## Minimal proxy clones
+
+Deploying a full `LiquidISA` (about 6.2 KB) plus a `CreatorShareToken` for every
+IPO cost 3 to 5 testnet HBAR on Hedera. The factory now clones both contracts
+with [EIP-1167](https://eips.ethereum.org/EIPS/eip-1167) minimal proxies
+(OpenZeppelin `Clones`), so an IPO deploys two 45-byte proxies.
+
+```mermaid
+flowchart LR
+	F["LiquidISAFactory"] -- "clone()" --> I["LiquidISA clone"]
+	F -- "clone()" --> T["CreatorShareToken clone"]
+	I -. "delegatecall" .-> IA["LiquidISA implementation"]
+	T -. "delegatecall" .-> TA["CreatorShareToken implementation"]
+	F -- "initialize()" --> I
+	F -- "initialize()" --> T
+```
+
+- Constructors became `initialize(...)` (OpenZeppelin `Initializable`). The
+  implementations call `_disableInitializers()` in their constructors, so only
+  clones can be initialized, once.
+- Per-ISA configuration (`usdc`, `creator`, `oracle`, `totalRaise`, and so on)
+  lives in storage instead of `immutable` fields. The public getters keep their
+  names and types.
+- `CreatorShareToken` stores `name` and `symbol` in storage and overrides
+  `name()` and `symbol()`.
+- The factory constructor is `(usdc, oracle, isaImplementation, tokenImplementation)`.
+  `createISA` and the `ISACreated` event are unchanged.
+
+Because a fresh factory is cheap, reseeding a demo means deploying a new
+factory. This keeps the one-ISA-per-nullifier Sybil check intact; there is no
+nullifier reset function.
 
 ## Lifecycle
 
@@ -110,28 +142,59 @@ npm test
 
 ## Deploy
 
-Set the keys as Hardhat configuration variables. Never commit them.
+Hedera testnet uses a viem script, not Ignition: Ignition's automatic gas limit
+gets HTTP 400 from Hashio. Hedera bills at least 80% of the gas limit at about
+1,240 gwei, so the script sets each limit to `estimateGas` plus 20%.
 
 ```bash
-npx hardhat vars set HEDERA_PRIVATE_KEY
+npm run deploy:hedera              # reuse the MockUSDC in USDC_ADDRESS
+npm run deploy:hedera -- --new-usdc  # also deploy a fresh MockUSDC
+```
+
+The script reads `ORACLE_PRIVATE_KEY` from the root `.env` (the deployer is
+the oracle) and:
+
+1. Deploys the `LiquidISA` and `CreatorShareToken` implementations and the
+   factory, waiting for each receipt.
+2. Polls the Hedera mirror node
+   (`https://testnet.mirrornode.hedera.com/api/v1/contracts/<address>`) until it
+   returns each contract.
+3. Prints the addresses and the HBAR spent.
+4. Updates `FACTORY_ADDRESS` (and `USDC_ADDRESS` with `--new-usdc`) in the root
+   `.env` and writes `packages/contracts/deployments/hedera-testnet.json`.
+
+Run `npm run abis` afterward: it merges `deployments/*.json` and the Ignition
+journals into `src/deployments.gen.ts`.
+
+Other networks still use Ignition. Set the keys as Hardhat configuration
+variables and never commit them:
+
+```bash
 npx hardhat vars set SEPOLIA_PRIVATE_KEY
 npx hardhat vars set SEPOLIA_RPC_URL
 npx hardhat vars set OG_PRIVATE_KEY
-```
-
-Then deploy to a network:
-
-```bash
-npm run deploy:hedera   # default target: Hedera testnet, chain 296, https://testnet.hashio.io/api
 npm run deploy:sepolia
 npm run deploy:0g       # 0G Galileo, chain 16602, https://evmrpc-testnet.0g.ai
 ```
 
-The deployer account is the oracle unless you pass
-`--parameters` with a different `Deploy.oracle`. Run `npm run abis` afterward;
-it reads `ignition/deployments/chain-<id>/deployed_addresses.json` into
-`src/deployments.gen.ts`. For a local chain, run `npm run node` and
-`npm run deploy:local`.
+For a local chain, run `npm run node` and `npm run deploy:local`.
+
+### Costs on Hedera testnet
+
+| Action | Before clones | With clones |
+| --- | --- | --- |
+| `createISA` | about 3 to 5 HBAR | about 0.76 HBAR |
+| One-off deploy (two implementations and factory) | about 4.3 HBAR (factory only plus USDC) | about 3.7 HBAR |
+
+### Mirror-node lag
+
+Hashio reads go through the mirror node. For a few seconds after a deploy,
+reads and `estimateGas` on the new address fail with `FAIL_INVALID`, and a
+second transaction right after a receipt can fail with "nonce too low".
+`packages/app/src/integrations/chain.ts` retries `FAIL_INVALID` (10 tries, 2 s
+apart), retries nonce errors with a locally tracked nonce, and waits for the
+mirror node to know a new ISA before `createISA` returns. It also sets every
+call's gas limit to `estimateGas` plus 20%.
 
 ## Use from the app
 

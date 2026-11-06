@@ -175,7 +175,7 @@ Code: `packages/app/src/integrations/` (import from `index.ts`), browser hooks i
 | World ID | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION`, `WORLD_ENV` | Fixture proofs (`demo: true`), `DEMO_MODE=1` only. Deterministic nullifier; "Simulate Sybil" repeats it. |
 | Reclaim | `RECLAIM_ORG_SECRET`, `RECLAIM_PROVIDER_ID`, `RECLAIM_ORG_ETH_PRIVATE_KEY` (optional; org encryption is OFF) | `demoIncomeProof(context, amount)` fixture, `DEMO_MODE=1` only. Demo session links to `/mock-bank`. |
 | 0G | `ZG_PRIVATE_KEY`, `ZG_RPC_URL`, `ZG_INDEXER_URL`, `ZG_PROVIDER_ADDRESS`, `ZG_LEDGER_DEPOSIT` | Rules engine (`model: 'rules-engine'`), `logRef = local:<sha256>`. Also used when Compute errors. |
-| Storage | `STORAGE_PROVIDER=0g\|local` (default `0g`), `ZG_*` | Without `ZG_PRIVATE_KEY` or on upload failure: `LocalStorageProvider`, ref `local:<sha256>`. |
+| Storage | `STORAGE_PROVIDER=0g\|local` (default `0g`), `ZG_*`, `ZG_STORAGE_MIN_BALANCE` | Uploads run in the worker (see "0G Storage outbox"). Without `ZG_PRIVATE_KEY`, with `local`, or below the floor: SKIPPED, ref stays `local:<sha256>`. |
 | Chain | `CHAIN_RPC_URL`, `CHAIN_ID`, `ORACLE_PRIVATE_KEY`, `FACTORY_ADDRESS` | `CHAIN_RPC_URL` unset: SIMULATED, tx hash = keccak256(job id), fake ISA/token addresses. |
 | Hedera | `HEDERA_OPERATOR_ID`/`HEDERA_ACCOUNT_ID`, `HEDERA_OPERATOR_KEY`/`HEDERA_PRIVATE_KEY`, `HEDERA_DIVIDEND_TOKEN_ID`, `HEDERA_NETWORK` | SIMULATED `sim:0x...` receipts. |
 
@@ -214,7 +214,7 @@ Docs: [`docs/architecture-adapters.md`](docs/architecture-adapters.md) (class di
 | `IPaymentRail` (`payout`, optional `createPaymentRequest`, `settle`) | `HederaPaymentRail` (workstream 9) | `createPaymentService(pg)` / `createPaymentRail()`. `PaymentService` takes splits from SQL, checks they sum, records receipts. |
 
 - New implementation: add a class, return it from the factory. No other file changes.
-- Refs in Postgres: `creators.terms_ref` (L-ISA terms, 0G root hash or `local:`), `income_proofs.audit_log_ref` (every APPROVED/DENIED audit log).
+- Refs in Postgres: `creators.terms_ref` (L-ISA terms, 0G root hash or `local:`), `income_proofs.audit_log_ref` (every APPROVED/DENIED audit log). Both start as `local:<sha256>`; see "0G Storage outbox".
 - Safe stop: `sweep_deadlines` LIVE->GRACE calls `freeze_escrow` (event `ESCROW_FROZEN`, chain job `freezeEscrow`); a late approved proof in GRACE emits `ESCROW_UNFROZEN` and queues `unfreezeEscrow`. `creators.ats_token_address` (JSON `atsTokenAddress`) is stored by `complete_chain_job`.
 - World ID: `POST /api/rp-signature` (`CreateRpSignature`, signal = SIWE wallet). `createISA` job args now include `worldIdNullifier` and `termsRef`.
 - API surface added: `GetMockBankLogin`, `MockBankLogin`, `GetMockBankTransactions`, `GetReclaimSessionStatus`, `CreateRpSignature`, `CreateDividendPaymentRequest`; `PayDividend` takes optional `{ paymentPayload }`.
@@ -226,6 +226,17 @@ Docs: [`docs/architecture-adapters.md`](docs/architecture-adapters.md) (class di
 `@reclaimprotocol/client` 0.1.43 (js-sdk removed). Env: `RECLAIM_ORG_SECRET`, `RECLAIM_PROVIDER_ID`, `RECLAIM_ORG_ETH_PRIVATE_KEY` (optional: org result encryption is OFF, results are plaintext; passed only when set). `CreateReclaimSession` -> `sessions.create` (context `{creatorId, ticker}`), row in `reclaim_sessions`. Callback: `POST /reclaim/callback` on port 4020; it looks up the session by the envelope `sessionId` and calls `results.receive` with `reclaimSessionId` and `expectedAud` from the DB. `ResultVerificationError`: `retryable` -> 503, else 200. Failure events set session status and `failure_reason`. Polling fallback `GET /reclaim/sessions/{sessionId}`. The provider must expose the deposit as extracted parameter `amount`, `deposit_amount`, `depositAmount` or `income`.
 
 Known issues (workstream 7): live Reclaim/0G/World ID paths are untested (no live callback yet); `npm install` nested a stale `@types/node@18` into `packages/app/node_modules/@types/node` (moved aside; reinstalling may recreate it and break `tsc`); lint/tsc errors in `ChainJobBadge.tsx`, `CreatorHubPage.tsx`, `CreatorPage.tsx` come from the UI agent's in-progress files; `docs/pitch.md`, `docs/product-spec.md` still mention Arkiv/Chainlink; unauthenticated failure events can end a pending session (low risk: ids are random).
+
+## 0G Storage outbox (2026-11-06)
+
+Each 0G upload takes ~30 s and ~0.0012 0G, so no request waits for it. Details: `docs/backend.md` (Worker), `docs/integrations/zero-g.md`.
+
+- `LaunchIpo` (`prepareTerms`) and the audit pipeline (`ZeroGravityAgent.audit()` returns `logRef = local:<sha256>` plus `logDocument`) compute the canonical document and hash synchronously. `launch_ipo(..., p_terms_document)` / `audit_income_proof(..., p_log_document)` commit with the local ref and call `enqueue_storage_upload` into table `storage_uploads` (QUEUED | UPLOADED | FAILED | SKIPPED; `attempts`, `next_attempt_at`).
+- `worker/storage-uploads.ts` (woken by `smx.storage_uploads.insert` + 15 s poll; `createUploadProvider()` = raw `ZeroGravityStorage`, no local fallback) runs `claim_storage_upload` then `complete_storage_upload`: UPLOADED swaps the root hash into `terms_ref` / `audit_log_ref` and emits oracle event `STORAGE_CONFIRMED` (`kind`, `ref`, `contentHash`, `url`; no price tick). SKIPPED (no key, `STORAGE_PROVIDER=local`, balance under `ZG_STORAGE_MIN_BALANCE`) keeps the local ref. Transient failures back off 30 s / 2 min, 3 attempts, then FAILED. A content hash already UPLOADED is never uploaded twice.
+- JSON/OpenAPI: creator `termsStorage`, income proof `auditLogStorage` (`PENDING | UPLOADED | SKIPPED | FAILED`). UI: `StorageRef` in `components/TxLink.tsx` shows "0G Storage: pending", then the root hash linked to storagescan after the event reloads the region. The `createISA` chain job still carries the local `termsRef`; chain jobs never wait on storage.
+- Chain: `RequeueFailedChainJobs` also requeues `FAIL_INVALID` errors (Hedera mirror lag after a deploy); migration `20261106162000000.storage_outbox.sql` requeues existing ones. Worker boot drains (chain and storage) are no longer awaited, so the HTTP server starts at once (a boot drain of seeded real chain jobs used to hold it for minutes).
+- Live check (2026-11-06): `POST /creators` returned 201 in 88 ms with `PENDING`; the ref flipped to the root hash on the 3rd attempt (two transient `socket hang up` / RPC timeouts, backoff worked). Storagescan URL form `/tool/file?root=` is unverified in a browser.
+- Tests: `tests/storage-outbox.test.ts` (ref swap + event, dedupe, SKIPPED via injected `skipReason`, retry then FAILED).
 
 ## Wallets (WalletConnect, 2026-11-06)
 
@@ -249,7 +260,7 @@ Secrets live only in `.env` (gitignored). Public ids below are safe to share.
   - `MockUSDC` `0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f` (Ignition), `LiquidISAFactory` `0x844a1eecad6f8d5a66a29d68597a4e36019b5ddc` (deployed with viem, `gas: 6_000_000`; Ignition's automatic gas limit got HTTP 400 from Hashio, so the Ignition journal lists only MockUSDC).
   - Hedera bills at least 80% of the gas limit at about 1,240 gwei: the two deploys cost about 4.3 HBAR, and each IPO (`createISA` deploys an ISA and a token) costs about 4 to 5 HBAR. `CHAIN_RPC_URL` stays commented in `.env` until the account holds at least 30 HBAR. The faucet without sign-in gives 10 HBAR per day; a portal account gives 100.
 - World ID: app `app_0b5a20d804cb26e5008896d976fc4193`, RP `rp_6a0a12bcfbc0fbf0` (signer `0x78AE71F65dF192Fd52E97Ea45bf07538113F0ffA`, key generated locally, never left this machine), staging action `smx-launch-ipo`, `WORLD_ENV=staging`. Verified end to end with the World ID Simulator (paste the IDKit link into Paste code): RP signature, proof, and `POST /api/world-id/check` returned 200 through the v4 verify API.
-- 0G Galileo: same account, balance 0. The faucet blocks automated browsers; the team requested credits in 0G's Telegram. Compute and Storage stay on the fallback until funded.
+- 0G Galileo: same account, funded from the faucet (about 0.5 0G, refills every 25 h). Storage uploads work live (~0.0012 0G each); Compute stays off (`ZG_COMPUTE_ENABLED`).
 - Reclaim: provider live (see workstream 8). WalletConnect: project id in `.env`, QR pairing verified.
 
 ## Remaining

@@ -19,7 +19,7 @@ import { PageHeader } from '../PageHeader.tsx'
 import { PriceChange } from '../PriceChange.tsx'
 import { LinearProgress } from '../Progress.tsx'
 import { SectionCard } from '../SectionCard.tsx'
-import { HashRef, TxLink } from '../TxLink.tsx'
+import { HashRef, StorageRef, TxLink } from '../TxLink.tsx'
 
 const TRANCHE_TONE = {
 	LOCKED: 'warn',
@@ -186,8 +186,9 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 											0G Storage ref
 										</dt>
 										<dd>
-											<HashRef
+											<StorageRef
 												value={c.termsRef}
+												status={c.termsStorage}
 												label='0G Storage ref' />
 										</dd>
 									</div>
@@ -399,8 +400,9 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 															!!p.auditLogRef && (
 																<>
 																	{' '}
-																	<HashRef
+																	<StorageRef
 																		value={p.auditLogRef}
+																		status={p.auditLogStorage}
 																		label='0G Storage log ref' />
 																</>
 															)

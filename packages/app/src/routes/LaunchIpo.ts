@@ -9,14 +9,16 @@ import {
 import { verifyWorldIdProof } from '../integrations/index.ts'
 import { LOGGER } from '../logger.ts'
 import { checkLaunchable, launchIpo } from '../queries.ts'
-import { createStorageProvider, storeTerms } from '../services/index.ts'
+import { prepareTerms } from '../services/index.ts'
 import type { ITypedExpressRequest } from '../types/openapi.ts'
 import { respondMutation } from '../utils/mutation.ts'
 
 /**
- * `POST /creators` — verify World ID (signal = viewer wallet), write the L-ISA
- * terms to 0G Storage, then one SQL statement creates the IPO. The SQL
- * asserts every rule (banned or reused nullifier, ticker, tranche sum).
+ * `POST /creators` — verify World ID (signal = viewer wallet), build the L-ISA
+ * terms document and its hash, then one SQL statement creates the IPO and
+ * queues the 0G Storage upload (the worker swaps `local:<sha256>` for the root
+ * hash later, so the request never waits on 0G). The SQL asserts every rule
+ * (banned or reused nullifier, ticker, tranche sum).
  */
 export default async function LaunchIpoRoute(
 	req: ITypedExpressRequest<'LaunchIpo'>,
@@ -40,10 +42,10 @@ export default async function LaunchIpoRoute(
 		throw badRequest('World ID proof could not be verified')
 	}
 
-	// Cheap check first, so a banned human doesn't cost an Arkiv write.
+	// Cheap check first, so a banned human costs nothing more.
 	await checkLaunchable.run({ nullifier: world.nullifier }, req.pg)
 
-	const stored = await storeTerms(createStorageProvider(), {
+	const stored = prepareTerms({
 		ticker: b.ticker,
 		displayName: b.displayName,
 		shareBps,
@@ -69,6 +71,7 @@ export default async function LaunchIpoRoute(
 			nullifier: world.nullifier,
 			terms_ref: stored.termsRef,
 			terms_hash: stored.termsHash,
+			terms_document: stored.document,
 			chain_id: DOMAIN_CHAIN_ID,
 		},
 		req.pg,

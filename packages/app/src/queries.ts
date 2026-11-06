@@ -5,6 +5,10 @@ export type chain_job_status = 'CONFIRMED' | 'FAILED' | 'QUEUED' | 'SENT' | 'SIM
 
 export type reclaim_session_status = 'CANCELLED' | 'ERROR' | 'EXPIRED' | 'PENDING' | 'REJECTED' | 'SUCCESS';
 
+export type storage_upload_kind = 'AUDIT_LOG' | 'LISA_TERMS';
+
+export type storage_upload_status = 'FAILED' | 'QUEUED' | 'SKIPPED' | 'UPLOADED';
+
 export type trade_side = 'BUY' | 'SELL';
 
 export type NumberOrString = number | string;
@@ -175,6 +179,7 @@ export interface ILaunchIpoParams {
   stake_amount: string;
   target_raise: string;
   term_months: number;
+  terms_document?: unknown | null | void;
   terms_hash?: string | null | void;
   terms_ref?: string | null | void;
   ticker: string;
@@ -192,13 +197,14 @@ export interface ILaunchIpoQuery {
   result: ILaunchIpoResult;
 }
 
-const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":true,"display_name":true,"headline":true,"share_bps":true,"term_months":true,"target_raise":true,"stake_amount":true,"nullifier":true,"terms_ref":true,"terms_hash":true,"chain_id":true},"params":[{"name":"owner","required":true,"transform":{"type":"scalar"},"locs":[{"a":198,"b":204}]},{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":208,"b":215}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":219,"b":226}]},{"name":"display_name","required":true,"transform":{"type":"scalar"},"locs":[{"a":230,"b":243}]},{"name":"headline","required":true,"transform":{"type":"scalar"},"locs":[{"a":247,"b":256}]},{"name":"share_bps","required":true,"transform":{"type":"scalar"},"locs":[{"a":260,"b":270}]},{"name":"term_months","required":true,"transform":{"type":"scalar"},"locs":[{"a":274,"b":286}]},{"name":"target_raise","required":true,"transform":{"type":"scalar"},"locs":[{"a":290,"b":303}]},{"name":"stake_amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":307,"b":320}]},{"name":"nullifier","required":true,"transform":{"type":"scalar"},"locs":[{"a":324,"b":334}]},{"name":"terms_ref","required":false,"transform":{"type":"scalar"},"locs":[{"a":338,"b":347}]},{"name":"terms_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":351,"b":361}]},{"name":"chain_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":365,"b":373}]}],"statement":"-- Creates the L-ISA in one statement (creator, tranches, pool, tick, event,\n-- chain jobs) and returns the creator document. Route: LaunchIpo.\nSELECT smx.creator_json(c) AS j\nFROM smx.launch_ipo(\n\t:owner!,\n\t:wallet!,\n\t:ticker!,\n\t:display_name!,\n\t:headline!,\n\t:share_bps!,\n\t:term_months!,\n\t:target_raise!,\n\t:stake_amount!,\n\t:nullifier!,\n\t:terms_ref,\n\t:terms_hash,\n\t:chain_id\n) AS c"};
+const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":true,"display_name":true,"headline":true,"share_bps":true,"term_months":true,"target_raise":true,"stake_amount":true,"nullifier":true,"terms_ref":true,"terms_hash":true,"chain_id":true,"terms_document":true},"params":[{"name":"owner","required":true,"transform":{"type":"scalar"},"locs":[{"a":280,"b":286}]},{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":290,"b":297}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":301,"b":308}]},{"name":"display_name","required":true,"transform":{"type":"scalar"},"locs":[{"a":312,"b":325}]},{"name":"headline","required":true,"transform":{"type":"scalar"},"locs":[{"a":329,"b":338}]},{"name":"share_bps","required":true,"transform":{"type":"scalar"},"locs":[{"a":342,"b":352}]},{"name":"term_months","required":true,"transform":{"type":"scalar"},"locs":[{"a":356,"b":368}]},{"name":"target_raise","required":true,"transform":{"type":"scalar"},"locs":[{"a":372,"b":385}]},{"name":"stake_amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":389,"b":402}]},{"name":"nullifier","required":true,"transform":{"type":"scalar"},"locs":[{"a":406,"b":416}]},{"name":"terms_ref","required":false,"transform":{"type":"scalar"},"locs":[{"a":420,"b":429}]},{"name":"terms_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":433,"b":443}]},{"name":"chain_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":447,"b":455}]},{"name":"terms_document","required":false,"transform":{"type":"scalar"},"locs":[{"a":459,"b":473}]}],"statement":"-- Creates the L-ISA in one statement (creator, tranches, pool, tick, event,\n-- chain jobs, 0G Storage upload) and returns the creator document. The terms\n-- ref is `local:<sha256>` until the worker uploads. Route: LaunchIpo.\nSELECT smx.creator_json(c) AS j\nFROM smx.launch_ipo(\n\t:owner!,\n\t:wallet!,\n\t:ticker!,\n\t:display_name!,\n\t:headline!,\n\t:share_bps!,\n\t:term_months!,\n\t:target_raise!,\n\t:stake_amount!,\n\t:nullifier!,\n\t:terms_ref,\n\t:terms_hash,\n\t:chain_id,\n\t:terms_document::JSONB\n) AS c"};
 
 /**
  * Query generated from SQL:
  * ```
  * -- Creates the L-ISA in one statement (creator, tranches, pool, tick, event,
- * -- chain jobs) and returns the creator document. Route: LaunchIpo.
+ * -- chain jobs, 0G Storage upload) and returns the creator document. The terms
+ * -- ref is `local:<sha256>` until the worker uploads. Route: LaunchIpo.
  * SELECT smx.creator_json(c) AS j
  * FROM smx.launch_ipo(
  * 	:owner!,
@@ -213,7 +219,8 @@ const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":tr
  * 	:nullifier!,
  * 	:terms_ref,
  * 	:terms_hash,
- * 	:chain_id
+ * 	:chain_id,
+ * 	:terms_document::JSONB
  * ) AS c
  * ```
  */
@@ -561,6 +568,7 @@ export const getDividendForPayment = new PreparedQuery<IGetDividendForPaymentPar
 /** 'AuditIncomeProof' parameters type */
 export interface IAuditIncomeProofParams {
   audit: unknown;
+  log_document?: unknown | null | void;
   proof_id: string;
   verified_amount: NumberOrString;
 }
@@ -576,7 +584,7 @@ export interface IAuditIncomeProofQuery {
   result: IAuditIncomeProofResult;
 }
 
-const auditIncomeProofIR: any = {"usedParamSet":{"proof_id":true,"verified_amount":true,"audit":true},"params":[{"name":"proof_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":159,"b":168}]},{"name":"verified_amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":171,"b":187}]},{"name":"audit","required":true,"transform":{"type":"scalar"},"locs":[{"a":199,"b":205}]}],"statement":"-- Applies the rules engine to a pending proof. Routes: AuditMilestone,\n-- ReclaimCallback.\nSELECT smx.audit_result_json(p) AS j\nFROM smx.audit_income_proof(\n\t:proof_id!, :verified_amount!::NUMERIC, :audit!::JSONB\n) AS p"};
+const auditIncomeProofIR: any = {"usedParamSet":{"proof_id":true,"verified_amount":true,"audit":true,"log_document":true},"params":[{"name":"proof_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":159,"b":168}]},{"name":"verified_amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":171,"b":187}]},{"name":"audit","required":true,"transform":{"type":"scalar"},"locs":[{"a":199,"b":205}]},{"name":"log_document","required":false,"transform":{"type":"scalar"},"locs":[{"a":216,"b":228}]}],"statement":"-- Applies the rules engine to a pending proof. Routes: AuditMilestone,\n-- ReclaimCallback.\nSELECT smx.audit_result_json(p) AS j\nFROM smx.audit_income_proof(\n\t:proof_id!, :verified_amount!::NUMERIC, :audit!::JSONB,\n\t:log_document::JSONB\n) AS p"};
 
 /**
  * Query generated from SQL:
@@ -585,7 +593,8 @@ const auditIncomeProofIR: any = {"usedParamSet":{"proof_id":true,"verified_amoun
  * -- ReclaimCallback.
  * SELECT smx.audit_result_json(p) AS j
  * FROM smx.audit_income_proof(
- * 	:proof_id!, :verified_amount!::NUMERIC, :audit!::JSONB
+ * 	:proof_id!, :verified_amount!::NUMERIC, :audit!::JSONB,
+ * 	:log_document::JSONB
  * ) AS p
  * ```
  */
@@ -1079,7 +1088,7 @@ export interface IRequeueFailedChainJobsQuery {
   result: IRequeueFailedChainJobsResult;
 }
 
-const requeueFailedChainJobsIR: any = {"usedParamSet":{"ticker":true,"transient_only":true},"params":[{"name":"ticker","required":false,"transform":{"type":"scalar"},"locs":[{"a":439,"b":445},{"a":475,"b":481}]},{"name":"transient_only","required":true,"transform":{"type":"scalar"},"locs":[{"a":503,"b":518}]}],"statement":"-- Puts FAILED onchain calls back in the queue (optionally one creator's).\n-- With :transient_only, only relay errors (HTTP failures, timeouts, 5xx) that\n-- never reached the chain; reverts stay FAILED. A FAILED job blocks later\n-- jobs of its creator until requeued. Worker sweep.\nUPDATE smx.chain_jobs j\nSET status = 'QUEUED', error = NULL, updated_at = now()\nFROM smx.creators c\nWHERE j.status = 'FAILED'\n\tAND c.id = j.creator_id\n\tAND (:ticker::TEXT IS NULL OR c.ticker = :ticker::TEXT)\n\tAND (\n\t\tNOT :transient_only!::BOOLEAN\n\t\tOR (\n\t\t\tj.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed)'\n\t\t\t-- Back off so a struggling relay isn't hammered every poll.\n\t\t\tAND j.updated_at < now() - interval '30 seconds'\n\t\t)\n\t)\nRETURNING j.id, j.fn, c.ticker"};
+const requeueFailedChainJobsIR: any = {"usedParamSet":{"ticker":true,"transient_only":true},"params":[{"name":"ticker","required":false,"transform":{"type":"scalar"},"locs":[{"a":439,"b":445},{"a":475,"b":481}]},{"name":"transient_only","required":true,"transform":{"type":"scalar"},"locs":[{"a":503,"b":518}]}],"statement":"-- Puts FAILED onchain calls back in the queue (optionally one creator's).\n-- With :transient_only, only relay errors (HTTP failures, timeouts, 5xx) that\n-- never reached the chain; reverts stay FAILED. A FAILED job blocks later\n-- jobs of its creator until requeued. Worker sweep.\nUPDATE smx.chain_jobs j\nSET status = 'QUEUED', error = NULL, updated_at = now()\nFROM smx.creators c\nWHERE j.status = 'FAILED'\n\tAND c.id = j.creator_id\n\tAND (:ticker::TEXT IS NULL OR c.ticker = :ticker::TEXT)\n\tAND (\n\t\tNOT :transient_only!::BOOLEAN\n\t\tOR (\n\t\t\tj.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed|FAIL_INVALID)'\n\t\t\t-- Back off so a struggling relay isn't hammered every poll.\n\t\t\tAND j.updated_at < now() - interval '30 seconds'\n\t\t)\n\t)\nRETURNING j.id, j.fn, c.ticker"};
 
 /**
  * Query generated from SQL:
@@ -1097,7 +1106,7 @@ const requeueFailedChainJobsIR: any = {"usedParamSet":{"ticker":true,"transient_
  * 	AND (
  * 		NOT :transient_only!::BOOLEAN
  * 		OR (
- * 			j.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed)'
+ * 			j.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed|FAIL_INVALID)'
  * 			-- Back off so a struggling relay isn't hammered every poll.
  * 			AND j.updated_at < now() - interval '30 seconds'
  * 		)
@@ -1106,5 +1115,111 @@ const requeueFailedChainJobsIR: any = {"usedParamSet":{"ticker":true,"transient_
  * ```
  */
 export const requeueFailedChainJobs = new PreparedQuery<IRequeueFailedChainJobsParams,IRequeueFailedChainJobsResult>(requeueFailedChainJobsIR);
+
+
+/** 'ListDueStorageUploads' parameters type */
+export interface IListDueStorageUploadsParams {
+  batch: number;
+}
+
+/** 'ListDueStorageUploads' return type */
+export interface IListDueStorageUploadsResult {
+  id: string;
+}
+
+/** 'ListDueStorageUploads' query type */
+export interface IListDueStorageUploadsQuery {
+  params: IListDueStorageUploadsParams;
+  result: IListDueStorageUploadsResult;
+}
+
+const listDueStorageUploadsIR: any = {"usedParamSet":{"batch":true},"params":[{"name":"batch","required":true,"transform":{"type":"scalar"},"locs":[{"a":184,"b":190}]}],"statement":"-- Queued 0G Storage uploads whose backoff has passed, oldest first. Worker.\nSELECT id FROM smx.storage_uploads\nWHERE status = 'QUEUED' AND next_attempt_at <= now()\nORDER BY seq\nLIMIT :batch!::INTEGER"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Queued 0G Storage uploads whose backoff has passed, oldest first. Worker.
+ * SELECT id FROM smx.storage_uploads
+ * WHERE status = 'QUEUED' AND next_attempt_at <= now()
+ * ORDER BY seq
+ * LIMIT :batch!::INTEGER
+ * ```
+ */
+export const listDueStorageUploads = new PreparedQuery<IListDueStorageUploadsParams,IListDueStorageUploadsResult>(listDueStorageUploadsIR);
+
+
+/** 'ClaimStorageUpload' parameters type */
+export interface IClaimStorageUploadParams {
+  id: string;
+}
+
+/** 'ClaimStorageUpload' return type */
+export interface IClaimStorageUploadResult {
+  attempts: number | null;
+  content_hash: string | null;
+  creator_id: string | null;
+  document: unknown | null;
+  id: string | null;
+  kind: storage_upload_kind | null;
+  status: storage_upload_status | null;
+}
+
+/** 'ClaimStorageUpload' query type */
+export interface IClaimStorageUploadQuery {
+  params: IClaimStorageUploadParams;
+  result: IClaimStorageUploadResult;
+}
+
+const claimStorageUploadIR: any = {"usedParamSet":{"id":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":272,"b":275}]}],"statement":"-- Leases one upload (counts the attempt). Returns no row when it isn't due;\n-- an already-UPLOADED content hash comes back UPLOADED (don't upload). Worker.\nSELECT s.id, s.creator_id, s.kind, s.document, s.content_hash, s.status,\n\ts.attempts\nFROM smx.claim_storage_upload(:id!) AS s\nWHERE s.id IS NOT NULL"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Leases one upload (counts the attempt). Returns no row when it isn't due;
+ * -- an already-UPLOADED content hash comes back UPLOADED (don't upload). Worker.
+ * SELECT s.id, s.creator_id, s.kind, s.document, s.content_hash, s.status,
+ * 	s.attempts
+ * FROM smx.claim_storage_upload(:id!) AS s
+ * WHERE s.id IS NOT NULL
+ * ```
+ */
+export const claimStorageUpload = new PreparedQuery<IClaimStorageUploadParams,IClaimStorageUploadResult>(claimStorageUploadIR);
+
+
+/** 'CompleteStorageUpload' parameters type */
+export interface ICompleteStorageUploadParams {
+  error?: string | null | void;
+  id: string;
+  ref?: string | null | void;
+  status: storage_upload_status;
+  transient: boolean;
+}
+
+/** 'CompleteStorageUpload' return type */
+export interface ICompleteStorageUploadResult {
+  id: string | null;
+  status: storage_upload_status | null;
+}
+
+/** 'CompleteStorageUpload' query type */
+export interface ICompleteStorageUploadQuery {
+  params: ICompleteStorageUploadParams;
+  result: ICompleteStorageUploadResult;
+}
+
+const completeStorageUploadIR: any = {"usedParamSet":{"id":true,"status":true,"ref":true,"error":true,"transient":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":190,"b":193}]},{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":196,"b":203}]},{"name":"ref","required":false,"transform":{"type":"scalar"},"locs":[{"a":233,"b":236}]},{"name":"error","required":false,"transform":{"type":"scalar"},"locs":[{"a":239,"b":244}]},{"name":"transient","required":true,"transform":{"type":"scalar"},"locs":[{"a":247,"b":257}]}],"statement":"-- Settles an upload: UPLOADED swaps the ref in and emits STORAGE_CONFIRMED;\n-- FAILED with :transient retries with backoff. Worker.\nSELECT s.id, s.status\nFROM smx.complete_storage_upload(\n\t:id!, :status!::smx.storage_upload_status, :ref, :error, :transient!::BOOLEAN\n) AS s"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Settles an upload: UPLOADED swaps the ref in and emits STORAGE_CONFIRMED;
+ * -- FAILED with :transient retries with backoff. Worker.
+ * SELECT s.id, s.status
+ * FROM smx.complete_storage_upload(
+ * 	:id!, :status!::smx.storage_upload_status, :ref, :error, :transient!::BOOLEAN
+ * ) AS s
+ * ```
+ */
+export const completeStorageUpload = new PreparedQuery<ICompleteStorageUploadParams,ICompleteStorageUploadResult>(completeStorageUploadIR);
 
 

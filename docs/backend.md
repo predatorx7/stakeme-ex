@@ -45,6 +45,7 @@ erDiagram
 | `oracle_events` | The live feed. Insert triggers publish each row to pgmb. |
 | `chain_jobs` | Outbox of onchain calls. |
 | `blacklisted_nullifiers` | World IDs banned after a default. |
+| `storage_uploads` | Outbox of 0G Storage uploads (`QUEUED`, `UPLOADED`, `FAILED`, `SKIPPED`). |
 
 Money is `money_amount` (6 decimals), tokens are `token_amount` (18 decimals),
 and the API sends both as decimal strings.
@@ -92,6 +93,7 @@ stateDiagram-v2
 | `pay_dividend(dividend, tx_hash, user)` | Marks paid, splits pro rata by holdings into `payouts`, emits `DIVIDEND_PAID`, queues `distributeDividend`. |
 | `sweep_deadlines(now)` | The transitions in the state machine. Uses `FOR UPDATE SKIP LOCKED`, so overlapping sweeps are safe. |
 | `liquidate_creator(creator)` | Refunds locked escrow pro rata to investors, slashes the stake pro rata to holders, blacklists the nullifier, emits `DEFAULTED`, queues `executeLiquidation`. |
+| `enqueue_storage_upload(...)`, `claim_storage_upload(id)`, `complete_storage_upload(...)` | Queue a document for 0G Storage (deduplicated on content hash), lease one for the worker, and settle it: swap the root hash into the ref and emit `STORAGE_CONFIRMED`. |
 | `complete_chain_job(...)` | Settles a job and copies the result onto the creator, tranche, dividend, or investment. |
 | `emit_oracle_event(...)` | Inserts the event and one price tick. Every event and tick pair comes from here. |
 | `pro_rata_split(...)` | Splits an amount so the parts sum exactly. The rounding remainder goes to the largest position. |
@@ -111,7 +113,7 @@ written earlier in the same statement.
 | `GetLaunch` | `GET /launch` | session | Form state and World ID config. |
 | `CreateRpSignature` | `POST /api/rp-signature` | session | Signs the World ID 4.0 request on the server (signal = session wallet). |
 | `CheckWorldId` | `POST /api/world-id/check` | session | Verifies a World ID proof and rejects a used (409) or blacklisted (403) nullifier, so the launch form stops a Sybil before submit. Read-only: it never blacklists. The demo "Simulate Sybil" fixture maps to MUSH's nullifier, so it always returns 409. |
-| `LaunchIpo` | `POST /creators` | session | Verifies World ID, writes the terms to 0G Storage, calls `launch_ipo`. |
+| `LaunchIpo` | `POST /creators` | session | Verifies World ID, builds the terms document and hash, calls `launch_ipo` (the 0G upload is queued, not awaited). |
 | `Invest` | `POST /creators/{ticker}/investments` | session | `record_investment`. |
 | `Trade` | `POST /creators/{ticker}/trades` | session | `amm_swap`. |
 | `CreateReclaimSession` | `POST /creators/{ticker}/reclaim-sessions` | session, owner | `sessions.create`; stores the session row. |
@@ -154,14 +156,35 @@ is not supported; reload the page document instead.
 
 ## Worker
 
-`worker/register.ts` starts three things. Every sponsor call goes through the
+`worker/register.ts` starts four things. Every sponsor call goes through the
 adapters in `src/services/` (see [architecture-adapters.md](architecture-adapters.md)):
 
 - **Chain jobs** (`worker/chain-jobs.ts`). Woken by the pgmb topic
   `smx.chain_jobs.insert`, with a drain at boot and a 15-second poll as a safety
   net. Each job is claimed (`QUEUED` to `SENT`), sent with `sendChainJob`, and
   settled by `complete_chain_job`. A failure marks the job `FAILED`; the worker
-  never retries a sent job, to avoid sending a transaction twice.
+  never retries a sent job, to avoid sending a transaction twice. The one
+  exception is a relay error that never reached the chain, including
+  `FAIL_INVALID` (Hedera mirror-node lag right after a deployment), which
+  `RequeueFailedChainJobs` puts back in the queue.
+- **0G Storage uploads** (`worker/storage-uploads.ts`). Each upload takes about
+  30 seconds, so no request waits for it. `launch_ipo` and `audit_income_proof`
+  commit with `terms_ref` or `audit_log_ref` set to `local:<sha256>` and queue
+  the document in `storage_uploads` (`enqueue_storage_upload`). The creator and
+  proof JSON then carry `termsStorage` or `auditLogStorage` = `PENDING`. The
+  worker (woken by `smx.storage_uploads.insert`, plus the 15-second poll)
+  claims one row at a time (`claim_storage_upload`), uploads it, and calls
+  `complete_storage_upload`, which swaps the 0G root hash into the ref and emits
+  `STORAGE_CONFIRMED` (payload `kind`, `ref`, `contentHash`, `url` to
+  storagescan) so the page reloads over SSE. Rules:
+  - A content hash that is already `UPLOADED` is never uploaded again; the new
+    row is completed from the stored ref.
+  - No `ZG_PRIVATE_KEY`, `STORAGE_PROVIDER=local`, or a balance below
+    `ZG_STORAGE_MIN_BALANCE` marks the row `SKIPPED`. The local ref stays and
+    nothing is an error.
+  - A failure retries with backoff (30 seconds, then 2 minutes), 3 attempts in
+    all, then `FAILED`. The local ref still proves the document.
+  - Chain jobs never wait for storage; `createISA` carries the local `termsRef`.
 - **Dividend payout** (`worker/dividends.ts`). A pgmb handler on
   `smx.oracle_events.insert` runs `PaymentService.payDividend` for each
   `DIVIDEND_PAID` event and stores the receipts on the dividend. It skips

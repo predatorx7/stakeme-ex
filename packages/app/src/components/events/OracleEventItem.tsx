@@ -17,6 +17,7 @@ const KIND_TONE: Record<string, BadgeTone> = {
 	TRADE: 'neutral',
 	ESCROW_FROZEN: 'warn',
 	ESCROW_UNFROZEN: 'success',
+	STORAGE_CONFIRMED: 'info',
 }
 
 /** One-line plain-text summary of an event, shared by HTML and tests. */
@@ -52,6 +53,10 @@ export function describeEvent(event: OracleEvent) {
 			return 'Escrow frozen by 0G agent: proof overdue'
 		case 'ESCROW_UNFROZEN':
 			return 'Escrow unfrozen after an approved proof'
+		case 'STORAGE_CONFIRMED':
+			return p.kind === 'AUDIT_LOG'
+				? 'Audit log stored on 0G Storage'
+				: 'L-ISA terms stored on 0G Storage'
 		default:
 			return kind
 	}

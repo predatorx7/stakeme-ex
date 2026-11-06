@@ -57,7 +57,6 @@ classDiagram
     IOracle <|.. ZeroGravityAgent
     IOracle <|.. OracleDecorator
     OracleDecorator o-- IOracle : wraps
-    ZeroGravityAgent --> IStorageProvider : writes audit logs
     IPaymentRail <|.. HederaPaymentRail
     IPaymentRail <|.. SimulatedPaymentRail
     PaymentService --> IPaymentRail : pays over
@@ -77,11 +76,12 @@ classDiagram
 
 ```mermaid
 flowchart LR
-    launch["LaunchIpo route"] -->|storeTerms| storage["IStorageProvider"]
+    launch["LaunchIpo route"] -->|prepareTerms| outbox[("storage_uploads")]
+    outbox -->|"worker: putJson"| storage["IStorageProvider"]
     cb["ReclaimCallback and AuditMilestone"] --> pipeline["utils/income-audit.ts"]
     pipeline -->|fetchVerifiedIncome| oracle["IOracle: ZeroGravityAgent"]
     pipeline -->|audit| oracle
-    oracle -->|audit log| storage
+    oracle -->|"audit log document"| pipeline
     pay["PayDividend and worker"] --> svc["PaymentService"]
     svc --> rail["IPaymentRail"]
     pipeline -->|"SQL: audit_income_proof"| db[("Postgres")]
@@ -89,13 +89,15 @@ flowchart LR
     svc -->|"SQL: stream_receipts"| db
 ```
 
-- `LaunchIpo` writes the L-ISA legal terms (share bps, term, raise, stake,
-  tranches, hashed nullifier) with `storeTerms(createStorageProvider(), ...)`.
-  The ref lands in `creators.terms_ref`.
+- `LaunchIpo` builds the L-ISA legal terms (share bps, term, raise, stake,
+  tranches, hashed nullifier) with `prepareTerms`. The IPO commits
+  `creators.terms_ref = local:<sha256>` and queues the document; the upload
+  worker (`createUploadProvider()`) later swaps in the 0G root hash.
 - The income pipeline asks the oracle for `VerifiedIncome`, then
-  `ZeroGravityAgent.audit()` runs the model on 0G Compute and writes the
-  approve or deny log. The ref lands in `income_proofs.audit_log_ref`. SQL
-  decides the outcome.
+  `ZeroGravityAgent.audit()` runs the model on 0G Compute and prepares the
+  approve or deny log (local ref plus document). `audit_income_proof` stores
+  the ref in `income_proofs.audit_log_ref` and queues the upload. SQL decides
+  the outcome.
 - `PaymentService` never computes amounts. Splits come from SQL
   (`dividend_splits_json`, `pro_rata_split`) and are checked to add up. It
   records the receipts through SQL.
