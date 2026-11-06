@@ -12,6 +12,10 @@ Express and htmx, not Next.js.
 | [product-spec.md](product-spec.md) | What SMX does: domain model, state machines, SQL business logic, routes, proof and liquidation flows. |
 | [pitch.md](pitch.md) | Pitch, user journeys, three-minute stage script, demo setup, what is simulated, booth questions. |
 
+| [ai-usage.md](ai-usage.md) | Disclosure of where and how AI tools were used, and where the specs, prompts, and planning artifacts live. |
+| [prize-checklist.md](prize-checklist.md) | Per-sponsor prize requirements and the status of each. |
+| [demo-video.md](demo-video.md) | Script and plan for the demo video. |
+
 ## Engineering
 
 | Document | What it covers |

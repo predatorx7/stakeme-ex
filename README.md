@@ -202,6 +202,10 @@ CONTEXT.md     Hand-off notes: status, decisions, known issues
 - [Pitch and demo playbook](docs/pitch.md)
 - [CONTEXT.md](CONTEXT.md): current status and what's left
 
+## AI use
+
+The team built SMX with Claude Code, an AI coding agent that the team directed. Agents wrote most of the code, tests, and docs; humans set the product direction and scope, and reviewed the results. For the full disclosure, see [docs/ai-usage.md](docs/ai-usage.md). For the prompt records, see [docs/prompts/README.md](docs/prompts/README.md). The specs the agents followed are [docs/engineering-guide.md](docs/engineering-guide.md) and [docs/product-spec.md](docs/product-spec.md).
+
 ## Status
 
 Hackathon build in progress. See [CONTEXT.md](CONTEXT.md) for what works
