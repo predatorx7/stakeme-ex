@@ -62,12 +62,14 @@ ethers objects around.
 
 | Variable | Secret | Description |
 | --- | --- | --- |
-| `ZG_RPC_URL` | No | `https://evmrpc-testnet.0g.ai`. |
+| `ZG_RPC_URL` | No | Default `https://evmrpc-testnet.0g.ai`. |
 | `ZG_PRIVATE_KEY` | Yes | Funded key for the audit agent. Pays for storage and compute. |
-| `ZG_INDEXER_URL` | No | `https://indexer-storage-testnet-turbo.0g.ai`. |
-| `ZG_PROVIDER_ADDRESS` | No | Compute provider address (from `listService`). |
-| `ZG_LEDGER_DEPOSIT` | No | 0G to deposit into the compute ledger, for example `3`. |
-
+| `ZG_INDEXER_URL` | No | Default `https://indexer-storage-testnet-turbo.0g.ai`. |
+| `ZG_PROVIDER_ADDRESS` | No | Compute provider address (from `listService`). Default: the first chatbot service. |
+| `ZG_LEDGER_DEPOSIT` | No | 0G to deposit into the compute ledger. Default `3`. |
+| `ZG_COMPUTE_ENABLED` | No | `1` turns on the SDK broker path after the Router. Default off. |
+| `ZG_STORAGE_MIN_BALANCE` | No | 0G balance floor for storage uploads. Default `0.1`. |
+| `STORAGE_PROVIDER` | No | `0g` (default) or `local`. |
 | `ZG_ROUTER_API_KEY` | Yes | 0G Router `sk-...` key. Set it to run the audit verdict through the Router. |
 | `ZG_ROUTER_MGMT_KEY` | Yes | 0G Router `mk-...` management key (`account:read`) for the credit-balance readout. |
 | `ZG_ROUTER_MODEL` | No | Default `0GM-1.0-35B-A3B,glm-5.3` (a preference list; both are `private` TEE models, the 0G-native model first). |
@@ -115,7 +117,7 @@ export async function runAudit(input: { terms: unknown; proof: unknown }) {
 		{
 			role: 'system',
 			content:
-				'You audit income share agreements. Reply with JSON only: {"approved":boolean,"verified_amount":number,"dividend":number,"reasons":string[]}.',
+				'You audit income share agreements. Reply with JSON only: {"approved":boolean,"verified_amount":string,"reasoning":string}.',
 		},
 		{ role: 'user', content: JSON.stringify(input) },
 	];
@@ -136,10 +138,11 @@ export async function runAudit(input: { terms: unknown; proof: unknown }) {
 }
 ```
 
-Model output is untrusted. Validate the JSON with a schema. Never let the
-model's `dividend` override the SQL formula: recompute
-`verified_amount * share_bps / 10000` in `smx.audit_income_proof` and treat the
-model output as advisory plus audit trail.
+Model output is untrusted. `parseAuditResponse` validates the JSON and throws
+when `verified_amount` exceeds the deposit or an approval falls below
+`minIncome`. The model never sets the dividend: `smx.audit_income_proof`
+computes `round(verified_amount * share_bps / 10000, 6)`, and the model can
+only veto an approval.
 
 The docs also describe an OpenAI-compatible proxy: get a key with
 `0g-compute-cli inference get-secret --provider <address>`, then call
@@ -202,8 +205,8 @@ the UI then labels it "Fallback: rules engine (0G unavailable)".
 caches it for 30 s and returns `creditUsd`. The Hub shows it as a pill that
 refreshes every 30 s and after each oracle event.
 
-Status: verified live against the Router on 2026-11-06; see the live-call
-numbers in the commit or PR notes for the request ID and cost.
+A response that fails validation counts as a Router failure, so the proof
+follows the "0G is required" path above.
 
 ## Storage: upload the audit log
 
@@ -287,8 +290,6 @@ approval.
 - The RPC is for development. Rate limits appear under load.
 - The minimum ledger deposit is unverified. Start with 3 0G, and read the
   error message if it's rejected.
-- Ask the 0G booth (pitch playbook) which storage telemetry logs the judges
-  want for the "safe-stop" fallback.
 
 ## Sources
 

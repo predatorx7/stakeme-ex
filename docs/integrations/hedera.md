@@ -3,19 +3,22 @@
 Verified against npm, the Asset Tokenization Studio (ATS) packages, and
 docs.hedera.com on 2026-11-06.
 
-**Status:** implemented with SIMULATED fallbacks. The x402 paywall settled live
-on testnet. The ATS equity mint ran live on Hedera testnet on 2026-11-07 (see
+**Status:** live on testnet, with SIMULATED fallbacks for runs without keys.
+The ATS equity mint ran live on 2026-11-07 (see
 [Live result on testnet](#live-result-on-testnet)); the default mode stays
-simulated (`ATS_MODE=simulated`). The dividend x402 settlement is unit-tested
-for its pure logic.
+simulated (`ATS_MODE=simulated`). Dividends settle live as an HBAR
+multi-transfer (see [Dividend payout](#dividend-payout)), and the audit-report
+x402 paywall settles real HBAR payments (see
+[x402 research agent](../x402-agent.md)).
 
-SMX uses three Hedera features, all through native Hedera transactions:
+SMX uses these Hedera features, all through native Hedera transactions:
 
 | Feature | What it does | Code |
 | --- | --- | --- |
-| Hedera EVM | Hosts `LiquidISAFactory`, `LiquidISA`, `CreatorShareToken` and `MockUSDC` (chain `296`). | `packages/contracts`, `integrations/chain.ts` |
+| Hedera EVM | Hosts `LiquidISAFactory`, `LiquidISA`, `CreatorShareToken`, `CreatorPool` and `MockUSDC` (chain `296`). | `packages/contracts`, `integrations/chain.ts` |
 | Asset Tokenization Studio | Mints the creator's equity token (for example `$MUSH`) through the public ATS Factory on testnet when `ATS_MODE=live`; otherwise simulated. | `integrations/hedera-ats.ts` |
 | x402 dividend loop | The creator's wallet signs one Hedera transfer that pays every holder. | `services/payment/hedera-*.ts`, `client/hedera-pay.ts` |
+| x402 audit paywall | `GET /creators/{ticker}/audit-report` answers 402 until the caller pays 0.1 HBAR. | `routes/GetCreatorAuditReport.ts`, `services/payment/x402-paywall.ts` |
 
 ```mermaid
 flowchart LR
@@ -24,7 +27,7 @@ flowchart LR
 	C --> D["x402 payment request"]
 	D --> E["Wallet signs one Hedera transfer"]
 	E --> F["Server settles on Hedera"]
-	F --> G["Holders receive micro-streams"]
+	F --> G["Holders receive HBAR"]
 	H["IPO: createISA"] --> I["ATS equity token (live or simulated)"]
 	H --> J["LiquidISA escrow on Hedera EVM"]
 	K["Missed proof deadline"] --> L["freezeEscrow"]
@@ -109,7 +112,7 @@ dividends. An ATS token has its own corporate-action logic and can't reuse the
 ISA's O(1) dividend accounting, so SMX doesn't let `LiquidISA` use it as the
 share token. Instead:
 
-1. `createISA` on the factory deploys `LiquidISA` and `CreatorShareToken`.
+1. `createISA` on the factory clones `LiquidISA`, `CreatorShareToken` and `CreatorPool`.
 2. The chain worker calls `mintCreatorEquityToken` for the same ticker. The
    supply equals the raise (1 USDC raised = 1 share, 18 decimals) and goes to
    the oracle treasury.
@@ -156,7 +159,7 @@ in the ATS repo. No deployment of your own is needed.
 - The BLR rejects config version `0`; SMX uses version `1`.
 - The testnet contracts are shared and renewable only by their owner. If they
   expire, deploy your own with `npm run deploy:hedera:testnet` in
-  `packages/ats/contracts` and set `ATS_FACTORY_ADDRESS` and
+  `packages/ats/contracts` of the ATS repo and set `ATS_FACTORY_ADDRESS` and
   `ATS_RESOLVER_ADDRESS`.
 - `deployEquity` validates an ISIN with a checksum. SMX generates a synthetic
   one (`XS` plus nine hex characters plus the ISO 6166 check digit).
@@ -164,3 +167,18 @@ in the ATS repo. No deployment of your own is needed.
   mint. The operator signs, not `ORACLE_PRIVATE_KEY`, so nonces don't collide.
 - Live mode is behind `ATS_MODE=live`. On any error SMX logs and falls back to a
   SIMULATED token (status `SIMULATED`), so an IPO never fails because of ATS.
+
+## Dividend payout
+
+The app computes every dividend in USDC (`MockUSDC`, not Circle USDC). The live
+payout is one Hedera multi-transfer of HBAR to all holders, converted at the
+fixed testnet rate `DIVIDEND_HBAR_PER_USDC` (default `0.0001`). The rate is not
+a market price.
+
+- The creator signs the transfer from their own wallet, so the creator must hold
+  enough HBAR. The operator account is the x402 fee payer.
+- HBAR also pays gas and the 0.1 HBAR audit report.
+- With `HEDERA_OPERATOR_PAYOUT=1`, the worker pays holders from the operator's
+  HBAR when the creator did not sign. It is off by default.
+- Live settlement example:
+  [`0.0.11340822@1793996054.174485762`](https://hashscan.io/testnet/transaction/0.0.11340822@1793996054.174485762).

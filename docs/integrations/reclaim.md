@@ -50,23 +50,23 @@ otherwise.
 
 | Path | Purpose |
 | --- | --- |
-| `GET /mock-bank/login` | Login form; any non-empty username and password. |
-| `POST /mock-bank/login` | Sets the httpOnly `smx_bank_session` cookie, redirects to `/mock-bank`. |
+| `GET /mock-bank/login` | Login form; any non-empty username and password, plus the income scenario. |
+| `POST /mock-bank/login` | Sets the httpOnly `smx_bank_session` cookie (12 hours, in memory) and redirects to `/mock-bank`. |
 | `GET /mock-bank` | Statement page; calls the API below with `fetch`. |
 | `GET /mock-bank/api/transactions` | JSON statement for the chosen scenario (see below). `401` without the cookie. |
 
 The provider proves `$.transactions[0].amount` and `$.transactions[0].date`,
-so the first row is always the proven deposit. Pick a scenario to test the
-auditor:
+so the first row is always the proven deposit. You choose one of six scenarios on the login form (default
+"Salary on time"):
 
 | Scenario | First row |
 | --- | --- |
 | Salary on time | $5,000.00 deposit dated today. |
-| Low | $800.00 deposit, below the minimum income. |
-| Big | $25,000.00 deposit. |
+| Low month | $800.00 deposit, below the minimum income. |
+| Big month | $25,000.00 deposit. |
 | Several deposits | A $5,000.00 row with the month's total, then the separate deposits. |
-| None | $0.00, no income. |
-| Late | $5,000.00 deposit dated 40 days ago. |
+| No income | $0.00. |
+| Late deposit | $5,000.00 deposit dated 40 days ago. |
 
 The auditor denies a deposit dated outside the reporting period (the last 30
 days for monthly creators, 90 for quarterly) with "Deposit is outside the

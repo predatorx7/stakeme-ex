@@ -25,7 +25,7 @@ reviewed the results.
 | Tool | Provider | Use |
 | --- | --- | --- |
 | Claude Code (CLI agent) | Anthropic | Planning, code, tests, docs, refactors, running checks and live testnet scripts |
-| Claude Code subagents | Anthropic | Parallel workstreams with disjoint file ownership (see [Workstreams](../CONTEXT.md#workstreams) and the agent ownership table in [`diwali-theme.md`](diwali-theme.md#ownership)) |
+| Claude Code subagents | Anthropic | Parallel workstreams with disjoint file ownership (see the agent ownership table in [`diwali-theme.md`](diwali-theme.md#ownership)) |
 | Reclaim MCP server | Reclaim | Used by the agent to build and test the mock-bank provider (capture, replay, run proof, publish) |
 | Chrome DevTools MCP server | Google | Used by the agent for browser checks of the UI |
 
@@ -49,8 +49,8 @@ decided, directed, set up, and checked.
 - **Reclaim provider through the Reclaim MCP.** Asked the agent to bootstrap the
   project from the Reclaim Builder conventions, and had it build and test the
   mock-bank provider through the Reclaim MCP server.
-- **Design direction and feedback.** Asked for a warm lantern and string-lights
-  theme, then corrected the agents: keep the original background, use no
+- **Design direction and feedback.** Asked for a warm
+  string-lights theme, then corrected the agents: keep the original background, use no
   festival words in the UI or source, remove the blinking indicator in the top
   bar, and run "reduce the slop" passes on the UI, UX, and presentation. Asked
   for a wallet and profile menu, Gravatar-style avatars generated from a hash of
@@ -83,8 +83,8 @@ agents' output is the code and docs in this repository.
 - Set the product direction: the liquid income share agreement (L-ISA) idea,
   the user journeys, and the pitch. See [`pitch.md`](pitch.md).
 - Made the scope decisions, including cutting the project to exactly three
-  sponsors: Hedera, World ID, and 0G. See `CONTEXT.md`, "Scope update 2".
-- Gave design feedback, for example the Diwali theme and the wallet connection
+  sponsors: Hedera, World ID, and 0G. See `CONTEXT.md`, "Decisions".
+- Gave design feedback, for example the warm theme and the wallet connection
   flow. See [`prompts/`](prompts/README.md).
 - Created every account and project: sponsor developer portals, the Reclaim
   org, the WalletConnect project, and the testnet accounts.
@@ -110,7 +110,7 @@ agents' output is the code and docs in this repository.
 - Automated tests for the core logic.
 - Live testnet runs: contracts deployed to Hedera testnet, World ID proofs
   from the Simulator, and 0G Storage uploads on Galileo. Results and known gaps
-  are in `CONTEXT.md` ("Live testnet status", "Remaining", "Known issues").
+  are in `CONTEXT.md` ("Live status", "Remaining", "Known issues").
 - Browser checks of the UI.
 - Labels on what is simulated. See "What is real and what is
   simulated" in [`pitch.md`](pitch.md) and [`prize-checklist.md`](prize-checklist.md).
@@ -123,7 +123,7 @@ AI output can contain errors. Where a check did not run live, the docs say so.
 | --- | --- | --- |
 | Engineering guide | [`engineering-guide.md`](engineering-guide.md) | Spec: architecture and code style. Wins over other docs on conflicts. |
 | Product spec | [`product-spec.md`](product-spec.md) | Spec: what SMX does. |
-| Hand-off log | [`../CONTEXT.md`](../CONTEXT.md) | Decisions, scope updates, workstreams, status. Each agent reads it first and updates it when done. |
+| Hand-off log | [`../CONTEXT.md`](../CONTEXT.md) | Decisions, live status, remaining work, code maps. Each agent reads it first and updates it when done. |
 | Agent rules | [`../AGENTS.md`](../AGENTS.md), `packages/app/AGENTS.md`, `packages/client/AGENTS.md`, `packages/contracts/AGENTS.md` | Rules the agents follow in this repository. |
 | Pitch playbook | [`pitch.md`](pitch.md) | Product and demo plan. |
 | Other planning docs | [`architecture-adapters.md`](architecture-adapters.md), [`backend.md`](backend.md), [`contracts.md`](contracts.md), [`frontend-hooks.md`](frontend-hooks.md), [`diwali-theme.md`](diwali-theme.md), [`integrations/`](integrations/README.md) | Design notes written by agents |
@@ -137,5 +137,6 @@ the text in quotation marks in them is quoted from a repo file.
 
 ## Version control
 
-The work is in Git. Earlier commits were few and large; later commits are
-smaller.
+The work is in Git: 60 commits on 2026-11-06 and 2026-11-07. The first
+commits were few and large (the bootstrap commit has 64 files); later commits
+are smaller.

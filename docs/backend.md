@@ -40,7 +40,7 @@ erDiagram
 | Table | Purpose |
 | --- | --- |
 | `creators` | One L-ISA per user. Holds terms, status, deadlines, proof cadence, social links, `pool_address`, `raise_closed_at`, and the World ID nullifier (unique). |
-| `tranches` | Escrow schedule (default 20/40/40 of the target; presets of 2 to 5). Tranche 0 releases at raise close, and the amounts resize to the amount raised. |
+| `tranches` | Escrow schedule (default 20/40/40 of the target; presets of 1 to 5; `single` is one tranche of 10000 bps, so the full raise releases at close). Tranche 0 releases at raise close, and the amounts resize to the amount raised. |
 | `investments`, `holdings` | Primary purchases and derived token balances. Supply = holdings + pool tokens. |
 | `pools`, `trades`, `price_ticks` | Constant-product pool reserves, its fills (unique per `tx_hash`), and the chart history. With an onchain `CreatorPool`, the chain is the truth and SQL indexes the `Swap` events; otherwise the SQL AMM moves the reserves. |
 | `creator_updates` | Creator posts to holders, at most 5 per day. |
@@ -91,14 +91,14 @@ stateDiagram-v2
 
 | Function | What it does |
 | --- | --- |
-| `launch_ipo(...)` | Asserts the nullifier is free, one IPO per user, ticker unique. Takes social links, a tranche preset (2 to 5 entries summing to 10000 bps) and a proof cadence. Creates the creator, locked tranches, the pool row (price 1.0), the IPO event, and `createISA` and `initializeIPO` jobs. |
+| `launch_ipo(...)` | Asserts the nullifier is free, one IPO per user, ticker unique. Takes social links, a tranche preset (1 to 5 entries summing to 10000 bps) and a proof cadence. Creates the creator, locked tranches, the pool row (price 1.0), the IPO event, and `createISA` and `initializeIPO` jobs. |
 | `record_investment(creator, wallet, usdc)` | SQL path (simulated chain mode or no pool). Mints tokens 1:1, caps at the remaining raise, updates holdings, emits `INVESTED`, queues `invest`. A fill calls `finish_raise`. |
 | `finish_raise(creator)`, `close_raise(creator, user)` | Close the raise (full, or early by the owner): resize tranches to the amount raised, release tranche 0, start the term clock and the first proof deadline. `close_raise` queues `closeRaise`. |
 | `amm_swap(creator, wallet, side, amount_in, min_out)` | SQL AMM for creators without an onchain pool. Constant product with a 0.3% fee that stays in the pool. Rejects slippage, oversells, non-trading creators, and buys after the term ends. Emits `TRADE`. |
 | `ingest_onchain_swap(...)`, `ingest_onchain_invest(...)` | Record a user-signed pool swap or `invest` from the verified receipt's event amounts (base units). Idempotent on `tx_hash`. Queue no chain job, because the user already sent the transaction. `ingest_onchain_invest` also stores the pool reserves from the `Seeded` event when the raise closes. |
 | `post_creator_update(...)` | Owner-only post, limited to 5 per day. Emits `CREATOR_UPDATE`. |
 | `submit_income_proof(...)` | Stores a verified Reclaim proof as `PENDING`. Rejects a replayed proof id. |
-| `audit_income_proof(proof, amount, audit)` | Rules engine. Approves when the amount meets `min_income`, the period is not yet approved, and the auditor did not veto. Approval creates the dividend, releases the next tranche, moves the deadline by one cadence (30 days monthly, 90 quarterly), clears grace, and emits events and jobs. Otherwise it records `REJECTED`. |
+| `audit_income_proof(proof, amount, audit)` | Rules engine. Approves when the amount meets `min_income`, the period is not yet approved, and the auditor did not veto. Approval creates the dividend, releases the next tranche when one is locked (none with a single tranche), moves the deadline by one cadence (30 days monthly, 90 quarterly), clears grace, and emits events and jobs. Otherwise it records `REJECTED`. |
 | `pay_dividend(dividend, tx_hash, user)` | Marks paid, splits pro rata by holdings into `payouts`, emits `DIVIDEND_PAID`, queues `distributeDividend`. |
 | `sweep_deadlines(now)` | The transitions in the state machine. A missed proof deadline, or a dividend unpaid for a full cadence, freezes the escrow and starts grace. A creator past the term end becomes `COMPLETED` and the stake returns (`STAKE_RETURNED`, `reclaimStake`). Uses `FOR UPDATE SKIP LOCKED`, so overlapping sweeps are safe. |
 | `liquidate_creator(creator)` | Refunds locked escrow pro rata to the current holders (by holdings), slashes the stake pro rata to the same holders, blacklists the nullifier, emits `DEFAULTED`, queues `executeLiquidation`. |
@@ -127,6 +127,7 @@ written earlier in the same statement.
 | `RequestTestUsdc` | `POST /portfolio/faucet` | session | Mints 1,000 MockUSDC through `MockUSDC.faucet`. One request per wallet per minute; live chain mode only. |
 | `GetWatchlist`, `PutWatchlistItem`, `DeleteWatchlistItem` | `GET /watchlist`, `PUT`, `DELETE /watchlist/{ticker}` | session | The viewer's watchlist. |
 | `GetCreatorAuditReport` | `GET /creators/{ticker}/audit-report` | public, x402 | Answers `402` until paid in HBAR. |
+| `GetZeroGBalance` | `GET /api/zero-g/balance` | public | The 0G Router credit that pays for audits, read with the server-side management key (cached about 30 seconds). |
 | `GetCreatorHub` | `GET /hub` | session | The viewer's dashboard. |
 | `GetLaunch` | `GET /launch` | session | Form state and World ID config. |
 | `CreateRpSignature` | `POST /api/rp-signature` | session | Signs the World ID 4.0 request on the server (signal = session wallet). |

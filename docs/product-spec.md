@@ -76,28 +76,27 @@ Money is `money_amount NUMERIC(18,6)` (USDC has 6 decimals). Token amounts are
 | --- | --- |
 | Better Auth tables | Users and sessions. Sign-in with Ethereum (SIWE) plugin; wallet address on the user. |
 | `creators` | One L-ISA per creator: `ticker` (3–6 upper letters, unique), `display_name`, `headline`, `share_bps`, `term_months`, `target_raise`, `stake_amount`, `raised_amount`, `status creator_status`, `world_id_nullifier` (unique), `terms_ref` (0G root hash, or `local:<sha256>` until the upload finishes), `terms_hash` (sha256), `contract_address`, `token_address`, `pool_address`, `ats_token_address`, `chain_id`, `proof_cadence ('MONTHLY','QUARTERLY')`, social links (`x_url`, `github_url`, `linkedin_url`, `website_url`), `next_proof_due_at`, `grace_until`, `ipo_at`, `raise_closed_at`. |
-| `tranches` | Escrow schedule per creator: `idx`, `amount`, `status tranche_status ('LOCKED','RELEASED','REFUNDED')`, `released_at`, `tx_hash`. Presets of 2 to 5 tranches; default 20% / 40% / 40%. Tranche 0 releases when the raise closes, resized to the amount raised. |
+| `tranches` | Escrow schedule per creator: `idx`, `amount`, `status tranche_status ('LOCKED','RELEASED','REFUNDED')`, `released_at`, `tx_hash`. Presets of 1 to 5 tranches (`single` = no tranches: 100% releases at raise close, no escrow milestones); default 20% / 40% / 40%. Tranche 0 releases when the raise closes, resized to the amount raised. |
 | `creator_updates` | Short posts by a creator to holders (at most 5 per day). |
 | `investments` | Primary-market purchases: investor `wallet`, `usdc_amount`, `token_amount`, `tx_hash`. |
 | `holdings` | Derived balances per (creator, wallet). Updated by investments and trades. The pool is not a holder, so supply = holdings + pool tokens. |
 | `pools` | Constant-product AMM reserves per creator (`usdc_reserve`, `token_reserve`). For an onchain pool, each indexed `Swap` event replaces the reserves; without a pool (old factory or simulated chain mode), the SQL AMM moves them. Seeded at raise close. |
 | `trades` | `side trade_side ('BUY','SELL')`, amounts, price, wallet, `tx_hash` (unique per swap). |
-| `watchlist` | A signed-in user's watched tickers. |
+| `watchlists` | A signed-in user's watched tickers. |
 | `price_ticks` | Price history for charts (`at`, `price`). One tick per trade and per oracle event. |
 | `income_proofs` | Reclaim proof per period: `period` (month index), `provider`, `reclaim_proof_id`, `verified_amount`, `status proof_status ('PENDING','APPROVED','REJECTED')`, `audit jsonb` (agent output; `engine` shows `0g-router`, `0g-compute`, `rules-engine` or `pre-check`), `audit_log_ref` (0G Storage root, or `local:<sha256>` until uploaded). |
 | `dividends` | `amount_due` = `verified_amount * share_bps / 10000`, `status dividend_status ('DUE','PAID')`, `paid_tx_hash`. |
 | `oracle_events` | Live feed: `kind oracle_event_kind ('IPO','INVESTED','PROOF_VERIFIED','PROOF_REJECTED','TRANCHE_RELEASED','DIVIDEND_PAID','GRACE_STARTED','DEFAULTED','TRADE','ESCROW_FROZEN','ESCROW_UNFROZEN','STORAGE_CONFIRMED','CREATOR_UPDATE','STAKE_RETURNED')`, `creator_id`, `payload jsonb`. Published to pgmb for SSE. |
 | `chain_jobs` | Outbox of onchain calls (`fn`, `args jsonb`, `status ('QUEUED','SENT','CONFIRMED','FAILED','SIMULATED')`, `tx_hash`). Optimistic UI reads DB state; the worker confirms later. |
 | `blacklisted_nullifiers` | World ID nullifiers banned after default. |
-| `reclaim_sessions` | One row per Reclaim verification session: `status`, `failure_reason`, `proof_id`. |
+| `reclaim_sessions` | One row per Reclaim verification session: `status`, `failure_reason`, `org_id`, `proof_id`. |
 | `storage_uploads` | Outbox for 0G Storage uploads: `kind ('LISA_TERMS','AUDIT_LOG')`, `status ('QUEUED','UPLOADED','FAILED','SKIPPED')`, `attempts`, `next_attempt_at`. |
 
-`creator_status`: `'DRAFT','LIVE','GRACE','DEFAULTED','COMPLETED'`.
+`creator_status`: `'DRAFT','LIVE','GRACE','DEFAULTED','COMPLETED'`. `launch_ipo` creates creators as `LIVE`; `DRAFT` is unused.
 
 ```mermaid
 stateDiagram-v2
-	[*] --> DRAFT
-	DRAFT --> LIVE: launch_ipo (World ID verified, stake deposited)
+	[*] --> LIVE: launch_ipo (World ID verified)
 	LIVE --> LIVE: audit_income_proof approved
 	LIVE --> GRACE: sweep_deadlines (proof overdue)
 	GRACE --> LIVE: audit_income_proof approved
@@ -123,7 +122,7 @@ stateDiagram-v2
 Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
 
 - `smx.launch_ipo(...)`: asserts the nullifier isn't blacklisted or used,
-  creates the creator (social links, proof cadence), tranches (2 to 5 entries
+  creates the creator (social links, proof cadence), tranches (1 to 5 entries
   summing to 10000 bps), pool, first tick, `IPO` event, and `chain_jobs` rows
   for `createISA` and `initializeIPO`. All tranches start `LOCKED`. The L-ISA
   terms are committed with a `local:<sha256>` ref and queued for 0G Storage.
@@ -150,7 +149,7 @@ Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
   deposit dated outside the reporting period before any 0G call (engine
   `pre-check`). Approve when `verified_amount >= min_income` (default 1000 USDC) and
   the period isn't already approved. On approval: create the dividend, release
-  the next locked tranche, move `next_proof_due_at` by one cadence (30 days monthly, 90 quarterly), clear grace,
+  the next locked tranche (if any; a single-tranche creator has none left, so approval only creates the dividend), move `next_proof_due_at` by one cadence (30 days monthly, 90 quarterly), clear grace,
   insert `PROOF_VERIFIED` and `TRANCHE_RELEASED` events and chain jobs. A late
   approval in `GRACE` also emits `ESCROW_UNFROZEN` and queues `unfreezeEscrow`.
   The audit log is committed with a `local:<sha256>` ref and queued in
@@ -221,13 +220,17 @@ Pages render HTML; the same handler returns JSON by content negotiation.
 | --- | --- | --- |
 | `GET /` | `GetExchange` | Trending creators, price, 24h change, chart, live oracle events (SSE). |
 | `GET /creators/{ticker}` | `GetCreator` | Instrument view: quote, depth, stats, candles, order ticket with estimate, your position, fundamentals, corporate actions, holders, events. See [`instrument-view.md`](instrument-view.md). |
+| `GET /creators`, `GET /activity` | `ListCreators`, `ListActivity` | Keyset-paged creator list and the global event feed. |
 | `GET /creators/{ticker}/candles` | `GetCreatorCandles` | OHLC candles for the chart. |
+| `GET /creators/{ticker}/chart`, `/chain`, `/holders`, `/proofs`, `/trades`, `/dividends` | `GetCreatorChartFragment`, `GetCreatorChain`, `ListCreatorHolders`, `ListCreatorProofs`, `ListCreatorTrades`, `ListCreatorDividends` | Chart region, onchain trading config, and paged lists. |
+| `GET /creators/{ticker}/audit-report` | `GetCreatorAuditReport` | x402 audit report; answers `402` until paid in HBAR (0.1). |
+| `GET /api/zero-g/balance` | `GetZeroGBalance` | 0G Router credit balance. |
 | `GET /portfolio` | `GetPortfolio` | Wallet funds, holdings with P&L, transactions, dividends received. |
 | `POST /portfolio/faucet` | `RequestTestUsdc` | Mints 1,000 `MockUSDC` to the viewer's wallet (50,000 cap per call, one request per minute). Live chain mode only. |
 | `GET /watchlist`, `PUT`, `DELETE /watchlist/{ticker}` | `GetWatchlist`, `PutWatchlistItem`, `DeleteWatchlistItem` | The viewer's watchlist. |
 | `GET`, `POST /creators/{ticker}/updates` | `ListCreatorUpdates`, `CreateCreatorUpdate` | Creator updates (owner only, 5 per day). |
 | `GET /hub` | `GetCreatorHub` | Viewer's creator dashboard: escrow, Reclaim proof button, pending dividend, collateral. |
-| `GET /launch` | `GetLaunch` | IPO form gated by World ID: social links, tranche preset (2 to 5), proof cadence. |
+| `GET /launch` | `GetLaunch` | IPO form gated by World ID: social links, tranche preset (none, or 2 to 5), proof cadence. |
 | `POST /api/rp-signature` | `CreateRpSignature` | Signs the World ID v4 request on the server. The signal is the session wallet. |
 | `POST /api/world-id/check` | `CheckWorldId` | Verifies a proof and rejects a used (409) or blacklisted (403) nullifier. Read-only. |
 | `POST /creators` | `LaunchIpo` | Body includes the World ID proof; server verifies it. The 0G upload is queued, not awaited. |
@@ -323,6 +326,25 @@ example `0.0.11340822@1793996054.174485762`). In production there is no
 simulated fallback: without operator keys, payment requests fail with `503`
 unless `HEDERA_ALLOW_SIMULATED=1`. Outside production, the rail returns
 simulated `sim:0x...` receipts without keys.
+
+## Terms calculator
+
+The launch form has a collapsible "Suggest terms from your income" panel. It
+only suggests: the creator applies the values with "Use these terms" and can
+still edit every field. The formulas live in
+`packages/app/src/utils/terms-suggest.ts`; the browser and the tests share them.
+
+| Output | Rule |
+| --- | --- |
+| Projected income | Sum for months k = 1 to term of `income * (1 + growth)^(k/12)`. |
+| Share | `ceil(goal * 1.3 / projected * 10000)` bps, clamped to 1-5000. 1.3 is the target investor multiple. |
+| Stake | 10% of the goal, at most 50% of savings when given, at least 1. |
+| Escrow release | Goal of 6 months of income or less: `single`. Up to 24 months: `20-40-40`. More: `20-20-20-20-20`. |
+| Proof cadence | `QUARTERLY` when income varies, else `MONTHLY`. |
+
+Warnings: `share-high` (share over 20%), `goal-unreachable` (the unclamped
+share is over 50%; try a longer term or smaller goal), `below-min-income`
+(income under the minimum proof amount, so proofs are rejected).
 
 ## Implementation status
 

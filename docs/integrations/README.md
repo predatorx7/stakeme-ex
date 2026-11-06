@@ -46,9 +46,11 @@ Routes and workers never import a sponsor SDK. They call the adapters in
 
 - **Demo policy.** Fixture proofs (`demo: true`) work only with `DEMO_MODE=1`.
   Without keys and without `DEMO_MODE`, World ID and Reclaim fail with 503
-  rather than pretending. Storage, 0G Compute and the payment rail always fall
-  back (with a LOGGER warning) because their fallbacks are labeled
-  `local:`, `rules-engine` or `sim:`.
+  rather than pretending. Storage and the payment rail fall back (with a LOGGER
+  warning) because their fallbacks are labeled `local:` or `sim:`. The 0G audit
+  has no silent fallback: without a reachable 0G auditor the proof stays
+  PENDING, and the `rules-engine` label appears only with
+  `ZG_ALLOW_RULES_FALLBACK=1`.
 - **`terms_hash` is sha256** of the canonical terms JSON. The nullifier is
   hashed with keccak256 over its decimal string (`nullifierHash`) before it
   goes into a public record.
@@ -62,10 +64,13 @@ Routes and workers never import a sponsor SDK. They call the adapters in
   `RECLAIM_ORG_ETH_PRIVATE_KEY` only if encryption is on). See
   [reclaim.md](reclaim.md).
 - **0G.** The model call is `temperature: 0`, JSON only. A model answer that
-  accepts more than the deposit, or approves below `minIncome`, is rejected and
-  the rules engine runs instead (`model: 'rules-engine'`). The L-ISA legal
+  accepts more than the deposit, or approves below `minIncome`, is rejected as
+  a Router failure and the proof stays PENDING (see
+  [zero-g.md](zero-g.md#router-mode-audit-verdict)). The L-ISA legal
   terms and every approve or deny log go to 0G Storage; the refs are stored in
   Postgres (`creators.terms_ref`, `income_proofs.audit_log_ref`).
-- **Not run live:** World ID, 0G Compute/Storage and Hedera payouts need
-  accounts and keys. Their code follows the verified package types (`tsc`
-  clean) but is unproven end to end.
+- **Live status.** World ID runs against the staging app and the Simulator, 0G
+  Router audits and 0G Storage uploads run on Galileo, and contracts and
+  dividends run on Hedera testnet. Dividends are computed in MockUSDC and paid
+  as an HBAR multi-transfer at the fixed testnet rate `DIVIDEND_HBAR_PER_USDC`
+  (default `0.0001`). The details and the open gaps are in `CONTEXT.md`.

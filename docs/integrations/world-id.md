@@ -32,7 +32,7 @@ the gaps.
 | Package | Version | Use |
 | --- | --- | --- |
 | `@worldcoin/idkit-core` | 4.6.0 | Framework-neutral client (`IDKit.request`), plus server helpers on subpaths `/signing` and `/hashing`. Works in the browser and Node 18+. No WASM. |
-| `@worldcoin/idkit-server` | 1.2.0 | Installed automatically as a dependency. Exports `Nullifier` (parse and compare nullifiers). |
+| `@worldcoin/idkit-server` | 1.2.0 | Installed automatically as a dependency of `idkit-core`. SMX doesn't import it. |
 | `@worldcoin/idkit` | 4.6.0 | React widget. Don't use it. SMX has no React. |
 
 ```bash
@@ -60,9 +60,12 @@ SMX targets World ID 4.0 (IDKit 4.x). Don't use the old
    `request.connectorURI` as a QR code (or deep link).
 3. The user approves in World App or the Simulator. `pollUntilCompletion()`
    returns an IDKit result.
-4. The browser posts the result, unchanged, to `POST /creators`.
-5. The server checks the environment, checks the signal binding, forwards the
-   result to the Developer Portal, then stores the nullifier.
+4. The browser posts the result, unchanged, to `POST /api/world-id/check`.
+   The server runs the checks below and rejects a nullifier that already
+   launched an IPO (`409`) or is blacklisted (`403`), so a Sybil or banned human
+   is stopped before the form is submitted.
+5. The browser posts the same result to `POST /creators` (`LaunchIpo`), which
+   repeats the checks and stores the nullifier on the creator row.
 
 ## Server-side
 
@@ -87,7 +90,6 @@ Forward the IDKit result as is. Don't remap fields.
 
 ```ts
 import { hashSignal } from '@worldcoin/idkit-core/hashing';
-import { Nullifier } from '@worldcoin/idkit-server/nullifier';
 
 type IDKitResult = {
 	environment: string;
@@ -116,15 +118,15 @@ export async function verifyWorldId(result: IDKitResult, expectedSignal: string)
 		throw new Error('World ID verification failed');
 	}
 
-	// Store as a decimal string for NUMERIC(78,0), or use toCanonicalString().
-	return Nullifier.fromHex(response.nullifier!).toBigInt().toString();
+	// v4 results are decimal, legacy v3 results are 0x hex; BigInt reads both.
+	return BigInt(response.nullifier!).toString();
 }
 ```
 
 The Developer Portal checks that the proof is valid. It doesn't track
 duplicates. Your database does that: `smx.launch_ipo` must reject a nullifier
-that is already used or blacklisted. Add a unique constraint on the stored
-nullifier (the Developer Portal recommends `UNIQUE (nullifier, action)`).
+that is already used or blacklisted. `creators.world_id_nullifier` is
+`UNIQUE`, and the factory contract blocks a reused nullifier too.
 
 ### Signal binding
 
@@ -196,17 +198,18 @@ moment, the full path table, and what SMX doesn't meet (World ID Agent Pass).
 
 ## Demo fallback
 
-If World ID is not configured (`WORLD_APP_ID` or the RP keys unset), skip IDKit
-and the Developer Portal call. The server accepts a fixture result and derives
-a deterministic fake nullifier: `keccak256(wallet + ':' + action)`. When real
-World ID is configured, the UI never renders the simulate buttons and the
-server rejects fixture proofs, even with `DEMO_MODE=1`. Show a "Demo mode"
-badge in the UI. To demo the blacklist, use two wallets that map to the same fake
-nullifier by posting the same `demoNullifier` field (accepted only when
-`DEMO_MODE=1`).
+If World ID is not configured (`WORLD_APP_ID` or the RP keys unset) and
+`DEMO_MODE=1`, the server skips IDKit and the Developer Portal call and accepts
+a fixture proof (`demo: true`). Without `DEMO_MODE=1` it answers `503`. The fake
+nullifier is derived from the fixture: `demoNullifier`, else
+`responses[0].nullifier`, else a hash of the payload. When real World ID is
+configured, the UI never renders the simulate buttons and the server rejects
+fixture proofs, even with `DEMO_MODE=1`. To demo the blacklist, post the same
+`demoNullifier` (or the "Sybil" fixture) for two wallets.
 
 ```json
 {
+	"demo": true,
 	"environment": "staging",
 	"action": "smx-launch-ipo",
 	"responses": [{ "identifier": "proof_of_human", "signal_hash": "0x0", "nullifier": "0x2bf8...fbd8" }]
@@ -224,9 +227,8 @@ nullifier by posting the same `demoNullifier` field (accepted only when
 - The `signal_hash` for a request with no signal is `0x0`.
 - The `/creators` mutation must read the wallet from the session. Otherwise an
   attacker can pick the signal they like.
-- Ask the World booth (see the pitch playbook) whether you can query contract
-  state before the modal opens to block blacklisted nullifiers. Until then,
-  the check runs after verification.
+- The blacklist check runs after IDKit returns (`POST /api/world-id/check`),
+  not before the modal opens.
 
 ## Sources
 

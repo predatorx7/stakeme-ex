@@ -101,7 +101,8 @@ sequenceDiagram
 
 1. The factory creates the ISA, token and pool with `createISA`. The caller
    becomes the creator. An empty tranche array defaults to `[2000, 4000, 4000]`
-   basis points.
+   basis points. A single `[10000]` tranche is valid: it releases in full at
+   raise close, so no milestone remains.
 2. The creator calls `initializeIPO()`, which locks the USDC stake. Investing
    fails until you do this.
 3. Investors call `invest(usdcAmount)` and receive 1 share token per 1 USDC.
@@ -111,8 +112,8 @@ sequenceDiagram
 4. The creator can call `closeRaise()` to end the raise early (it needs a
    nonzero `raised`). It runs the same close steps. Tranches are computed from
    the amount raised, so they resize automatically.
-5. The oracle calls `unlockNextTranche()` after each verified milestone. The
-   last tranche sweeps any rounding remainder.
+5. The oracle calls `unlockNextTranche()` after each verified milestone (never
+   for a single-tranche ISA). The last tranche sweeps any rounding remainder.
 6. Anyone calls `distributeDividend(amount)`. Holders call `claim()`.
 7. After the term ends without a default, the creator calls `reclaimStake()`.
 8. The oracle can call `freezeEscrow()` and `unfreezeEscrow()` at any time (see
@@ -226,13 +227,14 @@ While `frozen` is true:
 - Investing (while the raise is open), claiming, dividends and
   `executeLiquidation()` keep working, so a freeze never traps investor money.
 
-## Hedera ATS equity token (ATS-ready, simulated)
+## Hedera ATS equity token
 
 `setAtsToken(address)` (oracle-only, once) records the Hedera Asset
-Tokenization Studio equity token for the ISA and emits `AtsTokenSet`. Minting
-runs in simulated mode on testnet. `CreatorShareToken` stays the source of truth
-for escrow and dividend math; the ATS token mirrors it in the regulated
-registry. See
+Tokenization Studio equity token for the ISA and emits `AtsTokenSet`. The app
+mints the token after `createISA` and calls this function only when the mint is
+live (`ATS_MODE=live`); the default mode is simulated. `CreatorShareToken` stays
+the source of truth for escrow and dividend math; the ATS token mirrors it in
+the regulated registry. See
 [Hedera integration](integrations/hedera.md#mint-a-creator-equity-token-with-ats).
 
 ## Nullifiers
@@ -294,7 +296,7 @@ For a local chain, run `npm run node` and `npm run deploy:local`.
 | Action | Before clones | With clones |
 | --- | --- | --- |
 | `createISA` | about 3 to 5 HBAR | about 0.76 HBAR |
-| One-off deploy (two implementations and factory) | about 4.3 HBAR (factory only plus USDC) | about 3.7 HBAR (measured before the pool; expect more with the third implementation) |
+| One-off deploy | about 4.3 HBAR (factory only plus USDC) | about 5.65 HBAR (three implementations and the factory, `hbarSpent` in `deployments/hedera-testnet.json`, 2026-11-06) |
 
 ### Mirror-node lag
 
