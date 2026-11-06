@@ -174,3 +174,15 @@ export const CHAIN_JOB_BATCH = 20
 export const SWEEP_INTERVAL_S = +(process.env.SWEEP_INTERVAL_S ?? 60)
 /** Retry delays for a chain job's pgmb handler. */
 export const CHAIN_JOB_RETRIES_S = [5, 30, 120]
+
+/**
+ * 0G Router (OpenAI-compatible, prepaid credits). With `ZG_ROUTER_API_KEY` set
+ * the audit verdict runs there first; any error falls back to Compute (if
+ * enabled) or the rules engine. Secret: the key.
+ */
+export const ZG_ROUTER_API_KEY = process.env.ZG_ROUTER_API_KEY || ''
+export const ZG_ROUTER_BASE_URL =
+	process.env.ZG_ROUTER_BASE_URL || 'https://router-api.0g.ai/v1'
+export const ZG_ROUTER_MODEL = process.env.ZG_ROUTER_MODEL || 'glm-5.2'
+/** `verified` | `private`; empty omits the X-0G-Provider-Trust-Mode header. */
+export const ZG_ROUTER_TRUST_MODE = process.env.ZG_ROUTER_TRUST_MODE || ''
