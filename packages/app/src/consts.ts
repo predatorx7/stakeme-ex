@@ -198,11 +198,12 @@ export const DEFAULT_TERM_MONTHS = 60
 export const DEFAULT_TRANCHE_BPS = [2000, 4000, 4000]
 /**
  * Launch-time tranche presets, keyed by the API's `trancheSchedule`. SQL
- * (`launch_ipo`) enforces 2 to 5 tranches summing to 10000 bps; this table is
+ * (`launch_ipo`) enforces 1 to 5 tranches summing to 10000 bps; this table is
  * the only place the named shapes live.
  */
 export const TRANCHE_PRESETS = {
 	'20-40-40': DEFAULT_TRANCHE_BPS,
+	single: [10000],
 	'50-50': [5000, 5000],
 	'25-25-25-25': [2500, 2500, 2500, 2500],
 	'20-20-20-20-20': [2000, 2000, 2000, 2000, 2000],

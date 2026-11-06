@@ -26,10 +26,17 @@ export function pickTranche(
  * Sits above `ProofAudit`, which keeps the audit detail (model, provider,
  * TEE, storage log, reasoning).
  */
-export function ProofPipeline({ ticker, latestProof: p, nextTranche: t }: {
+export function ProofPipeline({
+	ticker,
+	latestProof: p,
+	nextTranche: t,
+	singleTranche,
+}: {
 	ticker: string
 	latestProof?: IncomeProof | null
 	nextTranche?: Tranche | null
+	/** One tranche, already released at raise close: step 3 has nothing to do. */
+	singleTranche?: boolean
 }) {
 	const released = t?.status === 'RELEASED'
 	const steps: [StepState, StepState, StepState] = ['idle', 'idle', 'idle']
@@ -39,14 +46,14 @@ export function ProofPipeline({ ticker, latestProof: p, nextTranche: t }: {
 	} else if(p?.status === 'APPROVED') {
 		steps[0] = 'done'
 		steps[1] = 'done'
-		steps[2] = released ? 'done' : 'active'
+		steps[2] = singleTranche ? 'idle' : released ? 'done' : 'active'
 	} else if(p?.status === 'REJECTED') {
 		steps[0] = 'done'
 		steps[1] = 'denied'
 	}
 
 	const reason = p?.status === 'REJECTED' ? p.rejectReason ?? '' : ''
-	const amount = t?.amount ?? ''
+	const amount = singleTranche ? '' : t?.amount ?? ''
 	return (
 		<section
 			class='smx-pp'
@@ -105,10 +112,10 @@ export function ProofPipeline({ ticker, latestProof: p, nextTranche: t }: {
 					<Check />
 					<span class='smx-pp__text'>
 						<strong>
-							Tranche released
+							{singleTranche ? 'No tranche to release' : 'Tranche released'}
 						</strong>
 						<small title='Hedera'>
-							Escrow payout
+							{singleTranche ? 'Paid at raise close' : 'Escrow payout'}
 						</small>
 						{!!released && !!t?.txHash && <TxLink hash={t.txHash} />}
 					</span>

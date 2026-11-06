@@ -2821,8 +2821,9 @@ components:
       description: >-
         How escrow releases, as the percent of the raise per tranche. The first
         tranche releases at launch; each approved income proof releases the
-        next.
-      enum: ['20-40-40', '50-50', '25-25-25-25', '20-20-20-20-20']
+        next. `single` is one tranche: everything releases when the raise
+        closes, with no escrow milestones.
+      enum: ['20-40-40', 'single', '50-50', '25-25-25-25', '20-20-20-20-20']
       default: '20-40-40'
     ProofCadence:
       type: string

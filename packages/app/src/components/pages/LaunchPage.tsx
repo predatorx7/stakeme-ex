@@ -11,6 +11,7 @@ import { Hint } from '../Hint.tsx'
 import { NumberedStep } from '../NumberedStep.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { SectionCard } from '../SectionCard.tsx'
+import { TermsCalculator } from './TermsCalculator.tsx'
 
 /** Keep in step with `TRANCHE_PRESETS` in consts.ts. The first is the default. */
 const TRANCHES = [
@@ -18,6 +19,12 @@ const TRANCHES = [
 	{ value: '50-50', label: '2 tranches', split: '50 / 50' },
 	{ value: '25-25-25-25', label: '4 tranches', split: '25 each' },
 	{ value: '20-20-20-20-20', label: '5 tranches', split: '20 each' },
+	{
+		value: 'single',
+		label: 'No tranches',
+		split: '100 at close',
+		hint: 'Holders get no milestone protection from escrow, so investors may price it lower.',
+	},
 ]
 
 const CADENCES = [
@@ -56,7 +63,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 		<div class='smx-page'>
 			<PageHeader
 				title='Launch your IPO'
-				lede='Sell a share of your future income. Escrow releases in tranches as you prove it.'
+				lede='Sell a share of your future income. Escrow releases in tranches as you prove it, or all at once if you pick none.'
 				meta={
 					<>
 						<span
@@ -73,6 +80,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 					context='Saved as your L-ISA on 0G Storage.'
 					plain>
 					<div class='smx-body'>
+						<TermsCalculator minIncome={defaults.minIncome} />
 						<HxForm
 							action='/creators'
 							ext='json-enc'
@@ -138,7 +146,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 									Escrow release
 								</legend>
 								<small>
-									The first tranche releases at launch. Each approved income proof releases the next.
+									Tranche 1 releases when the raise closes. Each approved income proof releases the next.
 								</small>
 								{
 									TRANCHES.map((t, i) => (
@@ -152,6 +160,13 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 											<small>
 												{escapeText(t.split)}
 											</small>
+											{
+												'hint' in t && (
+													<small>
+														{escapeText(t.hint)}
+													</small>
+												)
+											}
 										</label>
 									))
 								}

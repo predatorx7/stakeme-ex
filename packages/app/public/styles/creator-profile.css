@@ -96,3 +96,45 @@
 	color: var(--rc-color-text-tertiary);
 	margin-inline-start: auto;
 }
+
+/* Terms calculator on the launch page. Suggestion only. */
+.smx-calc-check {
+	align-items: center;
+	display: flex;
+	gap: var(--rc-space-2);
+}
+
+.smx-calc-empty {
+	color: var(--rc-color-text-tertiary);
+	margin: 0;
+}
+
+.smx-calc-result {
+	display: grid;
+	gap: var(--rc-space-3);
+	justify-items: start;
+}
+
+.smx-calc-result dl {
+	display: grid;
+	gap: var(--rc-space-1) var(--rc-space-4);
+	grid-template-columns: max-content 1fr;
+	margin: 0;
+}
+
+.smx-calc-result dd {
+	display: grid;
+	margin: 0;
+}
+
+.smx-calc-result dd small {
+	color: var(--rc-color-text-tertiary);
+}
+
+.smx-calc-warnings {
+	display: grid;
+	gap: var(--rc-space-2);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}

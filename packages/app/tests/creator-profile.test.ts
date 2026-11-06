@@ -67,7 +67,7 @@ const dueInDays = async(id: string) => Number((await db.query<{ d: string }>(
 describe('tranche presets', () => {
 	for(const [i, [name, bps]] of Object.entries(TRANCHE_PRESETS).entries()) {
 		it(`${name} creates ${bps.length} tranches and passes trancheBps to createISA`, async() => {
-			const { id } = await launch(`PRS${'ABCD'[i]}`, { bps: [...bps], open: true })
+			const { id } = await launch(`PRS${'ABCDE'[i]}`, { bps: [...bps], open: true })
 			const { rows } = await db.query<{ idx: number, amount: string, status: string }>(
 				'SELECT idx, amount, status FROM tranches WHERE creator_id = $1 ORDER BY idx', [id],
 			)
@@ -85,9 +85,9 @@ describe('tranche presets', () => {
 		})
 	}
 
-	it('rejects fewer than 2, more than 5 and non-10000 schedules', async() => {
+	it('rejects an empty schedule, more than 5 and non-10000 schedules', async() => {
 		let n = 0
-		for(const bps of [[10000], [1000, 1000, 1000, 1000, 1000, 5000], [5000, 4000], [10000, 0]]) {
+		for(const bps of [[], [0], [1000, 1000, 1000, 1000, 1000, 5000], [5000, 4000], [10000, 0]]) {
 			await assert.rejects(
 				launch(`BAD${String.fromCharCode(65 + n++)}`, { bps }),
 				/Tranche schedule/,

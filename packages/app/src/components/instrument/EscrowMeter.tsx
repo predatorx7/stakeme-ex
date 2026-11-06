@@ -1,5 +1,6 @@
 import { escapeText, trustedHtml } from '../../utils/escape.ts'
 import { formatUsdc } from '../../utils/money.ts'
+import { isSingleTranche, SINGLE_TRANCHE_LABEL } from '../../utils/tranches.ts'
 
 export type EscrowMeterTranche = {
 	idx: number
@@ -62,10 +63,15 @@ export function EscrowMeter({
 	const out = defaulted
 		? `${formatUsdc(refunded)} refunded to holders`
 		: `${formatUsdc(held)} in escrow on Hedera`
-	const aria = `Escrow: ${done} of ${tranches.length} tranches released`
+	const single = isSingleTranche(tranches)
+	const aria = single
+		? `Escrow: ${SINGLE_TRANCHE_LABEL}`
+		: `Escrow: ${done} of ${tranches.length} tranches released`
 	const legend = raising
 		? `Raise open: ${formatUsdc(raised ?? 0)} of ${formatUsdc(total)}`
-		: `${formatUsdc(released)} released · ${out}`
+		: single
+			? `${formatUsdc(released)} released at raise close`
+			: `${formatUsdc(released)} released · ${out}`
 
 	return (
 		<div

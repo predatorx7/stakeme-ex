@@ -479,3 +479,9 @@ button[aria-busy='true'] {
 	inset: 0;
 	position: absolute;
 }
+
+.smx-escrow-note {
+	color: var(--rc-color-text-secondary);
+	margin: 0;
+	padding: var(--rc-space-2) var(--rc-space-4);
+}

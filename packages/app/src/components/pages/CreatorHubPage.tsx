@@ -6,6 +6,7 @@ import type { CreatorHub } from '../../types/index.ts'
 import { formatDate } from '../../utils/dates.ts'
 import { escapeText } from '../../utils/escape.ts'
 import { formatUsdc } from '../../utils/money.ts'
+import { isSingleTranche, SINGLE_TRANCHE_LABEL } from '../../utils/tranches.ts'
 import { Badge } from '../Badge.tsx'
 import { BlockingWarning } from '../BlockingWarning.tsx'
 import { ChainJobBadge, PendingChainBadge } from '../ChainJobBadge.tsx'
@@ -267,7 +268,8 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 			<ProofPipeline
 				ticker={c.ticker}
 				latestProof={proofs[0]}
-				nextTranche={pickTranche(c.tranches, proofs[0])} />
+				nextTranche={pickTranche(c.tranches, proofs[0])}
+				singleTranche={isSingleTranche(c.tranches)} />
 			<div class='smx-page'>
 				<SectionCard
 					title='Web2 income verification'
@@ -280,7 +282,9 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 							{
 								escapeText(
 									`Prove a deposit of at least ${formatUsdc(c.minIncome)} `
-									+ 'to release the next tranche.',
+									+ (isSingleTranche(c.tranches)
+										? 'to record income and create your next dividend.'
+										: 'to release the next tranche.'),
 								)
 							}
 						</p>
@@ -336,7 +340,11 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 			<Live id='hub-bottom'>
 				<SectionCard
 					title='Escrow'
-					context='Tranches release as the 0G agent approves proofs.'>
+					context={
+						isSingleTranche(c.tranches)
+							? SINGLE_TRANCHE_LABEL
+							: 'Tranches release as the 0G agent approves proofs.'
+					}>
 					<div class='smx-escrow'>
 						<LinearProgress
 							value={releasedPct}
@@ -349,7 +357,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 							c.tranches.map((t) => (
 								<li data-tranche={t.status}>
 									<span class='smx-dw-tranche'>
-										{escapeText(`Tranche ${t.idx + 1}`)}
+										{escapeText(isSingleTranche(c.tranches) ? 'All at close' : `Tranche ${t.idx + 1}`)}
 									</span>
 									<span class='smx-num'>
 										{escapeText(formatUsdc(t.amount))}

@@ -25,7 +25,9 @@ after(async() => {
  * `invest > 0` also invests that much from D and closes the raise (tranche 0
  * released, trading open). `invest = 0` leaves the raise open.
  */
-async function launch(ticker: string, raise = 10000, invest = 100) {
+async function launch(
+	ticker: string, raise = 10000, invest = 100, trancheBps: number[] = [2000, 4000, 4000],
+) {
 	const n = ++seq
 	const nullifier = String(1000 + n)
 	const { rows: [u] } = await db.query<{ id: string }>(
@@ -34,8 +36,8 @@ async function launch(ticker: string, raise = 10000, invest = 100) {
 	)
 	const { rows: [c] } = await db.query<{ id: string }>(
 		`SELECT id FROM launch_ipo($1, $2, $3, $3, '', 500, 60, $4, 1000, $5,
-			'local:x', 'x', 296)`,
-		[u.id, A, ticker, raise, nullifier],
+			'local:x', 'x', 296, NULL, $6::int[])`,
+		[u.id, A, ticker, raise, nullifier, trancheBps],
 	)
 	if(invest > 0) {
 		await db.query('SELECT record_investment($1, $2, $3)', [c.id, D, invest])
@@ -460,5 +462,44 @@ describe('close raise', () => {
 		await assert.rejects(
 			db.query('SELECT close_raise($1, $2)', [id, userId]), /not open/,
 		)
+	})
+})
+
+describe('single tranche (no escrow milestones)', () => {
+	it('releases everything at close; an approved proof still pays a dividend', async() => {
+		const { id } = await launch('ONE', 10000, 0, [10000])
+		await db.query('SELECT record_investment($1, $2, 400)', [id, D])
+		await db.query('SELECT close_raise($1)', [id])
+		const { rows: tr } = await db.query<{ status: string, amount: string }>(
+			'SELECT status, amount FROM tranches WHERE creator_id = $1', [id],
+		)
+		assert.deepStrictEqual(tr.map((t) => t.status), ['RELEASED'])
+		assert.strictEqual(Number(tr[0].amount), 400)
+
+		const p0 = await proof(id, 'one0', 5000, 0)
+		assert.strictEqual((await audit(p0, 5000)).rows[0].status, 'APPROVED')
+		const { rows: [d] } = await db.query<{ amount_due: string }>(
+			'SELECT amount_due FROM dividends WHERE creator_id = $1', [id],
+		)
+		assert.strictEqual(Number(d.amount_due), 250)
+		const { rows: ev } = await db.query(
+			'SELECT 1 FROM oracle_events WHERE creator_id = $1 AND kind = \'TRANCHE_RELEASED\'', [id],
+		)
+		assert.strictEqual(ev.length, 1) // close only; the proof releases nothing more
+
+		// Default: no locked escrow, so only the stake is slashed.
+		await db.query('SELECT liquidate_creator($1)', [id])
+		const { rows: pay } = await db.query<{ kind: string }>(
+			'SELECT kind FROM payouts WHERE creator_id = $1', [id],
+		)
+		assert.deepStrictEqual([...new Set(pay.map((r) => r.kind))], ['SLASH'])
+	})
+
+	it('rejects empty, six-entry and zero-entry schedules', async() => {
+		await assert.rejects(launch('BAD0', 10000, 0, [0]), /1 to 5 tranches/)
+		await assert.rejects(
+			launch('BAD6', 10000, 0, [2000, 2000, 2000, 2000, 1000, 1000]), /1 to 5 tranches/,
+		)
+		await assert.rejects(launch('BAD1', 10000, 0, []), /1 to 5 tranches/)
 	})
 })

@@ -976,7 +976,7 @@ AS $$
 		ELSE interval '30 days' END
 $$;
 
--- Creates the creator, escrow tranches (default 20/40/40; 2 to 5 entries
+-- Creates the creator, escrow tranches (default 20/40/40; 1 to 5 entries
 -- summing to 10000 bps), the AMM pool, the first price tick and the IPO event;
 -- queues the `createISA` and `initializeIPO` onchain calls. All tranches start
 -- LOCKED: tranche 0 releases when the raise closes (see `finish_raise`). `p_social_links` is an object with any of `x`, `github`, `linkedin`,
@@ -1022,10 +1022,10 @@ BEGIN
 		409, 'That ticker is taken'
 	);
 	PERFORM assert_that(
-		v_n BETWEEN 2 AND 5
+		v_n BETWEEN 1 AND 5
 			AND (SELECT sum(b) FROM unnest(p_tranche_bps) AS b) = 10000
 			AND (SELECT min(b) FROM unnest(p_tranche_bps) AS b) > 0,
-		400, 'Tranche schedule needs 2 to 5 tranches that sum to 10000 bps'
+		400, 'Tranche schedule needs 1 to 5 tranches that sum to 10000 bps'
 	);
 	PERFORM assert_that(
 		jsonb_typeof(v_links) = 'object' AND NOT EXISTS (
@@ -1853,7 +1853,8 @@ BEGIN
 
 	INSERT INTO payouts(creator_id, wallet, kind, amount)
 	SELECT p_creator, s.wallet, 'REFUND', s.amount
-	FROM pro_rata_split(p_creator, v_refund, 'HOLDINGS') s;
+	FROM pro_rata_split(p_creator, v_refund, 'HOLDINGS') s
+	WHERE s.amount > 0;
 	GET DIAGNOSTICS v_refunds = ROW_COUNT;
 
 	INSERT INTO payouts(creator_id, wallet, kind, amount)

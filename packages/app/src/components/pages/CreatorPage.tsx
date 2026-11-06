@@ -4,6 +4,11 @@ import { formatDate } from '../../utils/dates.ts'
 import { escapeText } from '../../utils/escape.ts'
 import { holderAvatarSeed } from '../../utils/gravatar.ts'
 import { formatTokens, formatUsdc, shortHex } from '../../utils/money.ts'
+import {
+	isSingleTranche,
+	SINGLE_TRANCHE_BADGE,
+	SINGLE_TRANCHE_LABEL,
+} from '../../utils/tranches.ts'
 import { Avatar } from '../Avatar.tsx'
 import { Badge } from '../Badge.tsx'
 import { BlockingWarning } from '../BlockingWarning.tsx'
@@ -70,6 +75,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 	const c = page.creator
 	const path = `/creators/${c.ticker}`
 	const frozen = isEscrowFrozen(c.status, page.events)
+	const single = isSingleTranche(c.tranches)
 	const raised = Number(c.raised)
 	const target = Number(c.targetRaise)
 	const open = c.status === 'LIVE' && raised < target
@@ -116,6 +122,15 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 											watched={false} />
 									)
 								}
+								{
+									single && (
+										<Badge
+											tone='info'
+											title={SINGLE_TRANCHE_LABEL}>
+											{SINGLE_TRANCHE_BADGE}
+										</Badge>
+									)
+								}
 								<SocialLinks links={c.socialLinks} />
 								<PendingChainBadge
 									creatorId={c.id}
@@ -135,9 +150,9 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 							<BlockingWarning title='Escrow frozen: income proof overdue'>
 								{
 									c.graceUntil
-										? 'Tranches are paused until a proof is submitted. '
+										? 'Releases are paused until a proof is submitted. '
 											+ `Escrow is refunded if none arrives by ${formatDate(c.graceUntil)}.`
-										: 'Tranches are paused until a proof is submitted.'
+										: 'Releases are paused until a proof is submitted.'
 								}
 							</BlockingWarning>
 						)
@@ -219,6 +234,20 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 							</div>
 							<div>
 								<dt>
+									Escrow
+								</dt>
+								<dd>
+									{
+										escapeText(
+											single
+												? SINGLE_TRANCHE_LABEL
+												: `${c.tranches.length} tranches, released as income proofs are approved`,
+										)
+									}
+								</dd>
+							</div>
+							<div>
+								<dt>
 									Minimum income per period
 								</dt>
 								<dd class='smx-num'>
@@ -288,12 +317,20 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 							raised={c.raised}
 							target={c.targetRaise}
 							raising={raising} />
+						{
+							single && (
+								<p class='smx-escrow-note'>
+									{escapeText(SINGLE_TRANCHE_LABEL)}
+									. Holders have no milestone protection from escrow.
+								</p>
+							)
+						}
 						<ol class='smx-tranches'>
 							{
 								c.tranches.map((t) => (
 									<li>
 										<span>
-											{escapeText(`Tranche ${t.idx + 1}`)}
+											{escapeText(single ? 'All at close' : `Tranche ${t.idx + 1}`)}
 										</span>
 										<span class='smx-num'>
 											{escapeText(formatUsdc(t.amount))}
@@ -309,7 +346,9 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 														{
 															t.releasedAt
 																? escapeText(formatDate(t.releasedAt))
-																: 'Awaiting proof'
+																: single
+																	? 'At raise close'
+																	: 'Awaiting proof'
 														}
 													</small>
 												)
@@ -402,7 +441,8 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 						<ProofPipeline
 							ticker={c.ticker}
 							latestProof={page.proofs[0]}
-							nextTranche={pickTranche(c.tranches, page.proofs[0])} />
+							nextTranche={pickTranche(c.tranches, page.proofs[0])}
+							singleTranche={single} />
 						{
 							page.proofs.length === 0
 								? (
