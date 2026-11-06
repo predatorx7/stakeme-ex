@@ -252,14 +252,18 @@ payer needs no operator help. Override with `X402_FACILITATOR_URL`. Code:
 `tests/x402-paywall.test.ts` with a mocked facilitator) and
 `routes/GetCreatorAuditReport.ts`.
 
-### Live run
+### Autonomous research agent
 
-`node --env-file=.env packages/app/scripts/x402-agent.ts` boots a short-lived
-instance on an in-memory PGlite, creates a throwaway payer funded with 0.15 HBAR,
-and acts as the agent: it discovers the 402, applies a spend control (HBAR only,
-at most 0.2 HBAR a payment, `spendControls.allowedAssets`), pays and reads the
-report. Settled payment (2026-11-06):
-[0.0.9185802@1793985016.835902874](https://hashscan.io/testnet/transaction/0.0.9185802@1793985016.835902874).
+`packages/app/scripts/x402-research-agent.ts` is the client side: an agent
+that finds endpoints and pays for them with no human in the loop. Given a
+budget it lists creators from the public API, asks an LLM on the 0G Router
+which audit reports are worth buying, pays for each through x402 on Hedera
+testnet, then writes an investment memo from the reports. Spend controls are
+enforced in the agent before anything is signed: a per-call cap, a remaining
+budget, and an HBAR-only asset allow-list (also set on the x402 client with
+`setSpendControls`). It logs every refusal, and the live run includes one
+deliberate over-cap refusal. How to run it, the controls, and the settled
+transaction links are in [x402 research agent](../x402-agent.md).
 
 ## WalletConnect
 
