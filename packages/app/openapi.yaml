@@ -370,6 +370,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuditResult'
+        '202':
+          description: >-
+            Accepted but not approved: the 0G audit was unavailable, so the
+            proof stays `PENDING` with `audit_status` `AUDIT_UNAVAILABLE`.
+            Retry later.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResult'
         '400':
           $ref: '#/components/responses/ProblemResponse'
         '409':
@@ -402,10 +411,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuditResult'
+        '202':
+          description: >-
+            Accepted but not approved: the 0G audit was unavailable, so the
+            proof stays `PENDING` with `audit_status` `AUDIT_UNAVAILABLE`.
+            Retry later.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResult'
         '400':
           $ref: '#/components/responses/ProblemResponse'
         '409':
           $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/zero-g/balance:
+    get:
+      summary: 0G Router credit balance
+      operationId: GetZeroGBalance
+      tags:
+        - Income
+      description: >-
+        The remaining 0G Private Computer (Router) credit that pays for the AI
+        audit, read server-side with the management key and cached for about 30
+        seconds. Returns HTML for htmx and JSON otherwise; `configured` is
+        false when no key is set.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Balance readout (HTML) or document (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZeroGBalance'
         default:
           $ref: '#/components/responses/ProblemResponse'
   /api/trigger-default:
@@ -1209,8 +1252,54 @@ components:
           maxLength: 500
         auditLogStorage:
           $ref: '#/components/schemas/StorageStatus'
+        auditStatus:
+          type: string
+          description: >-
+            `AUDIT_UNAVAILABLE` while a `PENDING` proof waits for a retry
+            because 0G could not audit it.
+          enum: [AUDIT_UNAVAILABLE]
+        auditMessage:
+          type: string
+          maxLength: 500
+        engine:
+          type: string
+          description: >-
+            Who audited: `0g-router` (0G Private Computer), `0g-compute`, or
+            `rules` (offline dev fallback, never silent in the UI).
+          enum: [0g-router, 0g-compute, rules]
+        requestId:
+          type: string
+          description: 0G Router request id (`x_0g_trace.request_id`).
+          maxLength: 200
+        providerAddress:
+          type: string
+          description: On-chain address of the TEE provider that served the audit.
+          maxLength: 100
+        teeVerified:
+          type: boolean
+          description: Present only when the Router verified the TEE signature.
+        trustMode:
+          type: string
+          description: Trust tier the request was restricted to.
+          maxLength: 20
         createdAt:
           $ref: '#/components/schemas/Timestamp'
+    ZeroGBalance:
+      type: object
+      required: [configured]
+      properties:
+        configured:
+          type: boolean
+        address:
+          type: string
+          maxLength: 100
+        creditUsd:
+          type: string
+          description: Remaining credit in USD, six decimals.
+          maxLength: 40
+        creditMicroUsd:
+          type: string
+          maxLength: 40
     StorageStatus:
       type: string
       description: >-

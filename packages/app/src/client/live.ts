@@ -22,9 +22,9 @@ type JobMessage = {
 const TOASTS: Record<string, [string, 'success' | 'info']> = {
 	'smx:invested': ['Investment recorded. Onchain call pending.', 'success'],
 	'smx:traded': ['Trade filled.', 'success'],
-	'smx:dividend-paid': ['Dividend paid to holders.', 'success'],
-	'smx:ipo-launched': ['IPO launched. Opening your token page.', 'success'],
-	'smx:reclaim-session': ['Reclaim session started.', 'info'],
+	'smx:dividend-paid': ['Dividend paid.', 'success'],
+	'smx:ipo-launched': ['IPO launched.', 'success'],
+	'smx:reclaim-session': ['Proof session started.', 'info'],
 }
 
 for(const [name, [message, tone]] of Object.entries(TOASTS)) {
@@ -106,7 +106,7 @@ function applyJob(job: JobMessage) {
 	}
 
 	if(job.status === 'CONFIRMED' || job.status === 'SIMULATED') {
-		showToast('Onchain transaction confirmed.', { tone: 'success' })
+		showToast('Transaction confirmed.', { tone: 'success' })
 	}
 }
 

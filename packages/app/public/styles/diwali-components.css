@@ -140,7 +140,7 @@ table.rc-table tbody tr:hover,
 	);
 }
 
-/* Oracle feed: a small diya dot leads each event. */
+/* Oracle feed: a small dot leads each event. */
 .smx-event {
 	position: relative;
 }
@@ -149,7 +149,6 @@ table.rc-table tbody tr:hover,
 	background: var(--smx-dw-gold, #e8b44c);
 	block-size: 5px;
 	border-radius: 50%;
-	box-shadow: 0 0 6px var(--smx-dw-marigold, #f08a1c);
 	content: '';
 	inline-size: 5px;
 	inset-block-start: 50%;
@@ -172,18 +171,6 @@ table.rc-table tbody tr:hover,
 	box-shadow: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-	.smx-event:first-child::before {
-		animation: smx-dw-diya-flicker 2.6s ease-in-out infinite;
-	}
-}
-
-@keyframes smx-dw-diya-flicker {
-	50% {
-		opacity: 0.55;
-	}
-}
-
 /* Charts: marigold line, soft gold area. */
 .rc-chart-frame:not([data-tone]) .rc-area-chart__line,
 .rc-area-chart__line {
@@ -201,11 +188,6 @@ table.rc-table tbody tr:hover,
 .rc-bar-list__bar > span:not([data-tone]),
 .rc-bar-chart > li > span:not([data-tone]) {
 	background: var(--smx-dw-marigold, #f08a1c);
-}
-
-/* Dialogs: gold hairline on top. */
-.rc-dialog {
-	border-block-start-color: var(--smx-dw-gold, #e8b44c);
 }
 
 /* Forms: warm focus ring only where it holds 3:1; otherwise defaults stay. */

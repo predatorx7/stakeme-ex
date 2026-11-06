@@ -1,6 +1,6 @@
-/* diwali-hub: Diwali theme layer (see docs/diwali-theme.md). */
+/* Creator hub theme layer. */
 
-/* Time left: warm glow tile */
+/* Time left: glow tile */
 .smx-dw-hub-time {
 	background:
 		radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--smx-dw-gold, #e8b04a) 22%, transparent), transparent 62%),
@@ -9,7 +9,7 @@
 	box-shadow: var(--smx-dw-glow, 0 0 24px color-mix(in srgb, #e8b04a 25%, transparent));
 }
 
-/* Escrow tranches as diyas */
+/* Escrow tranche markers */
 .smx-dw-tranche::before {
 	background: var(--rc-color-border-default, #999);
 	block-size: 0.5rem;
@@ -35,7 +35,7 @@
 	opacity: 0.8;
 }
 
-/* Reclaim proof: warm card, gold hairline */
+/* Reclaim proof: gold hairline */
 .rc-card:has(> .smx-reclaim) {
 	background:
 		linear-gradient(180deg, color-mix(in srgb, var(--smx-dw-saffron, #f7b267) 10%, transparent), transparent 55%),

@@ -52,3 +52,6 @@ _diag*.mjs
 reclaim-prove*.json
 logs.txt
 batch-attempted.txt
+
+# macOS AppleDouble files
+**/._*

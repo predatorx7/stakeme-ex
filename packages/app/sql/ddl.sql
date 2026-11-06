@@ -1178,13 +1178,13 @@ BEGIN
 	PERFORM assert_that(
 		v_status IN ('LIVE', 'GRACE'), 409, 'This creator is not accepting proofs'
 	);
-	PERFORM assert_that(
-		NOT EXISTS (
-			SELECT 1 FROM income_proofs ip
-			WHERE ip.creator_id = p_creator AND ip.reclaim_proof_id = p_reclaim_proof_id
-		),
-		409, 'This proof was already submitted'
-	);
+	-- Retrying a proof whose 0G audit was unavailable returns the PENDING row.
+	SELECT * INTO v_proof FROM income_proofs ip
+	WHERE ip.creator_id = p_creator AND ip.reclaim_proof_id = p_reclaim_proof_id;
+	IF FOUND THEN
+		PERFORM assert_that(v_proof.status = 'PENDING', 409, 'This proof was already submitted');
+		RETURN v_proof;
+	END IF;
 
 	INSERT INTO income_proofs(
 		creator_id, period, provider, reclaim_proof_id, verified_amount, raw,
@@ -1202,6 +1202,26 @@ BEGIN
 
 	UPDATE reclaim_sessions SET status = 'SUCCESS', proof_id = v_proof.id
 	WHERE id = p_reclaim_session_id AND creator_id = p_creator;
+	RETURN v_proof;
+END;
+$$;
+
+-- No 0G auditor answered: keep the proof PENDING and say why, so the UI shows
+-- "0G audit unavailable, retry" and submitting the same proof again retries.
+CREATE OR REPLACE FUNCTION mark_audit_unavailable(p_proof UUID, p_message TEXT)
+RETURNS income_proofs
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_proof income_proofs;
+BEGIN
+	UPDATE income_proofs SET audit = jsonb_build_object(
+		'status', 'AUDIT_UNAVAILABLE', 'message', left(p_message, 300)
+	)
+	WHERE id = p_proof AND status = 'PENDING'
+	RETURNING * INTO v_proof;
+	PERFORM assert_that(FOUND, 409, 'Proof was already audited');
 	RETURN v_proof;
 END;
 $$;
@@ -1710,6 +1730,13 @@ AS $$
 		'reasoning', p.audit ->> 'reasoning',
 		'rejectReason', p.audit ->> 'reason',
 		'model', p.audit ->> 'model',
+		'auditStatus', p.audit ->> 'status',
+		'auditMessage', p.audit ->> 'message',
+		'engine', p.audit ->> 'engine',
+		'requestId', p.audit ->> 'requestId',
+		'providerAddress', p.audit ->> 'providerAddress',
+		'teeVerified', (p.audit ->> 'teeVerified')::BOOLEAN,
+		'trustMode', p.audit ->> 'trustMode',
 		'auditLogRef', p.audit_log_ref,
 		'auditLogStorage', storage_status('AUDIT_LOG', p.id),
 		'createdAt', p.created_at

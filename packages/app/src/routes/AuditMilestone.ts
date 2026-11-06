@@ -8,6 +8,10 @@ export default async function AuditMilestone(
 	req: ITypedExpressRequest<'AuditMilestone'>,
 ) {
 	const out = await runIncomeAudit(req.pg, req.body)
-	assert(out.kind === 'audited', conflict('Session already finished'))
-	req.res!.status(201).json(out.result)
+	assert(
+		out.kind === 'audited' || out.kind === 'unavailable',
+		conflict('Session already finished'),
+	)
+	// 202: accepted, but still PENDING because 0G could not audit it yet.
+	req.res!.status(out.kind === 'audited' ? 201 : 202).json(out.result)
 }

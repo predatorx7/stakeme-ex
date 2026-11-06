@@ -19,6 +19,11 @@ export default async function ReclaimCallback(
 			return
 		}
 
+		if(out.kind === 'unavailable') {
+			req.res!.status(202).json(out.result)
+			return
+		}
+
 		req.res!.status(200).json({ status: out.status, kind: out.kind })
 	} catch(err) {
 		if(isBoom(err) && err.output.statusCode < 500) {

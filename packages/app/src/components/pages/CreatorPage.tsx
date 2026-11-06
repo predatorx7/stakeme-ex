@@ -18,6 +18,7 @@ import { Kpi } from '../Kpi.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { PriceChange } from '../PriceChange.tsx'
 import { LinearProgress } from '../Progress.tsx'
+import { ProofAudit } from '../ProofAudit.tsx'
 import { SectionCard } from '../SectionCard.tsx'
 import { HashRef, StorageRef, TxLink } from '../TxLink.tsx'
 
@@ -92,23 +93,19 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					{
 						c.status === 'DEFAULTED' && (
 							<BlockingWarning
-								title={
-									'Liquidated: escrow refunded, stake slashed, '
-									+ 'World ID banned'
-								}>
-								Trading and new investments are closed.
+								title='Defaulted: escrow refunded, stake slashed'>
+								The creator's World ID is banned. Trading and new investments are closed.
 							</BlockingWarning>
 						)
 					}
 					{
 						frozen && c.status !== 'DEFAULTED' && (
-							<BlockingWarning title='Escrow frozen by 0G agent: proof overdue'>
+							<BlockingWarning title='Escrow frozen: income proof overdue'>
 								{
 									c.graceUntil
-										? 'No tranche releases until the creator submits a proof. '
-										+ `The grace period ends ${formatDate(c.graceUntil)}; `
-										+ 'then the escrow is refunded.'
-										: 'No tranche releases until the creator submits a proof.'
+										? 'Tranches are paused until a proof is submitted. '
+											+ `Escrow is refunded if none arrives by ${formatDate(c.graceUntil)}.`
+										: 'Tranches are paused until a proof is submitted.'
 								}
 							</BlockingWarning>
 						)
@@ -122,10 +119,6 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 							label='Raised'
 							value={formatUsdc(c.raised)}
 							note={`of ${formatUsdc(c.targetRaise)} target`} />
-						<Kpi
-							label='Income share'
-							value={`${c.shareBps / 100}%`}
-							note={`for ${c.termMonths} months`} />
 					</div>
 					{
 						page.chart.length > 1 && (
@@ -233,22 +226,8 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 						</dl>
 					</SectionCard>
 					<SectionCard
-						title='Escrow'
-						context='Investor funds release in tranches as income is proven.'
-						meta={
-							frozen && c.status !== 'DEFAULTED'
-								? (
-									<Badge tone='warn'>
-										Frozen
-									</Badge>
-								)
-								: undefined
-						}>
+						title='Escrow'>
 						<div class='smx-escrow'>
-							<LinearProgress
-								value={Math.round(pct(raised, target))}
-								label='Raised'
-								valueLabel={`${formatUsdc(c.raised)} of ${formatUsdc(c.targetRaise)}`} />
 							<LinearProgress
 								value={Math.round(pct(Number(c.escrow.released), escrowTotal))}
 								label='Released to creator'
@@ -299,7 +278,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 								? (
 									<EmptyState
 										title='No holders yet'
-										hint='Buy in the primary market to become the first.' />
+										hint='Invest to become the first.' />
 								)
 								: (
 									<DataTable
@@ -350,14 +329,13 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					</SectionCard>
 					<SectionCard
 						title='Income proofs'
-						context='Bank proof via Reclaim zkTLS, audited by the 0G agent.'
+						context='Bank income verified with zkTLS.'
 						count={page.proofs.length}>
 						{
 							page.proofs.length === 0
 								? (
 									<EmptyState
-										title='No proofs yet'
-										hint='The creator submits the first proof when it is due.' />
+										title='No proofs yet' />
 								)
 								: (
 									<DataTable
@@ -385,28 +363,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 														</Badge>
 													</td>
 													<td data-col='audit'>
-														<span title={p.reasoning ?? p.rejectReason}>
-															{
-																escapeText(
-																	p.model === 'rules-engine'
-																		? 'Rules engine'
-																		: p.model
-																			? '0G Compute'
-																			: 'Pending',
-																)
-															}
-														</span>
-														{
-															!!p.auditLogRef && (
-																<>
-																	{' '}
-																	<StorageRef
-																		value={p.auditLogRef}
-																		status={p.auditLogStorage}
-																		label='0G Storage log ref' />
-																</>
-															)
-														}
+														<ProofAudit proof={p} />
 													</td>
 												</tr>
 											))
@@ -423,7 +380,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 								? (
 									<EmptyState
 										title='No dividends yet'
-										hint='A dividend appears after the first approved proof.' />
+										hint='Paid after the first approved proof.' />
 								)
 								: (
 									<DataTable
@@ -466,8 +423,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					</SectionCard>
 				</div>
 				<SectionCard
-					title='Events'
-					context={`Live oracle events for $${c.ticker}.`}>
+					title='Events'>
 					<ul
 						class='smx-feed'
 						aria-live='polite'
@@ -489,7 +445,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 				aria-label='Buy and sell'>
 				<SectionCard
 					title='Invest'
-					context='Buy at the IPO price from the primary market.'
+					context='Buy at the IPO price.'
 					plain>
 					<div class='smx-body'>
 						{
@@ -508,7 +464,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 											pattern='[0-9]+(\.[0-9]{1,6})?'
 											hint={
 												open
-													? `${formatUsdc(raised >= target ? 0 : target - raised)} left in the raise.`
+													? `${formatUsdc(raised >= target ? 0 : target - raised)} left to raise.`
 													: 'The raise is closed.'
 											}
 											disabled={!open} />
@@ -537,7 +493,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 				</SectionCard>
 				<SectionCard
 					title='Trade'
-					context='Swap against the pool. A 0.3% fee applies.'
+					context='0.3% fee per trade.'
 					plain>
 					<div class='smx-body'>
 						{
@@ -584,7 +540,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 											type='text'
 											value='0'
 											pattern='[0-9]+(\.[0-9]{1,18})?'
-											hint='The trade fails if the output is lower.'
+											hint='The trade fails below this amount.'
 											disabled={!trading} />
 										<button
 											class='rc-button'

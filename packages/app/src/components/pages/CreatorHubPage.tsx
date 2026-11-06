@@ -16,9 +16,11 @@ import { FormError } from '../forms/FormError.tsx'
 import { HxForm } from '../forms/HxForm.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { LinearProgress } from '../Progress.tsx'
+import { ProofAudit } from '../ProofAudit.tsx'
 import { SectionCard } from '../SectionCard.tsx'
-import { StorageRef, TxLink } from '../TxLink.tsx'
+import { TxLink } from '../TxLink.tsx'
 import { HederaSignerDialog } from '../WalletDialogs.tsx'
+import { ZeroGBalance } from '../ZeroGBalance.tsx'
 
 const FN_LABEL = {
 	createISA: 'Create L-ISA',
@@ -70,12 +72,10 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 	if(!c) {
 		return (
 			<div class='smx-page'>
-				<PageHeader
-					eyebrow='Creator hub'
-					title='Creator hub' />
+				<PageHeader title='Creator hub' />
 				<EmptyState
-					title='Ready to launch your first IPO?'
-					hint='Raise funds against your future income. It only takes a few minutes.'>
+					title='No IPO yet'
+					hint='Launch one to raise against your future income.'>
 					<a
 						class='rc-button'
 						data-variant='primary'
@@ -114,6 +114,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 							<PendingChainBadge
 								creatorId={c.id}
 								pending={c.chain.pendingJobs} />
+							<ZeroGBalance />
 						</>
 					}
 					actions={
@@ -126,18 +127,15 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 				{
 					c.status === 'DEFAULTED' && (
 						<BlockingWarning
-							title={
-								'Liquidated: escrow refunded, stake slashed, '
-								+ 'World ID banned'
-							}>
-							You missed the proof deadline and the grace period.
+							title='Liquidated: proof deadline missed'>
+							Escrow refunded, stake slashed, World ID banned.
 						</BlockingWarning>
 					)
 				}
 				{
 					frozen && c.status !== 'DEFAULTED' && (
-						<BlockingWarning title='Escrow frozen by 0G agent: proof overdue'>
-							Submit a bank proof before the grace period ends to unfreeze it.
+						<BlockingWarning title='Escrow frozen: proof overdue'>
+							Submit a bank proof before the grace period ends.
 						</BlockingWarning>
 					)
 				}
@@ -193,7 +191,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 											<p>
 												{
 													escapeText(
-														`0G AI detected ${formatUsdc(income)} income. `
+														`Proven income: ${formatUsdc(income)}. `
 														+ `You owe ${formatUsdc(due.amountDue)} USDC.`,
 													)
 												}
@@ -230,7 +228,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 									)
 									: (
 										<p>
-											Nothing due. The next dividend appears after an approved proof.
+											Nothing due until the next approved proof.
 										</p>
 									)
 							}
@@ -238,7 +236,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 					</SectionCard>
 					<SectionCard
 						title='Collateral'
-						context='Your stake backs investor funds.'
+						context='Slashed if you default.'
 						plain>
 						<div class='smx-body'>
 							<span class='smx-big'>
@@ -272,7 +270,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 			<div class='smx-page'>
 				<SectionCard
 					title='Web2 income verification'
-					context='Bank proof via Reclaim zkTLS. The 0G agent audits it against your terms.'
+					context='Bank proof via Reclaim, audited by the 0G agent.'
 					plain>
 					<section
 						class='smx-body smx-reclaim'
@@ -351,9 +349,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 									</Badge>
 									{
 										t.txHash ? <TxLink hash={t.txHash} /> : (
-											<small>
-												Locked
-											</small>
+											'—'
 										)
 									}
 								</li>
@@ -363,7 +359,6 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 				</SectionCard>
 				<SectionCard
 					title='Onchain jobs'
-					context='Pending until the transaction confirms.'
 					count={jobs.length}>
 					{
 						jobs.length === 0
@@ -435,26 +430,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 													</Badge>
 												</td>
 												<td>
-													<span title={p.reasoning ?? p.rejectReason}>
-														{
-															escapeText(
-																p.model === 'rules-engine'
-																	? 'Rules engine'
-																	: p.model ? '0G Compute' : 'Pending',
-															)
-														}
-													</span>
-													{
-														!!p.auditLogRef && (
-															<>
-																{' '}
-																<StorageRef
-																	value={p.auditLogRef}
-																	status={p.auditLogStorage}
-																	label='0G Storage log ref' />
-															</>
-														)
-													}
+													<ProofAudit proof={p} />
 												</td>
 											</tr>
 										))
@@ -507,8 +483,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 			</Live>
 			<div class='smx-page'>
 				<SectionCard
-					title='Events'
-					context={`Live oracle events for $${c.ticker}.`}>
+					title='Oracle events'>
 					<ul
 						class='smx-feed'
 						aria-live='polite'

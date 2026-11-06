@@ -45,7 +45,7 @@ export function WalletConnectDialog() {
 		<Dialog
 			id='wallet-dialog'
 			title='Connect a wallet'
-			description='Choose how to sign in.'>
+			description='Pick a wallet to sign in.'>
 			<div class='smx-wallet-options'>
 				<button
 					type='button'
@@ -53,7 +53,7 @@ export function WalletConnectDialog() {
 					data-variant='primary'
 					data-wallet-option='walletconnect'
 					hidden>
-					Connect with WalletConnect
+					WalletConnect (QR code or phone wallet)
 				</button>
 				<button
 					type='button'
@@ -78,8 +78,7 @@ export function WalletConnectDialog() {
 					Browser extension
 				</button>
 				<p class='rc-field__hint'>
-					WalletConnect shows a QR code and opens wallet apps on your phone. A
-					generated or imported key lives only in this browser: export it to
+					Generated and imported keys stay in this browser. Export yours to
 					back it up.
 				</p>
 			</div>
@@ -93,7 +92,7 @@ export function HederaSignerDialog() {
 		<Dialog
 			id='hedera-signer-dialog'
 			title='Sign the payment'
-			description='Choose which Hedera account pays.'>
+			description='Pick the Hedera account that pays.'>
 			<div class='smx-wallet-options'>
 				<button
 					type='button'
@@ -101,7 +100,7 @@ export function HederaSignerDialog() {
 					data-variant='primary'
 					data-hedera-option='walletconnect'
 					hidden>
-					Connect with WalletConnect
+					WalletConnect (QR code or phone wallet)
 				</button>
 				<button
 					type='button'
@@ -126,9 +125,8 @@ export function HederaSignerDialog() {
 					Export key
 				</button>
 				<p class='rc-field__hint'>
-					WalletConnect works with Hedera wallets such as HashPack. A
-					generated or imported key lives only in this browser, and the
-					account needs HBAR from the Hedera faucet.
+					Keys stay in this browser. The account needs HBAR from the Hedera
+					faucet.
 				</p>
 			</div>
 		</Dialog>
@@ -141,11 +139,11 @@ export function KeyExportDialog() {
 		<Dialog
 			id='key-export-dialog'
 			title='Export key'
-			description='Anyone with this key controls the wallet.'>
+			description='Anyone with this key controls your wallet.'>
 			<div class='smx-wallet-options'>
 				<p class='rc-field__hint'>
-					Never share it. Clearing this browser's data deletes the key, so
-					save a copy first.
+					Never share this key. Clearing browser data deletes it, so save a
+					copy.
 				</p>
 				<pre class='rc-code'>
 					<code

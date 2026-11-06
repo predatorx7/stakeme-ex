@@ -72,6 +72,18 @@ export type IncomeAudit = {
 	model: string
 	/** 0G Storage root hash (or `local:<sha256>`) of the audit log. */
 	logRef: string | null
+	/** `0g-router`, `0g-compute` or `rules` (offline dev fallback). */
+	engine?: 'rules' | '0g-router' | '0g-compute'
+	/** 0G Router request id (`x_0g_trace.request_id`). */
+	requestId?: string
+	/** On-chain address of the TEE provider that served the request. */
+	providerAddress?: string
+	/** `true` only when the Router verified the TEE signature. */
+	teeVerified?: boolean
+	/** Trust tier the request was restricted to (`private`, `verified`). */
+	trustMode?: string
+	/** Router charge for the request, in micro-USD. */
+	costMicroUsd?: string
 }
 
 export type LisaTerms = {

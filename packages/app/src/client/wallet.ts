@@ -104,7 +104,7 @@ document.addEventListener('click', (event) => {
 		if(injectedProvider()) {
 			void signIn(button, 'injected')
 		} else {
-			toastError(new Error('No wallet available on this page'))
+			toastError(new Error('No wallet found. Pick another option.'))
 		}
 
 		return
@@ -142,7 +142,7 @@ document.addEventListener('submit', (event) => {
 		writeStorage(EVM_KEY_STORAGE, key)
 		writeStorage(IMPORTED_KEY, '1')
 	} catch{
-		toastError(new Error('That is not a valid private key'))
+		toastError(new Error('Invalid private key. Check it and retry.'))
 		return
 	}
 
@@ -254,7 +254,7 @@ async function signIn(button: HTMLElement, kind: WalletKind) {
 		const { json } = await postJson('/auth/siwe/nonce')
 		const nonce = pick(json, 'nonce')
 		if(typeof nonce !== 'string') {
-			throw new Error('Sign-in failed: no nonce')
+			throw new Error('Sign-in failed. Try again.')
 		}
 
 		const message = createSiweMessage({
@@ -267,7 +267,7 @@ async function signIn(button: HTMLElement, kind: WalletKind) {
 			statement: SIWE_STATEMENT,
 		})
 		if(wallet.kind === 'walletconnect') {
-			showToast('Approve the sign-in request in your wallet.')
+			showToast('Approve the sign-in in your wallet.')
 		}
 
 		const signature = await wallet.sign(message)
@@ -336,13 +336,13 @@ async function connectWallet(
 	// Never fall back to a local key: the caller must ask for it.
 	const chosen = burner ? 'burner' : kind
 	if(!chosen) {
-		throw new Error('Choose a wallet first')
+		throw new Error('Pick a wallet first.')
 	}
 
 	if(chosen === 'walletconnect') {
 		const config = walletConnectConfig()
 		if(!config) {
-			throw new Error('WalletConnect is not configured')
+			throw new Error('WalletConnect is unavailable. Pick another wallet.')
 		}
 
 		const { connectEvm } = await import('./walletconnect-evm.ts')
@@ -353,7 +353,7 @@ async function connectWallet(
 	if(chosen === 'injected') {
 		const injected = injectedProvider()
 		if(!injected) {
-			throw new Error('No browser wallet found')
+			throw new Error('No browser wallet found. Pick another option.')
 		}
 
 		return fromProvider(
@@ -393,7 +393,7 @@ async function fromProvider(
 	})
 	const [address] = await client.requestAddresses()
 	if(!address) {
-		throw new Error('No account selected')
+		throw new Error('No account selected. Choose one in your wallet.')
 	}
 
 	const chainId = await client.getChainId()

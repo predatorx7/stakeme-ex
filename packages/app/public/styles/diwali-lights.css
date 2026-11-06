@@ -1,6 +1,6 @@
 /* diwali-lights: string-light motif (see docs/diwali-theme.md).
    Tiny fairy-light bulbs (white, mint, amber, red, royal blue) as dotted
-   strands: app bar edge, footer, progress bars, optional short dividers.
+   strands: app bar edge, footer and progress bars.
    Decorative only; canvas, noise and guilloche are untouched. */
 
 :root,
@@ -41,13 +41,9 @@
 	syntax: '<number>';
 }
 
-/* Strand A holds three of the five colors, strand B the other two, offset by
-   half a pitch; they twinkle out of phase so nothing blinks in unison.
-   Tile = 5 bulbs = 5 pitches wide (70px). */
+/* One strand per edge, five bulb colors per tile (5 pitches wide). Static. */
 .smx-sl-strand,
 .public-shell .rc-app-bar::before,
-.public-shell .rc-app-bar::after,
-.smx-dw-footer > .smx-sl-line,
 .smx-dw-footer::after {
 	--_p: var(--smx-sl-pitch);
 	background-repeat: repeat-x;
@@ -64,26 +60,7 @@
 	position: relative;
 }
 
-/* Bulb gradient, written with colour pairs (core, halo) */
-.public-shell .rc-app-bar::before,
-.smx-dw-footer::after {
-	background-image:
-		radial-gradient(circle at calc(var(--_p) * 0.5) 50%, var(--smx-sl-white) 0 var(--smx-sl-core), color-mix(in srgb, var(--smx-sl-white) var(--smx-sl-halo-alpha), transparent) calc(var(--smx-sl-core) + 0.2px), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at calc(var(--_p) * 2.5) 50%, var(--smx-sl-amber) 0 var(--smx-sl-core), color-mix(in srgb, var(--smx-sl-amber) var(--smx-sl-halo-alpha), transparent) calc(var(--smx-sl-core) + 0.2px), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at calc(var(--_p) * 4.5) 50%, var(--smx-sl-blue) 0 var(--smx-sl-core), color-mix(in srgb, var(--smx-sl-blue) var(--smx-sl-halo-alpha), transparent) calc(var(--smx-sl-core) + 0.2px), transparent var(--smx-sl-halo));
-	opacity: var(--smx-sl-opacity);
-}
-
-.public-shell .rc-app-bar::after,
-.smx-dw-footer > .smx-sl-line {
-	background-image:
-		radial-gradient(circle at calc(var(--_p) * 1.5) 50%, var(--smx-sl-mint) 0 var(--smx-sl-core), color-mix(in srgb, var(--smx-sl-mint) var(--smx-sl-halo-alpha), transparent) calc(var(--smx-sl-core) + 0.2px), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at calc(var(--_p) * 3.5) 50%, var(--smx-sl-red) 0 var(--smx-sl-core), color-mix(in srgb, var(--smx-sl-red) var(--smx-sl-halo-alpha), transparent) calc(var(--smx-sl-core) + 0.2px), transparent var(--smx-sl-halo));
-	opacity: var(--smx-sl-opacity);
-}
-
-.public-shell .rc-app-bar::before,
-.public-shell .rc-app-bar::after {
+.public-shell .rc-app-bar::before {
 	inset-block-end: -2px;
 }
 
@@ -95,56 +72,16 @@
 	inset-block-start: 0;
 }
 
-/* Footer carries all five colors on one strand. */
+/* Header and footer strands: all five colors. */
+.public-shell .rc-app-bar::before,
 .smx-dw-footer::after {
+	opacity: var(--smx-sl-opacity);
 	background-image:
 		radial-gradient(circle at calc(var(--_p) * 0.5) 50%, var(--smx-sl-white) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
 		radial-gradient(circle at calc(var(--_p) * 1.5) 50%, var(--smx-sl-mint) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
 		radial-gradient(circle at calc(var(--_p) * 2.5) 50%, var(--smx-sl-amber) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
 		radial-gradient(circle at calc(var(--_p) * 3.5) 50%, var(--smx-sl-red) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
 		radial-gradient(circle at calc(var(--_p) * 4.5) 50%, var(--smx-sl-blue) 0 var(--smx-sl-core), transparent var(--smx-sl-halo));
-}
-
-/* Optional short ornament: <hr class="smx-sl-divider"> (7 bulbs, centered). */
-.smx-sl-divider {
-	--_p: 14px;
-	background-image:
-		radial-gradient(circle at 7px 50%, var(--smx-sl-white) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at 21px 50%, var(--smx-sl-mint) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at 35px 50%, var(--smx-sl-amber) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at 49px 50%, var(--smx-sl-red) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at 63px 50%, var(--smx-sl-blue) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at 77px 50%, var(--smx-sl-amber) 0 var(--smx-sl-core), transparent var(--smx-sl-halo)),
-		radial-gradient(circle at 91px 50%, var(--smx-sl-white) 0 var(--smx-sl-core), transparent var(--smx-sl-halo));
-	background-repeat: no-repeat;
-	block-size: 4px;
-	border: 0;
-	inline-size: 98px;
-	margin-block: var(--rc-space-4, 16px);
-	margin-inline: auto;
-	opacity: var(--smx-sl-opacity);
-}
-
-@keyframes smx-sl-twinkle-a {
-	0%, 100% { opacity: var(--smx-sl-opacity); }
-	50% { opacity: calc(var(--smx-sl-opacity) * 0.45); }
-}
-
-@keyframes smx-sl-twinkle-b {
-	0%, 100% { opacity: calc(var(--smx-sl-opacity) * 0.5); }
-	50% { opacity: var(--smx-sl-opacity); }
-}
-
-.public-shell .rc-app-bar::before {
-	animation: smx-sl-twinkle-a 5s ease-in-out infinite;
-}
-
-.public-shell .rc-app-bar::after {
-	animation: smx-sl-twinkle-b 6s ease-in-out -2s infinite;
-}
-
-.smx-dw-footer::after {
-	animation: smx-sl-twinkle-a 6s ease-in-out -1s infinite;
 }
 
 /* Progress: lit bulbs fill the value, dim unlit bulbs make the track. */
@@ -159,7 +96,6 @@
 }
 
 .rc-progress:not([data-tone]) > span {
-	animation: smx-sl-twinkle-a 5s ease-in-out infinite;
 	background-color: transparent;
 	background-image:
 		radial-gradient(circle at 50% 50%, var(--smx-sl-amber) 0 1.8px, color-mix(in srgb, var(--smx-sl-gold) 40%, transparent) 2.2px, transparent 3.3px);
@@ -192,28 +128,10 @@
 	}
 }
 
-@media (prefers-reduced-motion: reduce) {
-	/* Decorative strands only; the real progress fill keeps full opacity. */
-	.public-shell .rc-app-bar::before,
-	.public-shell .rc-app-bar::after,
-	.smx-dw-footer::after,
-	.smx-sl-divider {
-		animation: none;
-		opacity: calc(var(--smx-sl-opacity) * 0.7);
-	}
-
-	.rc-progress > span,
-	.rc-progress:not([data-tone]) > span {
-		animation: none;
-	}
-}
-
 @media (forced-colors: active) {
 	.public-shell .rc-app-bar::before,
-	.public-shell .rc-app-bar::after,
 	.smx-dw-footer::after,
-	.smx-sl-strand,
-	.smx-sl-divider {
+	.smx-sl-strand {
 		display: none;
 	}
 

@@ -59,7 +59,7 @@ export function CreatorStatusBadge({ status, frozen }: {
 				!!frozen && status !== 'DEFAULTED' && (
 					<Badge
 						tone='warn'
-						title='Escrow frozen by 0G agent: proof overdue'>
+						title='Escrow frozen: proof overdue'>
 						Escrow frozen
 					</Badge>
 				)

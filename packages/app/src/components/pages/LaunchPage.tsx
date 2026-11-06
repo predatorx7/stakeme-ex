@@ -3,7 +3,6 @@ import { DEMO_MODE } from '../../consts.ts'
 import type { LaunchState } from '../../types/index.ts'
 import { escapeText } from '../../utils/escape.ts'
 import { shortHex } from '../../utils/money.ts'
-import { Badge } from '../Badge.tsx'
 import { EmptyState } from '../EmptyState.tsx'
 import { Field } from '../forms/Field.tsx'
 import { FormError } from '../forms/FormError.tsx'
@@ -24,7 +23,6 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 		return (
 			<div class='smx-page'>
 				<PageHeader
-					eyebrow='Launch'
 					title='Launch your IPO' />
 				<EmptyState
 					title={`You already launched $${state.ticker ?? ''}`}
@@ -44,17 +42,10 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 	return (
 		<div class='smx-page'>
 			<PageHeader
-				eyebrow='Launch'
 				title='Launch your IPO'
-				lede={
-					'Sell a share of your future income to investors. '
-					+ 'Funds release in tranches as you prove income.'
-				}
+				lede='Sell a share of your future income. Escrow releases in tranches as you prove it.'
 				meta={
 					<>
-						<Badge tone='success'>
-							Wallet connected
-						</Badge>
 						<span
 							class='smx-mono'
 							data-wallet-address
@@ -66,7 +57,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 			<div class='smx-layout'>
 				<SectionCard
 					title='IPO terms'
-					context='These terms become your L-ISA, stored on 0G Storage.'
+					context='Saved as your L-ISA on 0G Storage.'
 					plain>
 					<div class='smx-body'>
 						<HxForm
@@ -83,7 +74,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 									maxlength={6}
 									pattern='[A-Z]{3,6}'
 									placeholder='MUSH'
-									hint='3 to 6 capital letters.' />
+									hint='3-6 letters, A-Z.' />
 								<Field
 									name='displayName'
 									label='Display name'
@@ -93,10 +84,9 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 							</div>
 							<Field
 								name='headline'
-								label='Headline'
+								label='Headline (optional)'
 								maxlength={280}
-								placeholder='Software developer building open-source tools'
-								hint='What you do, in one line.' />
+								placeholder='Software developer building open-source tools' />
 							<div class='smx-fields'>
 								<Field
 									name='targetRaise'
@@ -110,7 +100,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 									required
 									placeholder='500.00'
 									pattern='[0-9]+(\.[0-9]{1,6})?'
-									hint='Slashed to holders if you default.' />
+									hint='Slashed if you default.' />
 								<Field
 									name='sharePct'
 									label='Income share (%)'
@@ -120,7 +110,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 									max={50}
 									step='any'
 									value={String(defaults.shareBps / 100)}
-									hint='Share of your income paid to holders.' />
+									hint='Paid to holders. Max 50.' />
 								<Field
 									name='termMonths'
 									label='Term (months)'
@@ -196,18 +186,18 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 				<aside class='smx-page'>
 					<NumberedStep
 						number={1}
-						title='Verify you are human'
-						description='World ID proves one person, one IPO.' />
+						title='Verify with World ID'
+						description='One IPO per person.' />
 					<NumberedStep
 						number={2}
 						title='Stake and raise'
-						description='Your stake backs the raise. Investors fund tranches held in escrow.' />
+						description='Investors fund tranches held in escrow, backed by your stake.' />
 					<NumberedStep
 						number={3}
 						title='Prove income'
 						description={
-							`Share ${defaults.shareBps / 100}% of income with holders. `
-							+ 'Miss a proof and the 0G agent freezes your escrow.'
+							`Pay holders ${defaults.shareBps / 100}% of income. `
+							+ 'A missed proof freezes escrow.'
 						} />
 					<Hint title='Minimum proven income'>
 						{escapeText(`${defaults.minIncome} USDC per period.`)}

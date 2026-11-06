@@ -265,6 +265,18 @@ Secrets live only in `.env` (gitignored). Public ids below are safe to share.
 - 0G Galileo: same account, funded from the faucet (about 0.5 0G, refills every 25 h). Storage uploads work live (~0.0012 0G each); Compute stays off (`ZG_COMPUTE_ENABLED`).
 - Reclaim: provider live (see workstream 8). WalletConnect: project id in `.env`, QR pairing verified.
 
+## Deployment (GCE, 2026-11-06)
+
+Single VM `smx-prod` (e2-medium, 20 GB pd-standard, asia-south1-a, project `stakeme-ex-261106`), Docker Compose: caddy (auto TLS) -> app -> postgres 18 (pg_cron). Files: `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/gcp.sh`; guide: `docs/deployment.md`.
+
+- Commands: `deploy/gcp.sh budget && deploy/gcp.sh provision && deploy/gcp.sh push && deploy/gcp.sh up`; also `logs [svc]`, `ssh`, `status`, `stop`/`start`, `destroy` (post-judging: deletes VM, disk, IP, firewall, schedule).
+- Domain: https://35-200-243-59.sslip.io (static IP 35.200.243.59). `CANONICAL_ORIGIN` is set from it by `push`.
+- Budget `smx-cap` 2000 INR (alerts 50/90/100%, id 60a9f42c-b02e-407e-8888-a664159a8f5e; alerts only, does not stop spend). Instance schedule `smx-stop-nov9` stops the VM Mon 2026-11-09 01:00 IST.
+- `push` ships `git archive HEAD` plus, while uncommitted, `deploy/`, `Dockerfile`, `docs/deployment.md` from the working tree. `.env` goes by scp only; `.env.prod` overlay holds NODE_ENV, DEMO_MODE, CANONICAL_ORIGIN, DB_URI; the Postgres password lives on the VM in `/opt/smx/.pgpass-smx`.
+- Verified locally (chain/0G unset): image builds, migrations run (pgmb + smx, 11 files), pg_cron jobs present, `/healthz` ok, `/` renders with built assets, worker starts, app about 240 MB RAM.
+- Container fixes: Dockerfile deps stage needs python3/make/g++ (node-gyp for utf-8-validate etc.) and npm fetch retries; `migrate` service reuses the app image (parallel builds failed `npm ci`).
+- Known issues: image build is slow (about 5 min, hardhat compile downloads solc); the VM build needs the e2-medium memory; post-deploy: allowlist the origin in WalletConnect, publish a Reclaim provider version for `/mock-bank`.
+
 ## Remaining
 
 - Done 2026-11-06: `exchange_json.totals` (SQL, all creators) feeds the Exchange KPI row; SSE replay via `oracle_events.seq`. Tests: `packages/app/tests/exchange-events.test.ts`.

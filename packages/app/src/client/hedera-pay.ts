@@ -81,12 +81,12 @@ async function pay(button: HTMLButtonElement) {
 	const { json } = await postJson(requestUrl)
 	const request = json as PaymentRequest
 	if(!Array.isArray(request?.accepts) || !request.accepts.length) {
-		throw new Error('The server returned no payment requirements')
+		throw new Error('No payment terms returned. Try again.')
 	}
 
 	let paymentPayload: Record<string, unknown>
 	if(request.mode === 'simulated') {
-		setStatus(button, 'Demo mode: simulating the Hedera payment...')
+		setStatus(button, 'Demo mode: simulating payment...')
 		paymentPayload = { x402Version: request.x402Version, simulated: true }
 	} else {
 		const transaction = await signTransfer(button, request)
@@ -130,7 +130,7 @@ async function signTransfer(button: HTMLElement, request: PaymentRequest) {
 	// Loaded on demand: the Hiero SDK stays out of the main bundle.
 	const sdk = await import('@hiero-ledger/sdk')
 	if(signer === 'walletconnect' && walletConnect) {
-		setStatus(button, 'Connect your Hedera wallet...')
+		setStatus(button, 'Connecting your Hedera wallet...')
 		const { connectHedera } = await import('./walletconnect-hedera.ts')
 		const { signer: wallet, accountId } = await connectHedera(
 			walletConnect,
@@ -160,8 +160,8 @@ async function signTransfer(button: HTMLElement, request: PaymentRequest) {
 	if(!payer) {
 		const evm = `0x${privateKey.publicKey.toEvmAddress()}`
 		throw new Error(
-			`Fund the Hedera account ${evm} from the faucet `
-			+ '(portal.hedera.com/faucet), then pay again.',
+			`Account ${evm} has no HBAR. Fund it at `
+			+ 'portal.hedera.com/faucet, then pay again.',
 		)
 	}
 
@@ -182,7 +182,7 @@ function chooseSigner(walletConnect: boolean) {
 		// No dialog markup: never create a key on the user's behalf.
 		return walletConnect
 			? Promise.resolve<Signer>('walletconnect')
-			: Promise.reject(new Error('No Hedera signer available'))
+			: Promise.reject(new Error('No Hedera signer. Pick one and retry.'))
 	}
 
 	const show = (name: string, visible: boolean, label?: string) => {
@@ -285,7 +285,7 @@ async function importKey(form: HTMLFormElement) {
 		localStorage.removeItem(ACCOUNT_STORAGE)
 		return true
 	} catch{
-		toastError(new Error('That is not a valid ECDSA private key'))
+		toastError(new Error('Invalid ECDSA key. Check it and retry.'))
 		return false
 	}
 }
@@ -306,7 +306,7 @@ function buildTransfer(
 ) {
 	const feePayer = request.accepts[0].extra?.feePayer
 	if(!feePayer) {
-		throw new Error('Payment request has no fee payer')
+		throw new Error('No fee payer in payment terms. Try again.')
 	}
 
 	const tx = new TransferTransaction()

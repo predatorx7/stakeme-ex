@@ -31,31 +31,30 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 				hx-select='#exchange-live'
 				hx-swap='outerHTML'>
 				<PageHeader
-					eyebrow='Exchange'
 					title='StakeMe Exchange (SMX)' />
 				<div class='rc-kpi-grid smx-xc-kpis'>
 					<Kpi
 						label='Total raised'
 						value={formatUsdc(totals.totalRaised)}
-						note={`holders: ${totals.holders}`} />
+						note={`${totals.holders} holders`} />
 					<Kpi
 						label='Active creators'
 						value={String(totals.activeCreators)}
-						note='live or in grace period' />
+						note='Live or in grace' />
 					<Kpi
 						label='Dividends paid'
 						value={formatUsdc(totals.dividendsPaid)}
-						note='to holders, all time' />
+						note='All time' />
 				</div>
 				<SectionCard
-					title='Trending humans'
+					title='Trending creators'
 					count={trending.length}>
 					{
 						trending.length === 0
 							? (
 								<EmptyState
 									title='No creators yet'
-									hint='Launch the first IPO to open the market.'>
+									hint='Launched IPOs appear here.'>
 									<a
 										class='rc-button'
 										data-variant='primary'
@@ -130,7 +129,6 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 																			class='rc-button'
 																			data-size='sm'
 																			data-variant='primary'
-																			data-dw-sparkle
 																			href={`/creators/${c.ticker}#trade`}
 																			aria-label={`Buy ${c.ticker}`}>
 																			Buy
@@ -157,7 +155,7 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 				{
 					!!top && top.sparkline.length > 1 && (
 						<PriceChart
-							title={`$${top.ticker} price, top creator`}
+							title={`$${top.ticker} price`}
 							name={`${top.displayName} price history`}
 							points={top.sparkline} />
 					)
@@ -166,7 +164,7 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 			<div class='smx-page smx-xc-feed'>
 				<SectionCard
 					title='Live oracle events'
-					context='Updates as the 0G agent audits proofs and creators trade.'>
+					context='Proof audits and trades, as they happen.'>
 					<ul
 						class='smx-feed'
 						aria-live='polite'

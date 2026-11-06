@@ -1,11 +1,13 @@
 import { parseUnits } from 'viem'
 import {
+	ZG_ALLOW_RULES_FALLBACK,
 	ZG_COMPUTE_ENABLED,
 	ZG_LEDGER_DEPOSIT,
 	ZG_PRIVATE_KEY,
 	ZG_PROVIDER_ADDRESS,
 	ZG_ROUTER_API_KEY,
 	ZG_ROUTER_BASE_URL,
+	ZG_ROUTER_MGMT_KEY,
 	ZG_ROUTER_MODEL,
 	ZG_ROUTER_TRUST_MODE,
 	ZG_RPC_URL,
@@ -18,6 +20,7 @@ const RULES_MODEL = 'rules-engine'
 const COMPUTE_TIMEOUT_MS = 90_000
 const ROUTER_TIMEOUT_MS = 20_000
 const ROUTER_PROVIDER = '0g-router'
+const ROUTER_MAX_TOKENS = 800
 
 export type RouterOptions = {
 	apiKey: string
@@ -32,6 +35,8 @@ export type AuditDeps = {
 	fetch?: typeof fetch
 	/** Overrides the `ZG_ROUTER_*` env config. */
 	router?: Partial<RouterOptions>
+	/** Overrides `ZG_ALLOW_RULES_FALLBACK`. */
+	allowRulesFallback?: boolean
 }
 
 /** Verification data the Router returns (`x_0g_trace`), logged verbatim. */
@@ -40,6 +45,20 @@ export type RouterTrace = {
 	provider: string | null
 	teeVerified: boolean | null
 	trustMode: string | null
+	/** Router charge in micro-USD (`billing.total_cost_usd_micro`). */
+	costMicroUsd: string | null
+	/** Operator-declared upstream channel (routing label, not attested). */
+	providerIdentity: string | null
+}
+
+/** No 0G audit could run, and the offline rules fallback is off. */
+export class ZeroGAuditUnavailable extends Error {
+
+	constructor(reason: string) {
+		super(`0G audit unavailable: ${reason}`)
+		this.name = 'ZeroGAuditUnavailable'
+	}
+
 }
 
 export type AuditVerdict = Pick<
@@ -84,10 +103,15 @@ export function buildAuditPrompt(input: IncomeAuditInput) {
  * Model output is advisory: SQL recomputes the dividend.
  */
 export function parseAuditResponse(
-	text: string,
+	fullText: string,
 	input: IncomeAuditInput,
 ): AuditVerdict {
-	// Models often wrap JSON in a code fence or prose.
+	// Models often wrap JSON in a code fence or prose, and some leak their
+	// reasoning before a closing `</think>`: only read what follows it.
+	const afterThink = fullText.lastIndexOf('</think>')
+	const text = afterThink >= 0
+		? fullText.slice(afterThink + '</think>'.length)
+		: fullText
 	const start = text.indexOf('{')
 	const end = text.lastIndexOf('}')
 	if(start < 0 || end <= start) {
@@ -146,9 +170,11 @@ export function isZeroGConfigured() {
 }
 
 /**
- * Runs the audit prompt on 0G Compute (needs `ZG_PRIVATE_KEY`). Any failure
- * or a missing key falls back to the deterministic rules engine, so the audit
- * never blocks. The caller writes the audit log to storage.
+ * Runs the audit prompt on 0G: the Router first (`ZG_ROUTER_API_KEY`), then
+ * Galileo Compute when `ZG_COMPUTE_ENABLED=1`. If neither answers it throws
+ * `ZeroGAuditUnavailable`, so no proof is approved without a 0G auditor. The
+ * deterministic rules engine only runs behind `ZG_ALLOW_RULES_FALLBACK=1`
+ * (offline dev). The caller writes the audit log to storage.
  */
 export async function runAuditVerdict(
 	input: IncomeAuditInput,
@@ -167,15 +193,15 @@ export async function runAuditVerdict(
 		trustMode: ZG_ROUTER_TRUST_MODE,
 		...deps.router,
 	}
+	const allowRules = deps.allowRulesFallback ?? ZG_ALLOW_RULES_FALLBACK
+	let failure = 'no 0G Router key or Compute configured'
 	if(router.apiKey) {
 		try {
 			return await runRouter(input, router, deps.fetch ?? fetch)
 		} catch(err) {
 			// Never retry: a retry could be charged twice.
-			LOGGER.error(
-				{ err: String(err) },
-				'0G Router failed: falling back',
-			)
+			failure = String(err instanceof Error ? err.message : err)
+			LOGGER.error({ err: failure }, '0G Router failed')
 		}
 	}
 
@@ -183,15 +209,19 @@ export async function runAuditVerdict(
 		try {
 			return await runCompute(input)
 		} catch(err) {
-			LOGGER.error({ err }, '0G Compute failed: rules-engine fallback')
+			failure = String(err instanceof Error ? err.message : err)
+			LOGGER.error({ err }, '0G Compute failed')
 		}
-	} else {
-		LOGGER.warn(
-			'0G Compute off (needs ZG_PRIVATE_KEY and ZG_COMPUTE_ENABLED=1): '
-			+ 'rules-engine audit',
-		)
 	}
 
+	if(!allowRules) {
+		throw new ZeroGAuditUnavailable(failure)
+	}
+
+	LOGGER.warn(
+		{ failure },
+		'0G unavailable: rules-engine audit (ZG_ALLOW_RULES_FALLBACK=1)',
+	)
 	return {
 		verdict: rulesAudit(input),
 		model: RULES_MODEL,
@@ -202,14 +232,58 @@ export async function runAuditVerdict(
 
 export { RULES_MODEL, ROUTER_PROVIDER }
 
+/** Not billed, and another model may be free: worth trying the next one. */
+const NEXT_MODEL_STATUS = new Set([429, 502, 503])
+
 /**
- * One OpenAI-compatible chat completion on the 0G Router. Throws on any
- * non-2xx (402 `insufficient_balance` included), timeout or bad verdict; the
- * caller falls back. Exactly one request is sent.
+ * One OpenAI-compatible chat completion on the 0G Router. `router.model` is a
+ * comma-separated preference list; only an unbilled overload (`429`, `502`,
+ * `503`) moves on to the next model, so a request is never charged twice.
+ * Throws on any other non-2xx (`402` `insufficient_balance` included),
+ * timeout or bad verdict.
  */
 async function runRouter(
 	input: IncomeAuditInput,
 	router: RouterOptions,
+	doFetch: typeof fetch,
+) {
+	const models = router.model.split(',').map((m) => m.trim()).filter(Boolean)
+	let lastErr: unknown
+	for(const model of models) {
+		try {
+			return await runRouterModel(input, router, model, doFetch)
+		} catch(err) {
+			lastErr = err
+			if(!(err instanceof RouterHttpError)
+				|| !NEXT_MODEL_STATUS.has(err.status)) {
+				throw err
+			}
+
+			LOGGER.warn({ model, err: err.message }, '0G Router model busy')
+		}
+	}
+
+	throw lastErr
+}
+
+class RouterHttpError extends Error {
+
+	readonly status: number
+
+	constructor(status: number, code: unknown) {
+		super(
+			`0G Router HTTP ${status}`
+			+ (typeof code === 'string' ? ` ${code}` : ''),
+		)
+		this.status = status
+	}
+
+}
+
+async function runRouterModel(
+	input: IncomeAuditInput,
+	router: RouterOptions,
+	model: string,
 	doFetch: typeof fetch,
 ) {
 	const headers: Record<string, string> = {
@@ -224,9 +298,12 @@ async function runRouter(
 		method: 'POST',
 		headers,
 		body: JSON.stringify({
-			model: router.model,
+			model,
 			messages: buildAuditPrompt(input),
 			temperature: 0,
+			max_tokens: ROUTER_MAX_TOKENS,
+			// Ask the Router to verify the provider's TEE signature.
+			verify_tee: true,
 			// GLM-5 reasons by default; we want the JSON answer only.
 			chat_template_kwargs: { enable_thinking: false },
 		}),
@@ -234,10 +311,9 @@ async function runRouter(
 	})
 	if(!res.ok) {
 		const body: unknown = await res.json().catch(() => null)
-		const code = field(field(body, 'error'), 'code')
-		throw new Error(
-			`0G Router HTTP ${res.status}`
-			+ (typeof code === 'string' ? ` ${code}` : ''),
+		throw new RouterHttpError(
+			res.status,
+			field(field(body, 'error'), 'code'),
 		)
 	}
 
@@ -250,14 +326,14 @@ async function runRouter(
 		throw new Error('0G Router returned no message')
 	}
 
-	const verdict = parseAuditResponse(content, input)
 	const trace = field(data, 'x_0g_trace')
+	const verdict = parseAuditResponse(content, input)
 	const str = (v: unknown) => typeof v === 'string' ? v : null
 	const teeVerified = field(trace, 'tee_verified')
 	const modelUsed = field(data, 'model')
 	return {
 		verdict,
-		model: str(modelUsed) || router.model,
+		model: str(modelUsed) || model,
 		provider: ROUTER_PROVIDER,
 		teeVerified: typeof teeVerified === 'boolean' ? teeVerified : null,
 		routerTrace: {
@@ -265,6 +341,10 @@ async function runRouter(
 			provider: str(field(trace, 'provider')),
 			teeVerified: typeof teeVerified === 'boolean' ? teeVerified : null,
 			trustMode: router.trustMode || null,
+			costMicroUsd: str(
+				field(field(trace, 'billing'), 'total_cost_usd_micro'),
+			),
+			providerIdentity: str(field(trace, 'provider_identity')),
 		},
 	}
 }
@@ -357,4 +437,66 @@ function fromMicro(micro: bigint) {
 	const s = micro.toString().padStart(7, '0')
 	const frac = s.slice(-6).replace(/0+$/, '').padEnd(2, '0')
 	return `${s.slice(0, -6)}.${frac}`
+}
+
+export type RouterBalance = {
+	address: string | null
+	/** Prepaid credit plus deposit, in micro-USD. */
+	totalMicroUsd: string
+	creditMicroUsd: string
+}
+
+let balanceCache: { at: number, value: RouterBalance } | undefined
+const BALANCE_TTL_MS = 30_000
+
+/**
+ * The Router account's remaining credit, read with the `mk-` management key
+ * (`GET /account/balance`, account:read). Cached for about 30 s. Returns null
+ * without a key or when the call fails; the key never leaves the server.
+ */
+export async function getRouterBalance(
+	deps: { fetch?: typeof fetch, now?: number } = {},
+): Promise<RouterBalance | null> {
+	if(!ZG_ROUTER_MGMT_KEY) {
+		return null
+	}
+
+	const now = deps.now ?? Date.now()
+	if(balanceCache && now - balanceCache.at < BALANCE_TTL_MS) {
+		return balanceCache.value
+	}
+
+	try {
+		const res = await (deps.fetch ?? fetch)(
+			`${ZG_ROUTER_BASE_URL}/account/balance`,
+			{
+				headers: { Authorization: `Bearer ${ZG_ROUTER_MGMT_KEY}` },
+				signal: AbortSignal.timeout(5_000),
+			},
+		)
+		if(!res.ok) {
+			throw new Error(`HTTP ${res.status}`)
+		}
+
+		const data: unknown = await res.json()
+		const num = (v: unknown) => /^\d+$/.test(String(v)) ? String(v) : '0'
+		const address = field(data, 'address')
+		balanceCache = {
+			at: now,
+			value: {
+				address: typeof address === 'string' ? address : null,
+				totalMicroUsd: num(field(data, 'total_balance')),
+				creditMicroUsd: num(field(data, 'credit_balance')),
+			},
+		}
+		return balanceCache.value
+	} catch(err) {
+		LOGGER.warn({ err: String(err) }, '0G Router balance read failed')
+		return balanceCache?.value ?? null
+	}
+}
+
+/** Test hook. */
+export function resetRouterBalanceCache() {
+	balanceCache = undefined
 }

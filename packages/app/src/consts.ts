@@ -183,6 +183,20 @@ export const CHAIN_JOB_RETRIES_S = [5, 30, 120]
 export const ZG_ROUTER_API_KEY = process.env.ZG_ROUTER_API_KEY || ''
 export const ZG_ROUTER_BASE_URL =
 	process.env.ZG_ROUTER_BASE_URL || 'https://router-api.0g.ai/v1'
-export const ZG_ROUTER_MODEL = process.env.ZG_ROUTER_MODEL || 'glm-5.2'
-/** `verified` | `private`; empty omits the X-0G-Provider-Trust-Mode header. */
-export const ZG_ROUTER_TRUST_MODE = process.env.ZG_ROUTER_TRUST_MODE || ''
+/** Preference list: the next model is tried only after an unbilled overload. */
+export const ZG_ROUTER_MODEL =
+	process.env.ZG_ROUTER_MODEL || 'glm-5.3,0GM-1.0-35B-A3B'
+/**
+ * `standard` | `verified` | `private`; empty omits the X-0G-Provider-Trust-Mode
+ * header. Default `private`: only TeeML providers (the model runs in the TEE).
+ */
+export const ZG_ROUTER_TRUST_MODE =
+	process.env.ZG_ROUTER_TRUST_MODE ?? 'private'
+/** `mk-` management key (account:read) for the balance readout. Secret. */
+export const ZG_ROUTER_MGMT_KEY = process.env.ZG_ROUTER_MGMT_KEY || ''
+/**
+ * Offline dev only: when 0G is unreachable, let the SQL rules engine audit
+ * instead. Off by default, so removing 0G leaves proofs PENDING.
+ */
+export const ZG_ALLOW_RULES_FALLBACK =
+	process.env.ZG_ALLOW_RULES_FALLBACK === '1'

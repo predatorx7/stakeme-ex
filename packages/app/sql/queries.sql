@@ -174,6 +174,13 @@ FROM smx.audit_income_proof(
 ) AS p;
 
 
+/* @name MarkAuditUnavailable */
+-- 0G could not audit: keep the proof PENDING with a retry status. Routes:
+-- AuditMilestone, ReclaimCallback.
+SELECT smx.audit_result_json(p) AS j
+FROM smx.mark_audit_unavailable(:proof_id!::UUID, :message!) AS p;
+
+
 /* @name TriggerDefault */
 -- Demo: fast-forward and liquidate. Route: TriggerDefault.
 SELECT smx.creator_json(c) AS j

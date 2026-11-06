@@ -52,7 +52,7 @@ async function startSession(button: HTMLElement) {
 	const session = pick(json, 'session') ?? json
 	const requestUrl = pick(session, 'requestUrl')
 	if(typeof requestUrl !== 'string') {
-		throw new Error('Server returned no Reclaim request URL')
+		throw new Error('No proof link returned. Try again.')
 	}
 
 	const host = outputOf(button)

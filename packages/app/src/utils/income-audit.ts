@@ -2,11 +2,13 @@ import { badRequest, Boom, isBoom, notFound } from '@hapi/boom'
 import assert from 'node:assert'
 import { readDeliveryEnvelope } from '../integrations/reclaim.ts'
 import { field } from '../integrations/util.ts'
+import { ZeroGAuditUnavailable } from '../integrations/zero-g.ts'
 import { LOGGER } from '../logger.ts'
 import {
 	auditIncomeProof,
 	finishReclaimSession,
 	getReclaimSession,
+	markAuditUnavailable,
 	submitIncomeProof,
 } from '../queries.ts'
 import { createOracle } from '../services/index.ts'
@@ -19,6 +21,8 @@ const UUID_REGEX =
 export type IncomeAuditOutcome =
 	/** Verified, stored and audited: the SQL-built `AuditResult`. */
 	| { kind: 'audited', result: unknown }
+	/** 0G was unreachable: the proof stays PENDING (`audit.status`). */
+	| { kind: 'unavailable', result: unknown }
 	/** The session already finished; a redelivery changes nothing. */
 	| { kind: 'duplicate', status: string }
 	/** A failure event (rejected, error, cancelled, expired) was recorded. */
@@ -28,7 +32,8 @@ export type IncomeAuditOutcome =
  * The pipeline behind `AuditMilestone` and `ReclaimCallback`: verify the
  * delivery through the oracle, store the proof PENDING, let the 0G agent
  * audit it, then `audit_income_proof` decides and queues the audit log's 0G
- * Storage upload (the proof commits with a `local:<sha256>` log ref). The
+ * Storage upload (the proof commits with a `local:<sha256>` log ref). When no
+ * 0G auditor answers, the proof stays PENDING ("0G audit unavailable"). The
  * expected session, org and creator come from our own `reclaim_sessions`
  * row, never from the body.
  */
@@ -112,16 +117,31 @@ export async function runIncomeAudit(
 		},
 		pg,
 	)
-	const audit = await oracle.audit({
-		creatorId,
-		ticker: pending.ticker,
-		shareBps: pending.share_bps,
-		minIncome: pending.min_income,
-		period: pending.period,
-		termsHash: pending.terms_hash ?? '',
-		termsRef: pending.terms_ref ?? undefined,
-		income,
-	})
+	let audit: Awaited<ReturnType<typeof oracle.audit>>
+	try {
+		audit = await oracle.audit({
+			creatorId,
+			ticker: pending.ticker,
+			shareBps: pending.share_bps,
+			minIncome: pending.min_income,
+			period: pending.period,
+			termsHash: pending.terms_hash ?? '',
+			termsRef: pending.terms_ref ?? undefined,
+			income,
+		})
+	} catch(err) {
+		if(!(err instanceof ZeroGAuditUnavailable)) {
+			throw err
+		}
+
+		// No 0G auditor, no sign-off: keep the proof PENDING so it can be retried.
+		const [held] = await markAuditUnavailable.run(
+			{ proof_id: pending.id, message: err.message.slice(0, 300) },
+			pg,
+		)
+		return { kind: 'unavailable', result: held.j }
+	}
+
 	const [row] = await auditIncomeProof.run(
 		{
 			proof_id: pending.id,
@@ -131,6 +151,12 @@ export async function runIncomeAudit(
 				reasoning: audit.reasoning,
 				model: audit.model,
 				logRef: audit.logRef,
+				engine: audit.engine,
+				requestId: audit.requestId,
+				providerAddress: audit.providerAddress,
+				teeVerified: audit.teeVerified,
+				trustMode: audit.trustMode,
+				costMicroUsd: audit.costMicroUsd,
 			},
 			log_document: audit.logDocument,
 		},

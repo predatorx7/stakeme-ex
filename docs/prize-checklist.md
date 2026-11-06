@@ -28,7 +28,7 @@ as one prize. SMX uses exactly three sponsors, so it fits.
 | Hedera | AI Agents That Pay: x402 on Hedera | $6,500 | Not met | No x402-protected endpoint or paying agent |
 | World | Best Use of IDKit | $2,500 (2 x $1,250) | Partly | No debrief, no trust-moment write-up |
 | World | World ID Agent Pass | $5,000 | Not met | SMX uses IDKit proof of human, not Agent Pass |
-| 0G | Build with 0G Private Computer | $5,000 | Not met | 0G Compute is off; no request IDs |
+| 0G | Build with 0G Private Computer | $5,000 | Partly | Router audit is the approval gate and shows request IDs; hosted demo link and video still missing |
 
 Tracks that SMX cannot or should not enter: Hedera "No Solidity Allowed" (SMX
 uses Solidity contracts), all Continuity Track prizes (SMX is a classic-track
@@ -158,23 +158,21 @@ Prizes: 1st $2,500, 2nd $1,500, 3rd $1,000. Bonus: iAI sign-in.
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | "Build a consumer app where AI on 0G is the core product." | Partly | The 0G auditor agent decides every tranche release and dividend. SMX is a finance app with an AI audit step; judges may see it as secondary. |
-| "Show inference on 0G Private Computer in the main user flow, with request IDs." | Not met | README: "0G Compute: Off by default (`ZG_COMPUTE_ENABLED`). It needs a 3 0G ledger deposit, which the faucet does not cover. The audit uses the rules engine instead. 0G Router (`pc.0g.ai`) credits are pending." `docs/integrations/zero-g.md` builds on the older `@0gfoundation/0g-compute-ts-sdk` broker, not Private Computer / the OpenAI-compatible router. |
+| "Show inference on 0G Private Computer in the main user flow, with request IDs." | Met | Every income proof audit calls the 0G Router (`glm-5.3`, trust mode `private`, `verify_tee: true`). The proof row shows "Audited by 0G Private Computer", the model, the short request ID with copy, and the 0G Storage log link; the same fields are in the audit log on 0G Storage. The Router returned no `tee_verified` field in our live calls, so "TEE verified" is shown only when it is `true`, and the UI otherwise says "Private TEE provider". See `docs/integrations/zero-g.md`. |
 | "Provide a working app a judge can try, with a clear reason to return tomorrow." | Partly | App runs locally; no hosted link. |
-| "Explain in one sentence what breaks if 0G is removed." | Not met | With Compute off, nothing breaks: the rules engine decides. This is the central risk ("apps where removing the AI call goes unnoticed, are not wanted"). |
+| "Explain in one sentence what breaks if 0G is removed." | Met | "Without 0G Private Computer, no AI auditor signs off on the income proof, so no tranche is released and no dividend is created." If the Router call fails the proof stays PENDING with "0G audit unavailable, retry"; the rules engine only runs behind `ZG_ALLOW_RULES_FALLBACK=1` and is labelled "Fallback: rules engine (0G unavailable)". |
 | 0G Storage use (not required, strengthens the case) | Met | Live on Galileo: uploads of L-ISA terms and audit logs work (about 0.0012 0G each); outbox worker in `packages/app/src/worker/storage-uploads.ts`; root hash shown as `termsStorage` / `auditLogStorage`. |
 | Bonus: iAI sign-in | Not met | Not implemented. |
 
 Actions, by impact:
 
-1. Get 0G Private Computer working: claim 0G Router (`pc.0g.ai`) credits, or
-   fund the 3 0G ledger deposit, set `ZG_COMPUTE_ENABLED=1`, and make the
-   audit call return a request ID. Store the request ID in the audit log
-   document next to the storage root hash.
-2. Show the request ID and storage root hash in the UI on every audit event and
-   in the demo video.
-3. Remove the silent rules-engine fallback from the demo path, or label it
-   "fallback, not 0G" in the UI. Write the one-sentence answer: "Without 0G,
-   no auditor agent signs the approval and the tranche never releases."
+1. Done: 0G Private Computer runs through the Router and returns a request ID,
+   stored in the audit log next to the storage root hash.
+2. Done: the request ID, model, TEE status and storage log link show on every
+   audited proof. Show them in the demo video and keep the credit readout on
+   the Hub in frame so the balance visibly goes down.
+3. Done: the rules-engine fallback is off by default and labelled in the UI when
+   enabled.
 4. Add the live demo link and Telegram/X contacts.
 
 ### Track: Physical AI ($5,000)

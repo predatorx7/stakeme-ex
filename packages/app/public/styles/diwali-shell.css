@@ -14,9 +14,9 @@
 	box-shadow: var(--smx-dw-glow, 0 0 16px -2px var(--smx-dw-marigold, #f59e0b));
 }
 
-/* Profile menu and wallet dialogs: gold top hairline as a background strip,
-   so the design system's 2px corner radius is preserved (no border-image). */
-.rc-profile-menu,
+/* Wallet dialogs: gold top hairline as a background strip, so the design
+   system's 2px corner radius is preserved (no border-image). The profile menu
+   draws its own via .smx-dw-hairline. */
 #wallet-dialog,
 #key-export-dialog,
 #hedera-signer-dialog {
@@ -59,7 +59,6 @@
 }
 
 @media (forced-colors: active) {
-	.rc-profile-menu,
 	#wallet-dialog,
 	#key-export-dialog,
 	#hedera-signer-dialog {

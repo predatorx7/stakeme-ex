@@ -6,8 +6,10 @@ Verified against npm and docs.0g.ai on 2026-11-06.
 
 SMX uses 0G for two things:
 
-- **0G Compute**: run the LLM audit prompt that checks a Reclaim proof against
-  the L-ISA terms and computes the dividend.
+- **0G Private Computer (Router)**: run the LLM audit prompt through the
+  OpenAI-compatible Router (default path, see [Router mode](#router-mode-audit-verdict)).
+- **0G Compute (Galileo broker)**: the same prompt through the SDK broker
+  (opt-in). The audit checks a Reclaim proof against the L-ISA terms.
 - **0G Storage**: store the audit log (JSON) and keep its root hash in
   `income_proofs.audit_log_ref`.
 
@@ -56,11 +58,13 @@ ethers objects around.
 | `ZG_LEDGER_DEPOSIT` | No | 0G to deposit into the compute ledger, for example `3`. |
 
 | `ZG_ROUTER_API_KEY` | Yes | 0G Router `sk-...` key. Set it to run the audit verdict through the Router. |
-| `ZG_ROUTER_MODEL` | No | Default `glm-5.2` (the model the Router docs list). |
-| `ZG_ROUTER_TRUST_MODE` | No | `verified` or `private`, sent as `X-0G-Provider-Trust-Mode`. Default: header omitted (the Router docs we read do not document it). |
+| `ZG_ROUTER_MGMT_KEY` | Yes | 0G Router `mk-...` management key (`account:read`) for the credit-balance readout. |
+| `ZG_ROUTER_MODEL` | No | Default `glm-5.3` (a `private` TEE model). |
+| `ZG_ROUTER_TRUST_MODE` | No | `standard`, `verified` or `private`, sent as `X-0G-Provider-Trust-Mode`. Default `private`; set it empty to omit the header. |
+| `ZG_ALLOW_RULES_FALLBACK` | No | `1` lets the SQL rules engine audit when 0G is unreachable (offline dev only). Default off: the proof stays PENDING. |
 | `ZG_ROUTER_BASE_URL` | No | Default `https://router-api.0g.ai/v1`. |
 
-Unset `ZG_PRIVATE_KEY` means the SQL rules engine runs (see [Demo fallback](#demo-fallback)).
+Without a Router key (or Compute) and without `ZG_ALLOW_RULES_FALLBACK=1`, audits stay PENDING (see [Demo fallback](#demo-fallback)).
 
 ## Compute: run the audit prompt
 
@@ -133,19 +137,54 @@ scripts but needs the CLI step.
 
 ## Router mode (audit verdict)
 
-With `ZG_ROUTER_API_KEY` set, `runAuditVerdict` sends the same strict-JSON
-audit prompt to `POST {base}/chat/completions` (OpenAI-compatible, `Authorization:
-Bearer sk-...`, temperature 0, `chat_template_kwargs.enable_thinking=false`)
-and parses it with `parseAuditResponse`. One request, 20 s timeout, no
-retries (a retry could be billed twice). Any error (including `402`
-`payment_error` / `insufficient_balance`, `429`, `5xx`, bad JSON) falls back
-exactly as before: Galileo Compute when `ZG_COMPUTE_ENABLED=1`, else the rules
-engine. The audit log records `engine: "0g-router"`, `provider: "0g-router"`,
-the model, `teeVerified` and `routerTrace` (`requestId`, serving `provider`
-address, `teeVerified`, `trustMode`) from the response's `x_0g_trace`.
-`tee_verified` is only returned when the request sets `verify_tee`, which we
-do not send yet, so it is `null`. Status: tested with a mocked fetch only; no
-live Router key yet.
+With `ZG_ROUTER_API_KEY` set, `runAuditVerdict` sends the strict-JSON audit
+prompt to `POST {base}/chat/completions` (OpenAI-compatible, `Authorization:
+Bearer sk-...`) and parses it with `parseAuditResponse` (it also drops a leaked
+`...</think>` reasoning prefix). The request sets `temperature: 0`,
+`max_tokens: 800`, `verify_tee: true`, `chat_template_kwargs.enable_thinking:
+false` and `X-0G-Provider-Trust-Mode: private` (`ZG_ROUTER_TRUST_MODE`). One
+request, 20 s timeout, no retries (a retry could be billed twice).
+
+**Model.** Default `glm-5.3`. On 2026-11-06 `GET /v1/providers` lists `glm-5.3`
+and `0GM-1.0-35B-A3B` as `private` (TeeML) providers; `glm-5.2` is served only
+by `standard` third-party channels (Aliyun, Baidu, Tencent), which a `private`
+or `verified` request rejects.
+
+**Request ID and verification.** Every Router response carries `x_0g_trace`:
+`request_id`, `provider` (on-chain address), `billing` (`total_cost_usd_micro`)
+and `provider_identity`. `tee_verified` is documented as present only when
+`verify_tee` is set. In two live calls on 2026-11-06 (`glm-5.2` standard and
+`glm-5.3` private) the field was absent even with `verify_tee: true`, so the
+audit records `teeVerified: null` and the UI shows "TEE verified" only when it
+is `true`. For a `private` request the UI shows "Private TEE provider" instead,
+which is the Router's routing guarantee, not a signature check. There is no
+`ZG-Res-Key` header on Router responses, so the SDK's independent
+`processResponse` check cannot run against them.
+
+**Where it is recorded.** The audit log document (uploaded to 0G Storage by the
+outbox) holds `engine: "0g-router"`, `model`, `requestId`, `providerAddress`,
+`teeVerified`, `trustMode` and `routerTrace` (adds `costMicroUsd`,
+`providerIdentity`). `income_proofs.audit` (jsonb, no new columns) holds the
+same fields, and `income_proof_json` serves them as `engine`, `requestId`,
+`providerAddress`, `teeVerified`, `trustMode` to the UI.
+
+**0G is required for approval.** If the Router call fails (`402`
+`insufficient_balance`, `429`, `5xx`, timeout, bad JSON) and Compute is not
+enabled, `runAuditVerdict` throws `ZeroGAuditUnavailable`. The pipeline does
+not use the rules engine: `mark_audit_unavailable` leaves the proof `PENDING`
+with `audit.status = "AUDIT_UNAVAILABLE"`, the route answers `202`, and the UI
+shows "0G audit unavailable, retry". Submitting the same proof again retries
+(`submit_income_proof` returns the existing PENDING row). Set
+`ZG_ALLOW_RULES_FALLBACK=1` for offline dev to let the SQL rules engine audit;
+the UI then labels it "Fallback: rules engine (0G unavailable)".
+
+**Balance readout.** `GET /api/zero-g/balance` (`GetZeroGBalance`) reads
+`GET {base}/account/balance` with `ZG_ROUTER_MGMT_KEY` (`mk-`, `account:read`),
+caches it for 30 s and returns `creditUsd`. The Hub shows it as a pill that
+refreshes every 30 s and after each oracle event.
+
+Status: verified live against the Router on 2026-11-06; see the live-call
+numbers in the commit or PR notes for the request ID and cost.
 
 ## Storage: upload the audit log
 
@@ -206,11 +245,12 @@ browser piece is a link to the explorers.
 
 ## Demo fallback
 
-With no `ZG_PRIVATE_KEY`, `smx.audit_income_proof` is the deterministic rules
-engine. The `audit` jsonb records `{ "engine": "rules", "approved": true }`
-and `audit_log_ref` holds a local sha256 content hash prefixed `local:`. When
-0G is on, store `engine: "0g-compute"` plus provider and model so judges can
-tell the two apart.
+Offline dev only: with `ZG_ALLOW_RULES_FALLBACK=1` and no reachable 0G auditor,
+`smx.audit_income_proof` gets the deterministic rules-engine verdict. The
+`audit` jsonb records `{ "engine": "rules", "model": "rules-engine" }`,
+`audit_log_ref` holds a local sha256 content hash prefixed `local:`, and the UI
+says "Fallback: rules engine (0G unavailable)". Without the flag, no 0G means no
+approval.
 
 ## Gotchas
 

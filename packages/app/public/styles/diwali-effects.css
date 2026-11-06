@@ -24,24 +24,6 @@
 	border-radius: inherit;
 }
 
-/* Diya flicker for small dots. */
-.smx-dw-diya {
-	background-color: var(--smx-dw-gold, #f5b942);
-	box-shadow: 0 0 6px 1px var(--smx-dw-marigold, #f28c28);
-}
-@media (prefers-reduced-motion: no-preference) {
-	.smx-dw-diya {
-		animation: smx-dw-flicker 2.7s ease-in-out infinite;
-	}
-}
-@keyframes smx-dw-flicker {
-	0%, 100% { opacity: 1; }
-	18% { opacity: 0.78; }
-	52% { opacity: 0.88; }
-	86% { opacity: 0.74; }
-}
-}
-
 /* Spark overlay: fixed, inert, hidden from assistive tech. */
 .smx-dw-fx {
 	position: fixed;

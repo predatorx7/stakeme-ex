@@ -635,6 +635,37 @@ const auditIncomeProofIR: any = {"usedParamSet":{"proof_id":true,"verified_amoun
 export const auditIncomeProof = new PreparedQuery<IAuditIncomeProofParams,IAuditIncomeProofResult>(auditIncomeProofIR);
 
 
+/** 'MarkAuditUnavailable' parameters type */
+export interface IMarkAuditUnavailableParams {
+  message: string;
+  proof_id: string;
+}
+
+/** 'MarkAuditUnavailable' return type */
+export interface IMarkAuditUnavailableResult {
+  j: unknown | null;
+}
+
+/** 'MarkAuditUnavailable' query type */
+export interface IMarkAuditUnavailableQuery {
+  params: IMarkAuditUnavailableParams;
+  result: IMarkAuditUnavailableResult;
+}
+
+const markAuditUnavailableIR: any = {"usedParamSet":{"proof_id":true,"message":true},"params":[{"name":"proof_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":180,"b":189}]},{"name":"message","required":true,"transform":{"type":"scalar"},"locs":[{"a":198,"b":206}]}],"statement":"-- 0G could not audit: keep the proof PENDING with a retry status. Routes:\n-- AuditMilestone, ReclaimCallback.\nSELECT smx.audit_result_json(p) AS j\nFROM smx.mark_audit_unavailable(:proof_id!::UUID, :message!) AS p"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- 0G could not audit: keep the proof PENDING with a retry status. Routes:
+ * -- AuditMilestone, ReclaimCallback.
+ * SELECT smx.audit_result_json(p) AS j
+ * FROM smx.mark_audit_unavailable(:proof_id!::UUID, :message!) AS p
+ * ```
+ */
+export const markAuditUnavailable = new PreparedQuery<IMarkAuditUnavailableParams,IMarkAuditUnavailableResult>(markAuditUnavailableIR);
+
+
 /** 'TriggerDefault' parameters type */
 export interface ITriggerDefaultParams {
   ticker: string;

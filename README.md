@@ -25,8 +25,8 @@ income, and can trade the tokens on creator news.
 4. **Prove income.** The creator proves a bank deposit with a Reclaim zkTLS
    proof, without sharing bank credentials.
 5. **AI audit on 0G.** The auditor agent checks the proof against the terms and
-   approves or denies it. It runs on 0G Compute when you enable it (opt-in) and
-   otherwise falls back to a rules engine. Each decision is logged to 0G Storage
+   approves or denies it. It runs on 0G Private Computer (the 0G Router) and shows the model, request ID
+   and TEE status on each proof. Each decision is logged to 0G Storage
    in the background. Approval releases the next tranche and creates a 5%
    dividend.
 6. **Pay holders with x402.** SMX returns x402 payment requirements, one per
@@ -54,7 +54,7 @@ flowchart LR
 | --- | --- | --- |
 | Hedera | `LiquidISA` escrow and factory on Hedera EVM testnet (chain 296). Creator equity token on the Asset Tokenization Studio (ATS) contracts. x402 dividend payouts with native Hedera transfers. Safe-stop escrow freeze. | [hedera.md](docs/integrations/hedera.md), [contracts.md](docs/contracts.md) |
 | World ID | v4 proof of human at IPO. The server signs the RP request (`POST /api/rp-signature`) and verifies with the v4 verify API. Nullifier stored in Postgres and on the factory contract. | [world-id.md](docs/integrations/world-id.md) |
-| 0G | Auditor agent on 0G Compute (opt-in; rules-engine fallback). L-ISA terms and every approve or deny log on 0G Storage, uploaded in the background by an outbox worker. Triggers the safe-stop freeze. | [zero-g.md](docs/integrations/zero-g.md) |
+| 0G | Auditor agent on 0G Private Computer (Router): every income proof is audited there, with the request ID, model, provider and TEE status logged and shown. Without 0G Private Computer, no AI auditor signs off on the income proof, so no tranche is released and no dividend is created. The rules engine runs only behind `ZG_ALLOW_RULES_FALLBACK=1` (offline dev). L-ISA terms and every approve or deny log on 0G Storage, uploaded in the background by an outbox worker. Triggers the safe-stop freeze. | [zero-g.md](docs/integrations/zero-g.md) |
 
 Reclaim Protocol supplies the zkTLS bank proof that the 0G agent audits. The
 demo proves a $5,000 deposit on a mock bank (`/mock-bank`) with a provider
@@ -73,7 +73,7 @@ Chainlink CRE, Arkiv, and Arc were dropped from scope. Their notes are in
 | Hedera testnet (chain 296) | Live. `LiquidISAFactory` (EIP-1167 clones) and `MockUSDC` are deployed; addresses are in `packages/contracts/deployments/hedera-testnet.json`. A redeploy replaces the factory address, so read it from that file. |
 | World ID v4 | Live on a staging app. Verified end to end with the World ID Simulator. |
 | 0G Storage | Live on the Galileo testnet. Uploads take about 30 seconds, so a worker runs them in the background. The ref starts as `local:<sha256>` and becomes the 0G root hash. |
-| 0G Compute | Off by default (`ZG_COMPUTE_ENABLED`). It needs a 3 0G ledger deposit, which the faucet does not cover. The audit uses the rules engine instead. 0G Router (`pc.0g.ai`) credits are pending. |
+| 0G Private Computer | Live through the 0G Router (`ZG_ROUTER_API_KEY`, prepaid credit). If the call fails the proof stays PENDING with "0G audit unavailable, retry". 0G Compute via the SDK broker stays off by default (`ZG_COMPUTE_ENABLED`; needs a 3 0G ledger deposit). |
 | Reclaim | The provider is live, but the mock bank runs behind a temporary tunnel and an end-to-end callback test is pending. |
 | Wallets | WalletConnect QR pairing is verified in Chrome. A full signature from a phone wallet is not. |
 | Hedera ATS equity token | Simulated. The code is written but never ran against a live ATS deployment. |

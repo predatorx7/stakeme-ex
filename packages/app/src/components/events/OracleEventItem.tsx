@@ -20,7 +20,15 @@ const KIND_TONE: Record<string, BadgeTone> = {
 	STORAGE_CONFIRMED: 'info',
 }
 
-/** One-line plain-text summary of an event, shared by HTML and tests. */
+/** The badge text for an event kind, for example `proof verified`. */
+export function eventLabel(kind: string) {
+	return kind === 'IPO' ? 'IPO' : kind.replaceAll('_', ' ').toLowerCase()
+}
+
+/**
+ * The detail after the kind in a feed row, so a row reads
+ * `$MUSH · proof verified · $5,000`. Empty when the kind says it all.
+ */
 export function describeEvent(event: OracleEvent) {
 	const p = event.payload
 	const usd = (key: string) => {
@@ -31,34 +39,31 @@ export function describeEvent(event: OracleEvent) {
 	const kind: string = event.kind
 	switch (kind) {
 		case 'IPO':
-			return `IPO launched, target ${usd('targetRaise')}`
+			return `target ${usd('targetRaise')}`
 		case 'INVESTED':
-			return `Invested ${usd('usdcAmount')}`
+			return usd('usdcAmount')
 		case 'TRADE':
-			return `${String(p.side)} ${usd('usdcAmount')}`
+			return `${String(p.side).toLowerCase()} ${usd('usdcAmount')}`
 		case 'PROOF_VERIFIED':
-			return `Income verified: ${usd('amount')}`
+			return usd('amount')
 		case 'PROOF_REJECTED':
-			return `Proof rejected: ${String(p.reason ?? 'rules not met')}`
+			return String(p.reason ?? 'rules not met')
 		case 'TRANCHE_RELEASED':
-			return `Tranche ${String(p.idx)} released: ${usd('amount')}`
+			return `tranche ${String(p.idx)} · ${usd('amount')}`
 		case 'DIVIDEND_PAID':
-			return `Dividend paid: ${usd('amount')}`
+			return usd('amount')
 		case 'GRACE_STARTED':
-			return 'Missed proof deadline, grace period started'
+			return 'proof deadline missed'
 		case 'DEFAULTED':
-			return `Defaulted. Refunds ${usd('refundTotal')}, `
-				+ `slashed ${usd('slashTotal')}`
+			return `refunds ${usd('refundTotal')} · slashed ${usd('slashTotal')}`
 		case 'ESCROW_FROZEN':
-			return 'Escrow frozen by 0G agent: proof overdue'
+			return 'proof overdue'
 		case 'ESCROW_UNFROZEN':
-			return 'Escrow unfrozen after an approved proof'
+			return 'proof approved'
 		case 'STORAGE_CONFIRMED':
-			return p.kind === 'AUDIT_LOG'
-				? 'Audit log stored on 0G Storage'
-				: 'L-ISA terms stored on 0G Storage'
+			return p.kind === 'AUDIT_LOG' ? 'audit log' : 'terms'
 		default:
-			return kind
+			return ''
 	}
 }
 
@@ -72,12 +77,12 @@ export function OracleEventItem({ event }: { event: OracleEvent }) {
 			class='smx-event'
 			data-kind={event.kind}
 			data-event-id={event.id}>
-			<Badge tone={KIND_TONE[event.kind] ?? 'neutral'}>
-				{escapeText(event.kind.replaceAll('_', ' ').toLowerCase())}
-			</Badge>
 			<a href={`/creators/${event.ticker}`}>
 				{escapeText(`$${event.ticker}`)}
 			</a>
+			<Badge tone={KIND_TONE[event.kind] ?? 'neutral'}>
+				{escapeText(eventLabel(event.kind))}
+			</Badge>
 			<span>
 				{escapeText(describeEvent(event))}
 			</span>

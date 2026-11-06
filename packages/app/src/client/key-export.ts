@@ -92,7 +92,7 @@ function reveal() {
 		return
 	}
 
-	out.textContent = key || 'No key is stored in this browser.'
+	out.textContent = key || 'No key saved in this browser.'
 	out.hidden = false
 	const copy = dlg.querySelector<HTMLButtonElement>('[data-copy]')
 	if(copy) {
