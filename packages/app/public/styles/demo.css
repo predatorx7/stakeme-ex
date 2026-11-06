@@ -26,7 +26,7 @@ body:has(.demo-bar[data-open='true']) .smx-section-nav {
 	display: grid;
 	font-size: 0.8125rem;
 	gap: var(--rc-space-3, 12px);
-	grid-template-columns: auto minmax(0, 1fr) auto;
+	grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
 	inset: auto 0 0;
 	padding-inline: var(--rc-space-3, 12px);
 	position: fixed;
@@ -38,100 +38,43 @@ body:has(.demo-bar[data-open='true']) .smx-section-nav {
 }
 
 .demo-start,
-.demo-end,
-.demo-panel {
+.demo-end {
 	align-items: center;
 	display: flex;
 	gap: var(--rc-space-2, 8px);
 }
 
-.demo-title {
-	color: var(--rc-color-text-secondary, inherit);
+.demo-label {
+	color: var(--rc-color-text-primary, inherit);
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.demo-chips {
-	display: flex;
-	gap: var(--rc-space-1, 4px);
-	list-style: none;
-	margin: 0;
-	padding: 0;
-}
-
-.demo-chip {
-	align-items: center;
-	background: transparent;
-	border: 1px solid var(--rc-color-border-default, currentcolor);
-	border-radius: 999px;
-	color: var(--rc-color-text-secondary, inherit);
-	cursor: pointer;
-	display: inline-flex;
-	font: inherit;
-	gap: 0.375rem;
-	padding: 0.125rem 0.625rem 0.125rem 0.25rem;
-}
-
-.demo-chip-n {
-	align-items: center;
-	background: var(--rc-color-border-subtle, transparent);
-	border-radius: 50%;
-	display: inline-flex;
-	font-size: 0.6875rem;
-	font-weight: 600;
-	block-size: 1.25rem;
-	inline-size: 1.25rem;
-	justify-content: center;
-}
-
-.demo-chip[data-current='true'] {
-	background: var(--rc-color-action-subtle, transparent);
-	border-color: var(--rc-color-action-primary, currentcolor);
-	color: var(--rc-color-text-primary, inherit);
-	font-weight: 600;
-}
-
-.demo-chip[data-current='true'] .demo-chip-n {
-	background: var(--rc-color-action-primary, currentcolor);
-	color: var(--rc-color-surface-default, Canvas);
-}
-
-.demo-chip:focus-visible,
-.demo-btn:focus-visible {
+.demo-btn:focus-visible,
+.demo-outcome:focus-visible {
 	outline: 2px solid var(--rc-color-action-primary, currentcolor);
 	outline-offset: 2px;
 }
 
-/* Middle: only the current step's actions. */
+/* Middle: hint or server message, Prefill, Outcome. */
 .demo-actions {
 	align-items: center;
 	display: flex;
-	gap: var(--rc-space-3, 12px);
+	gap: var(--rc-space-2, 8px);
+	justify-content: flex-end;
 	min-inline-size: 0;
-	overflow-x: auto;
-}
-
-.demo-panel {
-	display: none;
-	flex: none;
-}
-
-.demo-bar[data-step='1'] [data-panel='1'],
-.demo-bar[data-step='2'] [data-panel='2'],
-.demo-bar[data-step='3'] [data-panel='3'],
-.demo-bar[data-step='4'] [data-panel='4'],
-.demo-bar[data-step='5'] [data-panel='5'] {
-	display: flex;
-}
-
-.demo-hint,
-.demo-status {
-	color: var(--rc-color-text-tertiary, inherit);
-	margin: 0;
-	white-space: nowrap;
 }
 
 .demo-status {
 	color: var(--rc-color-text-secondary, inherit);
+	flex: 1 1 auto;
+	margin: 0;
+	min-inline-size: 0;
+	overflow: hidden;
+	text-align: end;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .demo-status:empty {
@@ -150,12 +93,17 @@ body:has(.demo-bar[data-open='true']) .smx-section-nav {
 	pointer-events: none;
 }
 
-.demo-more,
-.demo-reset-m {
+.demo-outcome {
+	font-size: 0.8125rem;
+	max-inline-size: 18rem;
+	min-block-size: 1.75rem;
+}
+
+.demo-outcome[hidden] {
 	display: none;
 }
 
-.demo-next[hidden] {
+.demo-more {
 	display: none;
 }
 
@@ -171,25 +119,18 @@ body:has(.demo-bar[data-open='true']) .smx-section-nav {
 	display: none;
 }
 
-/* Phones: chips + Next in the bar; actions in a popover above it. */
+/* Phones: label + Continue in the bar; hint, Prefill and Outcome in a popover. */
 @media (max-width: 48rem) {
 	.demo-bar {
 		gap: var(--rc-space-2, 8px);
 		grid-template-columns: minmax(0, 1fr) auto;
 	}
 
-	.demo-title,
-	.demo-chip-label,
-	.demo-reset {
-		display: none;
+	.demo-label {
+		font-size: 0.75rem;
 	}
 
-	.demo-chip {
-		padding: 0.125rem;
-	}
-
-	.demo-more,
-	.demo-reset-m {
+	.demo-more {
 		display: inline-flex;
 	}
 
@@ -212,18 +153,17 @@ body:has(.demo-bar[data-open='true']) .smx-section-nav {
 		display: flex;
 	}
 
-	.demo-panel {
-		flex-wrap: wrap;
+	.demo-outcome {
+		max-inline-size: none;
 	}
 
-	.demo-hint,
 	.demo-status {
+		text-align: start;
 		white-space: normal;
 	}
 }
 
 @media (prefers-reduced-motion: no-preference) {
-	.demo-chip,
 	.demo-btn {
 		transition: background-color 0.1s, border-color 0.1s;
 	}

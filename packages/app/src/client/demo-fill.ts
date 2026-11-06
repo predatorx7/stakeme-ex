@@ -112,7 +112,7 @@ export function parsePrefill(raw: string | null | undefined): Prefill | null {
 	return { form, values: clean }
 }
 
-/** Maps a path to the demo step it belongs to, or `null` when none does. */
+/** Best guess of the step from the path; used when nothing is persisted. */
 export function stepForPath(path: string) {
 	const p = path.replace(/\/+$/, '').toLowerCase() || '/'
 	if(p === '/launch') {
@@ -123,8 +123,12 @@ export function stepForPath(path: string) {
 		return 2
 	}
 
-	if(p === '/portfolio' || p.startsWith('/creators/mush')) {
-		return 4
+	if(p === '/portfolio') {
+		return 7
+	}
+
+	if(p.startsWith('/creators/mush')) {
+		return 3
 	}
 
 	return null
@@ -142,3 +146,120 @@ export function safeUrl(url: unknown) {
 
 	return /^https?:\/\//i.test(url) ? url : null
 }
+
+export const TICKER = 'MUSH'
+export const STEP_COUNT = 8
+
+export type DemoOutcome = { value: string, label: string }
+export type DemoStep = {
+	label: string
+	/** Page the step's action runs on. */
+	page: string
+	/** Where Continue goes after the action. */
+	next?: string
+	hint?: string
+	outcomes?: DemoOutcome[]
+	/** Form fill for the step (per outcome); absent when there is no form. */
+	prefill?: (outcome: string) => Prefill
+}
+
+export const BANK_LATE_PREFILL: Prefill = {
+	form: 'form[action="/mock-bank/login"]',
+	values: {
+		username: 'mushaheed',
+		password: 'demo-password',
+		scenario: 'late',
+	},
+}
+
+export const STEPS: readonly DemoStep[] = [
+	{
+		label: 'Creator: launch $MUSH',
+		page: '/launch',
+		next: '/hub',
+		prefill: () => ({
+			form: '#launch-form',
+			values: {
+				ticker: TICKER,
+				displayName: 'Mushaheed Syed',
+				headline: 'Software developer building open-source dev tools',
+				targetRaise: '10000.00',
+				stakeAmount: '500.00',
+				sharePct: 5,
+				termMonths: 60,
+				trancheSchedule: '20-40-40',
+				proofCadence: 'MONTHLY',
+				social_x: 'https://x.com/_predatorx7',
+				social_github: 'https://github.com/predatorx7',
+			},
+		}),
+	},
+	{
+		label: 'Creator: raise is open',
+		page: '/hub',
+		next: `/creators/${TICKER}`,
+		hint: 'Switch MetaMask to account B',
+	},
+	{
+		label: 'IPO investor: invest',
+		page: `/creators/${TICKER}`,
+		prefill: () => ({
+			form: 'form[action$="/investments"]',
+			values: { usdcAmount: '500.00' },
+		}),
+	},
+	{
+		label: 'Fill the raise',
+		page: '/hub',
+		next: '/hub',
+		hint: 'Switch MetaMask to account A',
+		outcomes: [
+			{ value: 'fill', label: 'Fill the raise with demo investors' },
+			{ value: 'close', label: 'Close the raise early' },
+		],
+	},
+	{
+		label: 'Creator: bank proof and 0G audit',
+		page: '/hub',
+		outcomes: [
+			{
+				value: 'salary',
+				label: 'Salary $5,000 (approved, tranche released)',
+			},
+			{
+				value: 'low',
+				label: 'Low month $800 (approved, tranche locked)',
+			},
+			{
+				value: 'none',
+				label: 'No income $0 (approved, no dividend)',
+			},
+			{ value: 'late', label: 'Late deposit (denied)' },
+			{ value: 'miss', label: 'Miss the deadline (freeze)' },
+		],
+	},
+	{
+		label: 'Creator: pay the dividend',
+		page: '/hub',
+		next: '/portfolio',
+	},
+	{
+		label: 'IPO investor: claim',
+		page: '/portfolio',
+		next: `/creators/${TICKER}`,
+	},
+	{
+		label: 'Trader: trade',
+		page: `/creators/${TICKER}`,
+		outcomes: [
+			{ value: 'buy', label: 'Buy 100 USDC' },
+			{ value: 'sell', label: 'Sell 50 $MUSH' },
+		],
+		prefill: (outcome) => ({
+			form: '[data-order-ticket] form',
+			values: outcome === 'sell'
+				? { side: 'SELL', amountIn: '50' }
+				: { side: 'BUY', amountIn: '100.00' },
+		}),
+	},
+]
