@@ -3,6 +3,8 @@ import { PreparedQuery } from '@pgtyped/runtime';
 
 export type chain_job_status = 'CONFIRMED' | 'FAILED' | 'QUEUED' | 'SENT' | 'SIMULATED';
 
+export type reclaim_session_status = 'CANCELLED' | 'ERROR' | 'EXPIRED' | 'PENDING' | 'REJECTED' | 'SUCCESS';
+
 export type trade_side = 'BUY' | 'SELL';
 
 export type NumberOrString = number | string;
@@ -164,7 +166,6 @@ export const getLaunchState = new PreparedQuery<IGetLaunchStateParams,IGetLaunch
 
 /** 'LaunchIpo' parameters type */
 export interface ILaunchIpoParams {
-  arkiv_entity_key?: string | null | void;
   chain_id?: number | null | void;
   display_name: string;
   headline: string;
@@ -175,6 +176,7 @@ export interface ILaunchIpoParams {
   target_raise: string;
   term_months: number;
   terms_hash?: string | null | void;
+  terms_ref?: string | null | void;
   ticker: string;
   wallet: string;
 }
@@ -190,7 +192,7 @@ export interface ILaunchIpoQuery {
   result: ILaunchIpoResult;
 }
 
-const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":true,"display_name":true,"headline":true,"share_bps":true,"term_months":true,"target_raise":true,"stake_amount":true,"nullifier":true,"arkiv_entity_key":true,"terms_hash":true,"chain_id":true},"params":[{"name":"owner","required":true,"transform":{"type":"scalar"},"locs":[{"a":198,"b":204}]},{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":208,"b":215}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":219,"b":226}]},{"name":"display_name","required":true,"transform":{"type":"scalar"},"locs":[{"a":230,"b":243}]},{"name":"headline","required":true,"transform":{"type":"scalar"},"locs":[{"a":247,"b":256}]},{"name":"share_bps","required":true,"transform":{"type":"scalar"},"locs":[{"a":260,"b":270}]},{"name":"term_months","required":true,"transform":{"type":"scalar"},"locs":[{"a":274,"b":286}]},{"name":"target_raise","required":true,"transform":{"type":"scalar"},"locs":[{"a":290,"b":303}]},{"name":"stake_amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":307,"b":320}]},{"name":"nullifier","required":true,"transform":{"type":"scalar"},"locs":[{"a":324,"b":334}]},{"name":"arkiv_entity_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":338,"b":354}]},{"name":"terms_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":358,"b":368}]},{"name":"chain_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":372,"b":380}]}],"statement":"-- Creates the L-ISA in one statement (creator, tranches, pool, tick, event,\n-- chain jobs) and returns the creator document. Route: LaunchIpo.\nSELECT smx.creator_json(c) AS j\nFROM smx.launch_ipo(\n\t:owner!,\n\t:wallet!,\n\t:ticker!,\n\t:display_name!,\n\t:headline!,\n\t:share_bps!,\n\t:term_months!,\n\t:target_raise!,\n\t:stake_amount!,\n\t:nullifier!,\n\t:arkiv_entity_key,\n\t:terms_hash,\n\t:chain_id\n) AS c"};
+const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":true,"display_name":true,"headline":true,"share_bps":true,"term_months":true,"target_raise":true,"stake_amount":true,"nullifier":true,"terms_ref":true,"terms_hash":true,"chain_id":true},"params":[{"name":"owner","required":true,"transform":{"type":"scalar"},"locs":[{"a":198,"b":204}]},{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":208,"b":215}]},{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":219,"b":226}]},{"name":"display_name","required":true,"transform":{"type":"scalar"},"locs":[{"a":230,"b":243}]},{"name":"headline","required":true,"transform":{"type":"scalar"},"locs":[{"a":247,"b":256}]},{"name":"share_bps","required":true,"transform":{"type":"scalar"},"locs":[{"a":260,"b":270}]},{"name":"term_months","required":true,"transform":{"type":"scalar"},"locs":[{"a":274,"b":286}]},{"name":"target_raise","required":true,"transform":{"type":"scalar"},"locs":[{"a":290,"b":303}]},{"name":"stake_amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":307,"b":320}]},{"name":"nullifier","required":true,"transform":{"type":"scalar"},"locs":[{"a":324,"b":334}]},{"name":"terms_ref","required":false,"transform":{"type":"scalar"},"locs":[{"a":338,"b":347}]},{"name":"terms_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":351,"b":361}]},{"name":"chain_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":365,"b":373}]}],"statement":"-- Creates the L-ISA in one statement (creator, tranches, pool, tick, event,\n-- chain jobs) and returns the creator document. Route: LaunchIpo.\nSELECT smx.creator_json(c) AS j\nFROM smx.launch_ipo(\n\t:owner!,\n\t:wallet!,\n\t:ticker!,\n\t:display_name!,\n\t:headline!,\n\t:share_bps!,\n\t:term_months!,\n\t:target_raise!,\n\t:stake_amount!,\n\t:nullifier!,\n\t:terms_ref,\n\t:terms_hash,\n\t:chain_id\n) AS c"};
 
 /**
  * Query generated from SQL:
@@ -209,7 +211,7 @@ const launchIpoIR: any = {"usedParamSet":{"owner":true,"wallet":true,"ticker":tr
  * 	:target_raise!,
  * 	:stake_amount!,
  * 	:nullifier!,
- * 	:arkiv_entity_key,
+ * 	:terms_ref,
  * 	:terms_hash,
  * 	:chain_id
  * ) AS c
@@ -330,6 +332,7 @@ export interface ISubmitIncomeProofParams {
   provider: string;
   raw?: unknown | null | void;
   reclaim_proof_id: string;
+  reclaim_session_id?: string | null | void;
 }
 
 /** 'SubmitIncomeProof' return type */
@@ -339,6 +342,7 @@ export interface ISubmitIncomeProofResult {
   period: number;
   share_bps: number;
   terms_hash: string | null;
+  terms_ref: string | null;
   ticker: string;
 }
 
@@ -348,7 +352,7 @@ export interface ISubmitIncomeProofQuery {
   result: ISubmitIncomeProofResult;
 }
 
-const submitIncomeProofIR: any = {"usedParamSet":{"creator_id":true,"provider":true,"reclaim_proof_id":true,"amount":true,"raw":true},"params":[{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":310,"b":321}]},{"name":"provider","required":true,"transform":{"type":"scalar"},"locs":[{"a":331,"b":340}]},{"name":"reclaim_proof_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":344,"b":361}]},{"name":"amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":365,"b":372}]},{"name":"raw","required":false,"transform":{"type":"scalar"},"locs":[{"a":385,"b":388}]}],"statement":"-- Stores a verified Reclaim proof as PENDING and returns what the auditor\n-- needs. Routes: AuditMilestone, ReclaimCallback.\nSELECT\n\tp.id AS \"id!\",\n\tp.period AS \"period!\",\n\tc.ticker AS \"ticker!\",\n\tc.share_bps AS \"share_bps!\",\n\tc.min_income::TEXT AS \"min_income!\",\n\tc.terms_hash\nFROM smx.submit_income_proof(\n\t:creator_id!::UUID,\n\t:provider!,\n\t:reclaim_proof_id!,\n\t:amount!::NUMERIC,\n\t:raw::JSONB\n) AS p\nJOIN smx.creators c ON c.id = p.creator_id"};
+const submitIncomeProofIR: any = {"usedParamSet":{"creator_id":true,"provider":true,"reclaim_proof_id":true,"amount":true,"raw":true,"reclaim_session_id":true},"params":[{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":324,"b":335}]},{"name":"provider","required":true,"transform":{"type":"scalar"},"locs":[{"a":345,"b":354}]},{"name":"reclaim_proof_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":358,"b":375}]},{"name":"amount","required":true,"transform":{"type":"scalar"},"locs":[{"a":379,"b":386}]},{"name":"raw","required":false,"transform":{"type":"scalar"},"locs":[{"a":399,"b":402}]},{"name":"reclaim_session_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":420,"b":438}]}],"statement":"-- Stores a verified Reclaim proof as PENDING and returns what the auditor\n-- needs. Routes: AuditMilestone, ReclaimCallback.\nSELECT\n\tp.id AS \"id!\",\n\tp.period AS \"period!\",\n\tc.ticker AS \"ticker!\",\n\tc.share_bps AS \"share_bps!\",\n\tc.min_income::TEXT AS \"min_income!\",\n\tc.terms_hash,\n\tc.terms_ref\nFROM smx.submit_income_proof(\n\t:creator_id!::UUID,\n\t:provider!,\n\t:reclaim_proof_id!,\n\t:amount!::NUMERIC,\n\t:raw::JSONB,\n\tNULL,\n\t:reclaim_session_id\n) AS p\nJOIN smx.creators c ON c.id = p.creator_id"};
 
 /**
  * Query generated from SQL:
@@ -361,18 +365,197 @@ const submitIncomeProofIR: any = {"usedParamSet":{"creator_id":true,"provider":t
  * 	c.ticker AS "ticker!",
  * 	c.share_bps AS "share_bps!",
  * 	c.min_income::TEXT AS "min_income!",
- * 	c.terms_hash
+ * 	c.terms_hash,
+ * 	c.terms_ref
  * FROM smx.submit_income_proof(
  * 	:creator_id!::UUID,
  * 	:provider!,
  * 	:reclaim_proof_id!,
  * 	:amount!::NUMERIC,
- * 	:raw::JSONB
+ * 	:raw::JSONB,
+ * 	NULL,
+ * 	:reclaim_session_id
  * ) AS p
  * JOIN smx.creators c ON c.id = p.creator_id
  * ```
  */
 export const submitIncomeProof = new PreparedQuery<ISubmitIncomeProofParams,ISubmitIncomeProofResult>(submitIncomeProofIR);
+
+
+/** 'CreateReclaimSessionRow' parameters type */
+export interface ICreateReclaimSessionRowParams {
+  creator_id: string;
+  id: string;
+  org_id?: string | null | void;
+}
+
+/** 'CreateReclaimSessionRow' return type */
+export interface ICreateReclaimSessionRowResult {
+  id: string;
+}
+
+/** 'CreateReclaimSessionRow' query type */
+export interface ICreateReclaimSessionRowQuery {
+  params: ICreateReclaimSessionRowParams;
+  result: ICreateReclaimSessionRowResult;
+}
+
+const createReclaimSessionRowIR: any = {"usedParamSet":{"id":true,"creator_id":true,"org_id":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":140,"b":143}]},{"name":"creator_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":146,"b":157}]},{"name":"org_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":166,"b":172}]}],"statement":"-- Records a verification session we created. Route: CreateReclaimSession.\nINSERT INTO smx.reclaim_sessions(id, creator_id, org_id)\nVALUES (:id!, :creator_id!::UUID, :org_id)\nRETURNING id"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Records a verification session we created. Route: CreateReclaimSession.
+ * INSERT INTO smx.reclaim_sessions(id, creator_id, org_id)
+ * VALUES (:id!, :creator_id!::UUID, :org_id)
+ * RETURNING id
+ * ```
+ */
+export const createReclaimSessionRow = new PreparedQuery<ICreateReclaimSessionRowParams,ICreateReclaimSessionRowResult>(createReclaimSessionRowIR);
+
+
+/** 'GetReclaimSession' parameters type */
+export interface IGetReclaimSessionParams {
+  id: string;
+}
+
+/** 'GetReclaimSession' return type */
+export interface IGetReclaimSessionResult {
+  creator_id: string;
+  id: string;
+  org_id: string | null;
+  status: string;
+}
+
+/** 'GetReclaimSession' query type */
+export interface IGetReclaimSessionQuery {
+  params: IGetReclaimSessionParams;
+  result: IGetReclaimSessionResult;
+}
+
+const getReclaimSessionIR: any = {"usedParamSet":{"id":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":232,"b":235}]}],"statement":"-- Session by id (callback lookup, no ownership check). Routes:\n-- ReclaimCallback, AuditMilestone.\nSELECT r.id AS \"id!\", r.creator_id AS \"creator_id!\", r.org_id, r.status::TEXT AS \"status!\"\nFROM smx.reclaim_sessions r\nWHERE r.id = :id!"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Session by id (callback lookup, no ownership check). Routes:
+ * -- ReclaimCallback, AuditMilestone.
+ * SELECT r.id AS "id!", r.creator_id AS "creator_id!", r.org_id, r.status::TEXT AS "status!"
+ * FROM smx.reclaim_sessions r
+ * WHERE r.id = :id!
+ * ```
+ */
+export const getReclaimSession = new PreparedQuery<IGetReclaimSessionParams,IGetReclaimSessionResult>(getReclaimSessionIR);
+
+
+/** 'GetOwnedReclaimSession' parameters type */
+export interface IGetOwnedReclaimSessionParams {
+  id: string;
+  viewer_id: string;
+}
+
+/** 'GetOwnedReclaimSession' return type */
+export interface IGetOwnedReclaimSessionResult {
+  j: unknown | null;
+}
+
+/** 'GetOwnedReclaimSession' query type */
+export interface IGetOwnedReclaimSessionQuery {
+  params: IGetOwnedReclaimSessionParams;
+  result: IGetOwnedReclaimSessionResult;
+}
+
+const getOwnedReclaimSessionIR: any = {"usedParamSet":{"id":true,"viewer_id":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":203,"b":206}]},{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":251,"b":261}]}],"statement":"-- Session JSON for its creator's owner (403 for someone else's, no row when\n-- unknown). Route: GetReclaimSessionStatus.\nSELECT smx.reclaim_session_json(r) AS j\nFROM smx.reclaim_sessions r\nWHERE r.id = :id! AND smx.assert_creator_owner(r.creator_id, :viewer_id!)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Session JSON for its creator's owner (403 for someone else's, no row when
+ * -- unknown). Route: GetReclaimSessionStatus.
+ * SELECT smx.reclaim_session_json(r) AS j
+ * FROM smx.reclaim_sessions r
+ * WHERE r.id = :id! AND smx.assert_creator_owner(r.creator_id, :viewer_id!)
+ * ```
+ */
+export const getOwnedReclaimSession = new PreparedQuery<IGetOwnedReclaimSessionParams,IGetOwnedReclaimSessionResult>(getOwnedReclaimSessionIR);
+
+
+/** 'FinishReclaimSession' parameters type */
+export interface IFinishReclaimSessionParams {
+  id: string;
+  reason?: string | null | void;
+  status: reclaim_session_status;
+}
+
+/** 'FinishReclaimSession' return type */
+export interface IFinishReclaimSessionResult {
+  j: unknown | null;
+}
+
+/** 'FinishReclaimSession' query type */
+export interface IFinishReclaimSessionQuery {
+  params: IFinishReclaimSessionParams;
+  result: IFinishReclaimSessionResult;
+}
+
+const finishReclaimSessionIR: any = {"usedParamSet":{"id":true,"status":true,"reason":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":178,"b":181}]},{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":184,"b":191}]},{"name":"reason","required":false,"transform":{"type":"scalar"},"locs":[{"a":222,"b":228}]}],"statement":"-- Terminal failure (or poll result) of a session. Routes: ReclaimCallback,\n-- GetReclaimSessionStatus.\nSELECT smx.reclaim_session_json(r) AS j\nFROM smx.finish_reclaim_session(\n\t:id!, :status!::smx.reclaim_session_status, :reason\n) AS r"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Terminal failure (or poll result) of a session. Routes: ReclaimCallback,
+ * -- GetReclaimSessionStatus.
+ * SELECT smx.reclaim_session_json(r) AS j
+ * FROM smx.finish_reclaim_session(
+ * 	:id!, :status!::smx.reclaim_session_status, :reason
+ * ) AS r
+ * ```
+ */
+export const finishReclaimSession = new PreparedQuery<IFinishReclaimSessionParams,IFinishReclaimSessionResult>(finishReclaimSessionIR);
+
+
+/** 'GetDividendForPayment' parameters type */
+export interface IGetDividendForPaymentParams {
+  dividend_id: string;
+  viewer_id: string;
+}
+
+/** 'GetDividendForPayment' return type */
+export interface IGetDividendForPaymentResult {
+  amount_due: string;
+  creator_id: string;
+  id: string;
+  splits: unknown;
+  status: string;
+  ticker: string;
+}
+
+/** 'GetDividendForPayment' query type */
+export interface IGetDividendForPaymentQuery {
+  params: IGetDividendForPaymentParams;
+  result: IGetDividendForPaymentResult;
+}
+
+const getDividendForPaymentIR: any = {"usedParamSet":{"dividend_id":true,"viewer_id":true},"params":[{"name":"dividend_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":385,"b":397}]},{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":442,"b":452}]}],"statement":"-- A due dividend the viewer may pay, with its holder splits. Routes:\n-- CreateDividendPaymentRequest, PayDividend.\nSELECT\n\td.id AS \"id!\",\n\td.creator_id AS \"creator_id!\",\n\td.amount_due::TEXT AS \"amount_due!\",\n\td.status::TEXT AS \"status!\",\n\tc.ticker AS \"ticker!\",\n\tsmx.dividend_splits_json(d.id) AS \"splits!\"\nFROM smx.dividends d\nJOIN smx.creators c ON c.id = d.creator_id\nWHERE d.id = :dividend_id! AND smx.assert_creator_owner(d.creator_id, :viewer_id!)"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- A due dividend the viewer may pay, with its holder splits. Routes:
+ * -- CreateDividendPaymentRequest, PayDividend.
+ * SELECT
+ * 	d.id AS "id!",
+ * 	d.creator_id AS "creator_id!",
+ * 	d.amount_due::TEXT AS "amount_due!",
+ * 	d.status::TEXT AS "status!",
+ * 	c.ticker AS "ticker!",
+ * 	smx.dividend_splits_json(d.id) AS "splits!"
+ * FROM smx.dividends d
+ * JOIN smx.creators c ON c.id = d.creator_id
+ * WHERE d.id = :dividend_id! AND smx.assert_creator_owner(d.creator_id, :viewer_id!)
+ * ```
+ */
+export const getDividendForPayment = new PreparedQuery<IGetDividendForPaymentParams,IGetDividendForPaymentResult>(getDividendForPaymentIR);
 
 
 /** 'AuditIncomeProof' parameters type */
@@ -441,6 +624,7 @@ export const triggerDefault = new PreparedQuery<ITriggerDefaultParams,ITriggerDe
 /** 'PayDividend' parameters type */
 export interface IPayDividendParams {
   dividend_id: string;
+  tx_hash?: string | null | void;
   viewer_id: string;
 }
 
@@ -455,17 +639,50 @@ export interface IPayDividendQuery {
   result: IPayDividendResult;
 }
 
-const payDividendIR: any = {"usedParamSet":{"dividend_id":true,"viewer_id":true},"params":[{"name":"dividend_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":107,"b":119}]},{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":128,"b":138}]}],"statement":"-- Creator pays a due dividend. Route: PayDividend.\nSELECT smx.dividend_json(d) AS j\nFROM smx.pay_dividend(:dividend_id!, NULL, :viewer_id!) AS d"};
+const payDividendIR: any = {"usedParamSet":{"dividend_id":true,"tx_hash":true,"viewer_id":true},"params":[{"name":"dividend_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":202,"b":214}]},{"name":"tx_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":217,"b":224}]},{"name":"viewer_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":227,"b":237}]}],"statement":"-- Creator pays a due dividend; `tx_hash` is the settled Hedera transaction\n-- id when the browser paid through the x402 loop. Route: PayDividend.\nSELECT smx.dividend_json(d) AS j\nFROM smx.pay_dividend(:dividend_id!, :tx_hash, :viewer_id!) AS d"};
 
 /**
  * Query generated from SQL:
  * ```
- * -- Creator pays a due dividend. Route: PayDividend.
+ * -- Creator pays a due dividend; `tx_hash` is the settled Hedera transaction
+ * -- id when the browser paid through the x402 loop. Route: PayDividend.
  * SELECT smx.dividend_json(d) AS j
- * FROM smx.pay_dividend(:dividend_id!, NULL, :viewer_id!) AS d
+ * FROM smx.pay_dividend(:dividend_id!, :tx_hash, :viewer_id!) AS d
  * ```
  */
 export const payDividend = new PreparedQuery<IPayDividendParams,IPayDividendResult>(payDividendIR);
+
+
+/** 'GetPaidDividendReceipts' parameters type */
+export interface IGetPaidDividendReceiptsParams {
+  dividend_id: string;
+}
+
+/** 'GetPaidDividendReceipts' return type */
+export interface IGetPaidDividendReceiptsResult {
+  id: string;
+  settled: boolean;
+}
+
+/** 'GetPaidDividendReceipts' query type */
+export interface IGetPaidDividendReceiptsQuery {
+  params: IGetPaidDividendReceiptsParams;
+  result: IGetPaidDividendReceiptsResult;
+}
+
+const getPaidDividendReceiptsIR: any = {"usedParamSet":{"dividend_id":true},"params":[{"name":"dividend_id","required":true,"transform":{"type":"scalar"},"locs":[{"a":178,"b":190}]}],"statement":"-- Whether a dividend already has stream receipts (settled in the request).\n-- Worker.\nSELECT d.id, d.stream_receipts IS NOT NULL AS \"settled!\"\nFROM smx.dividends d\nWHERE d.id = :dividend_id!"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Whether a dividend already has stream receipts (settled in the request).
+ * -- Worker.
+ * SELECT d.id, d.stream_receipts IS NOT NULL AS "settled!"
+ * FROM smx.dividends d
+ * WHERE d.id = :dividend_id!
+ * ```
+ */
+export const getPaidDividendReceipts = new PreparedQuery<IGetPaidDividendReceiptsParams,IGetPaidDividendReceiptsResult>(getPaidDividendReceiptsIR);
 
 
 /** 'GetCreatorIdByTicker' parameters type */
@@ -573,6 +790,7 @@ export const claimChainJob = new PreparedQuery<IClaimChainJobParams,IClaimChainJ
 
 /** 'CompleteChainJob' parameters type */
 export interface ICompleteChainJobParams {
+  ats_token?: string | null | void;
   error?: string | null | void;
   id: string;
   isa?: string | null | void;
@@ -593,7 +811,7 @@ export interface ICompleteChainJobQuery {
   result: ICompleteChainJobResult;
 }
 
-const completeChainJobIR: any = {"usedParamSet":{"id":true,"status":true,"tx_hash":true,"error":true,"isa":true,"token":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":125,"b":128}]},{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":131,"b":138}]},{"name":"tx_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":163,"b":170}]},{"name":"error","required":false,"transform":{"type":"scalar"},"locs":[{"a":173,"b":178}]},{"name":"isa","required":false,"transform":{"type":"scalar"},"locs":[{"a":181,"b":184}]},{"name":"token","required":false,"transform":{"type":"scalar"},"locs":[{"a":187,"b":192}]}],"statement":"-- Settles a sent job and copies the result onto the domain row. Worker.\nSELECT j.id, j.status\nFROM smx.complete_chain_job(\n\t:id!, :status!::smx.chain_job_status, :tx_hash, :error, :isa, :token\n) AS j"};
+const completeChainJobIR: any = {"usedParamSet":{"id":true,"status":true,"tx_hash":true,"error":true,"isa":true,"token":true,"ats_token":true},"params":[{"name":"id","required":true,"transform":{"type":"scalar"},"locs":[{"a":125,"b":128}]},{"name":"status","required":true,"transform":{"type":"scalar"},"locs":[{"a":131,"b":138}]},{"name":"tx_hash","required":false,"transform":{"type":"scalar"},"locs":[{"a":163,"b":170}]},{"name":"error","required":false,"transform":{"type":"scalar"},"locs":[{"a":173,"b":178}]},{"name":"isa","required":false,"transform":{"type":"scalar"},"locs":[{"a":181,"b":184}]},{"name":"token","required":false,"transform":{"type":"scalar"},"locs":[{"a":187,"b":192}]},{"name":"ats_token","required":false,"transform":{"type":"scalar"},"locs":[{"a":196,"b":205}]}],"statement":"-- Settles a sent job and copies the result onto the domain row. Worker.\nSELECT j.id, j.status\nFROM smx.complete_chain_job(\n\t:id!, :status!::smx.chain_job_status, :tx_hash, :error, :isa, :token,\n\t:ats_token\n) AS j"};
 
 /**
  * Query generated from SQL:
@@ -601,7 +819,8 @@ const completeChainJobIR: any = {"usedParamSet":{"id":true,"status":true,"tx_has
  * -- Settles a sent job and copies the result onto the domain row. Worker.
  * SELECT j.id, j.status
  * FROM smx.complete_chain_job(
- * 	:id!, :status!::smx.chain_job_status, :tx_hash, :error, :isa, :token
+ * 	:id!, :status!::smx.chain_job_status, :tx_hash, :error, :isa, :token,
+ * 	:ats_token
  * ) AS j
  * ```
  */
@@ -818,12 +1037,12 @@ export interface ICheckLaunchableQuery {
   result: ICheckLaunchableResult;
 }
 
-const checkLaunchableIR: any = {"usedParamSet":{"nullifier":true},"params":[{"name":"nullifier","required":true,"transform":{"type":"scalar"},"locs":[{"a":136,"b":146}]}],"statement":"-- Fails fast (403 banned, 409 used) before the route spends an Arkiv write.\n-- Route: LaunchIpo.\nSELECT smx.assert_nullifier_available(:nullifier!) AS ok"};
+const checkLaunchableIR: any = {"usedParamSet":{"nullifier":true},"params":[{"name":"nullifier","required":true,"transform":{"type":"scalar"},"locs":[{"a":140,"b":150}]}],"statement":"-- Fails fast (403 banned, 409 used) before the route spends a 0G Storage write.\n-- Route: LaunchIpo.\nSELECT smx.assert_nullifier_available(:nullifier!) AS ok"};
 
 /**
  * Query generated from SQL:
  * ```
- * -- Fails fast (403 banned, 409 used) before the route spends an Arkiv write.
+ * -- Fails fast (403 banned, 409 used) before the route spends a 0G Storage write.
  * -- Route: LaunchIpo.
  * SELECT smx.assert_nullifier_available(:nullifier!) AS ok
  * ```

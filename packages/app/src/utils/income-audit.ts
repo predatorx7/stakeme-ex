@@ -1,53 +1,123 @@
-import { badRequest, Boom } from '@hapi/boom'
+import { badRequest, Boom, isBoom, notFound } from '@hapi/boom'
 import assert from 'node:assert'
-import { auditIncome, verifyIncomeProof } from '../integrations/index.ts'
+import { readDeliveryEnvelope } from '../integrations/reclaim.ts'
+import { field } from '../integrations/util.ts'
 import { LOGGER } from '../logger.ts'
-import { auditIncomeProof, submitIncomeProof } from '../queries.ts'
+import {
+	auditIncomeProof,
+	finishReclaimSession,
+	getReclaimSession,
+	submitIncomeProof,
+} from '../queries.ts'
+import { createOracle } from '../services/index.ts'
 import type { IPgClientLike } from '../types/index.ts'
 import { unwrapProofBody } from './proof-body.ts'
 
 const UUID_REGEX =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+export type IncomeAuditOutcome =
+	/** Verified, stored and audited: the SQL-built `AuditResult`. */
+	| { kind: 'audited', result: unknown }
+	/** The session already finished; a redelivery changes nothing. */
+	| { kind: 'duplicate', status: string }
+	/** A failure event (rejected, error, cancelled, expired) was recorded. */
+	| { kind: 'failed', status: string }
+
 /**
- * The shared pipeline behind `AuditMilestone` and `ReclaimCallback`:
- * verify the Reclaim proof, store it PENDING, ask the auditor (0G or the
- * fallback), and let `audit_income_proof` decide. Returns the SQL-built
- * `AuditResult` document.
+ * The pipeline behind `AuditMilestone` and `ReclaimCallback`: verify the
+ * delivery through the oracle, store the proof PENDING, let the 0G agent
+ * audit it, then `audit_income_proof` decides. The expected session, org and
+ * creator come from our own `reclaim_sessions` row, never from the body.
  */
-export async function runIncomeAudit(pg: IPgClientLike, body: unknown) {
-	let income: Awaited<ReturnType<typeof verifyIncomeProof>>
-	try {
-		income = await verifyIncomeProof(unwrapProofBody(body))
-	} catch(err) {
-		if(err instanceof Boom) {
-			throw err
+export async function runIncomeAudit(
+	pg: IPgClientLike,
+	rawBody: unknown,
+): Promise<IncomeAuditOutcome> {
+	const body = unwrapProofBody(rawBody)
+	const oracle = createOracle()
+	const isDemo = field(body, 'demo') === true
+
+	let creatorId: string
+	let sessionId: string | undefined
+	let orgId: string | null = null
+	if(isDemo) {
+		const context = field(body, 'context')
+		assert(
+			typeof context === 'string',
+			badRequest('Proof does not name a creator'),
+		)
+		creatorId = context
+	} else {
+		const hint = field(body, 'sessionId')
+		assert(typeof hint === 'string', badRequest('Delivery has no session id'))
+		const [session] = await getReclaimSession.run({ id: hint }, pg)
+		assert(session, notFound('Unknown Reclaim session'))
+		creatorId = session.creator_id
+		sessionId = session.id
+		orgId = session.org_id
+
+		const { failure } = readDeliveryEnvelope(body)
+		if(failure) {
+			await finishReclaimSession.run(
+				{ id: session.id, status: failure, reason: `Reclaim: ${failure}` },
+				pg,
+			)
+			return { kind: 'failed', status: failure }
 		}
 
-		LOGGER.warn({ err }, 'income proof failed verification')
-		throw badRequest('Proof could not be verified')
+		if(session.status !== 'PENDING') {
+			return { kind: 'duplicate', status: session.status }
+		}
 	}
 
 	assert(
-		UUID_REGEX.test(income.context),
+		UUID_REGEX.test(creatorId),
 		badRequest('Proof does not name a creator'),
 	)
+	let income: Awaited<ReturnType<typeof oracle.fetchVerifiedIncome>>
+	try {
+		income = await oracle.fetchVerifiedIncome({
+			body, sessionId, orgId, creatorId,
+		})
+	} catch(err) {
+		const boom = isBoom(err) ? err : new Boom('Proof could not be verified', {
+			statusCode: 400,
+		})
+		if(!isBoom(err)) {
+			LOGGER.warn({ err }, 'income proof failed verification')
+		}
+
+		// 5xx means a retry may succeed; anything else ends the session.
+		if(sessionId && boom.output.statusCode < 500) {
+			await finishReclaimSession.run(
+				{ id: sessionId, status: 'ERROR', reason: boom.message },
+				pg,
+			)
+		}
+
+		throw boom
+	}
+
 	const [pending] = await submitIncomeProof.run(
 		{
-			creator_id: income.context,
+			creator_id: creatorId,
 			provider: income.provider,
 			reclaim_proof_id: income.proofId,
 			amount: income.amount,
 			raw: income.raw,
+			reclaim_session_id: sessionId ?? null,
 		},
 		pg,
 	)
-	const audit = await auditIncome({
+	const audit = await oracle.audit({
+		creatorId,
 		ticker: pending.ticker,
 		shareBps: pending.share_bps,
 		minIncome: pending.min_income,
 		period: pending.period,
 		termsHash: pending.terms_hash ?? '',
+		termsRef: pending.terms_ref ?? undefined,
 		income,
 	})
 	const [row] = await auditIncomeProof.run(
@@ -63,5 +133,5 @@ export async function runIncomeAudit(pg: IPgClientLike, body: unknown) {
 		},
 		pg,
 	)
-	return row.j
+	return { kind: 'audited', result: row.j }
 }

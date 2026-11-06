@@ -1,11 +1,11 @@
 import assert from 'node:assert'
 import { describe, it } from 'node:test'
-import { hashTerms } from '../src/integrations/arkiv.ts'
 import { simulateChainJob } from '../src/integrations/chain.ts'
 import {
 	demoIncomeProof,
 	extractIncomeAmount,
-	verifyIncomeProof,
+	mapResultToIncome,
+	verifyDemoProof,
 } from '../src/integrations/reclaim.ts'
 import type { IncomeAuditInput, LisaTerms } from '../src/integrations/types.ts'
 import { canonicalJson } from '../src/integrations/util.ts'
@@ -18,6 +18,7 @@ import {
 	parseAuditResponse,
 	rulesAudit,
 } from '../src/integrations/zero-g.ts'
+import { hashTerms } from '../src/services/storage/terms.ts'
 
 // DEMO_MODE=1 comes from .test.env.
 
@@ -88,7 +89,7 @@ describe('0G audit', () => {
 	})
 })
 
-describe('Arkiv terms', () => {
+describe('L-ISA terms', () => {
 	it('hash is stable across key order and changes with the terms', () => {
 		const a = hashTerms(TERMS)
 		const b = hashTerms(JSON.parse(JSON.stringify(
@@ -162,11 +163,44 @@ describe('Reclaim income', () => {
 		assert.strictEqual(extractIncomeAmount({}), null)
 	})
 
-	it('verifies the demo fixture and echoes context and id', async() => {
+	it('verifies the demo fixture and echoes context and id', () => {
 		const proof = demoIncomeProof('creator-1', '5000.00')
-		const income = await verifyIncomeProof(proof)
+		const income = verifyDemoProof(proof)
 		assert.strictEqual(income.amount, '5000.00')
 		assert.strictEqual(income.context, 'creator-1')
 		assert.strictEqual(income.proofId, proof.id)
+	})
+
+	// Shaped like `results.receive(...).result` from @reclaimprotocol/client.
+	const NOW = 1_800_000_000
+	const result = (over: Record<string, unknown> = {}) => ({
+		proofs: [{
+			proofValid: true,
+			proof: {
+				identifier: '0xouter',
+				claimData: { identifier: '0xclaim', timestampS: NOW - 30 },
+			},
+			data: {
+				context: { creatorId: 'creator-1' },
+				extractedParameters: { amount: '5,000.00' },
+			},
+			...over,
+		}],
+	})
+
+	it('maps a verified Reclaim result to VerifiedIncome', () => {
+		const income = mapResultToIncome(result(), 'creator-1', NOW)
+		assert.strictEqual(income.amount, '5000.00')
+		assert.strictEqual(income.proofId, '0xclaim')
+		assert.strictEqual(income.context, 'creator-1')
+	})
+
+	it('rejects invalid, stale and foreign results', () => {
+		assert.throws(() => mapResultToIncome(
+			result({ proofValid: false, reason: 'bad' }), 'creator-1', NOW,
+		))
+		assert.throws(() => mapResultToIncome(result(), 'creator-1', NOW + 3600))
+		assert.throws(() => mapResultToIncome(result(), 'creator-2', NOW))
+		assert.throws(() => mapResultToIncome({ proofs: [] }, 'creator-1', NOW))
 	})
 })

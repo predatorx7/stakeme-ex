@@ -2,7 +2,7 @@
 
 Data-attribute contract between the server-rendered markup and the browser
 modules in `packages/app/src/client/` (`wallet.ts`, `world-id.ts`,
-`reclaim.ts`). All listeners are delegated on `document`, so the markup works
+`reclaim.ts`, `hedera-pay.ts`). All listeners are delegated on `document`, so the markup works
 for fragments that htmx swaps in later. Every hook degrades to a plain page
 when JavaScript is off.
 
@@ -54,7 +54,7 @@ Render this inside the launch `<form>`. In demo mode leave `data-app-id` empty. 
 	<button type="button" data-world-id
 		data-app-id="app_xxx"
 		data-signal="0xwallet"
-		data-rp-url="/api/world-id/rp-signature"
+		data-rp-url="/api/rp-signature"
 		data-action="smx-launch-ipo">
 		Verify with World ID
 	</button>
@@ -72,7 +72,7 @@ Render this inside the launch `<form>`. In demo mode leave `data-app-id` empty. 
 | --- | --- | --- |
 | `data-world-id` | `<button type=button>` | Click starts the IDKit flow. |
 | `data-app-id` | the same button | `app_...` id. Empty or missing means demo mode: the click reveals `[data-world-id-demo]`. Render `WORLD_APP_ID` here only when `isWorldIdConfigured()` is true. |
-| `data-rp-url` | the same button | Route that returns `createWorldIdRequest(sessionWallet)` as JSON. Default `/api/world-id/rp-signature` (POST, no body). |
+| `data-rp-url` | the same button | Route that returns `createWorldIdRequest(sessionWallet)` as JSON. Default `/api/rp-signature` (POST, no body). |
 | `data-signal` | the same button | Fallback signal if the route omits `signal`. The route's `signal` wins. |
 | `data-action` | the same button | Action in simulated fixtures. Default `smx-launch-ipo`. |
 | `input[name=worldIdProof]` | in the form | Receives `JSON.stringify(IDKitResult)` (or the fixture). |
@@ -118,6 +118,68 @@ session wallet as the signal, to `verifyWorldIdProof`. Demo fixtures
 
 The proof status uses the server's SSE stream (`PROOF_VERIFIED`): put the
 htmx SSE hooks on the status fragment, not on these buttons.
+
+## Hedera dividend payment (`hedera-pay.ts`)
+
+The creator pays a due dividend from the Hub. The module asks the server for
+x402 payment requirements, signs **one** Hedera `TransferTransaction` that pays
+every holder, and posts it back for settlement.
+
+```html
+<section data-hedera-pay-scope>
+	<button type="button"
+		data-hedera-pay="/dividends/{id}/payment-request"
+		data-hedera-settle="/dividends/{id}/payment">
+		Pay dividend
+	</button>
+	<output data-hedera-pay-status></output>
+</section>
+```
+
+| Attribute | On | Meaning |
+| --- | --- | --- |
+| `data-hedera-pay="/url"` | `<button type=button>` | POST route that returns the x402 payment requirements (`CreateDividendPaymentRequest`). |
+| `data-hedera-settle="/url"` | the same button | POST route that receives `{ paymentPayload }` (`PayDividend`). |
+| `[data-hedera-pay-status]` | `<output>` | Progress text. Looked up inside the closest `[data-hedera-pay-scope]`, else anywhere on the page. |
+
+The module dispatches a bubbling `smx:hedera-paid` event (detail: the paid
+dividend) on the button and sets `aria-busy` while it runs. Show the HashScan
+links from the dividend receipts, not from this module.
+
+```mermaid
+sequenceDiagram
+	participant U as "Creator"
+	participant B as "hedera-pay.ts"
+	participant S as "SMX server"
+	participant H as "Hedera testnet"
+	U->>B: "Click Pay"
+	B->>S: "POST payment-request"
+	S-->>B: "accepts[] (one per holder), mode, feePayer"
+	alt "mode is live"
+		B->>B: "Load Hiero SDK chunk, sign one transfer with the burner key"
+		B->>S: "POST payment { paymentPayload.payload.transaction }"
+		S->>H: "Verify, add fee payer signature, execute"
+		H-->>S: "SUCCESS"
+	else "mode is simulated"
+		B->>S: "POST payment { paymentPayload.simulated }"
+	end
+	S-->>B: "Dividend PAID with receipts"
+```
+
+Signer behavior:
+
+- **Live mode:** the module creates a throwaway ECDSA key in `localStorage`
+  (`smx.hedera.burner`) and looks up its account id on the mirror node by EVM
+  alias (cached as `smx.hedera.account`). If the account doesn't exist, the
+  status says to fund the printed address from the Hedera faucet. The server
+  pays network fees (fee payer), so the wallet needs only the dividend amount.
+- **Simulated mode:** the server has no `HEDERA_OPERATOR_*`. Nothing is
+  signed and the receipts are `sim:` hashes.
+- **HashPack:** not wired. `@hashgraph/hedera-wallet-connect` 2.1.3 pins
+  `@hiero-ledger/sdk` to 2.79.0 and needs a WalletConnect project id.
+
+The Hiero SDK loads lazily in its own chunk (about 1.9 MB, 310 KB gzipped), so
+pages without the button never download it.
 
 ## Notes for the UI
 

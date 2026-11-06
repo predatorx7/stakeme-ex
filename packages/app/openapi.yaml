@@ -163,8 +163,8 @@ paths:
       tags:
         - Creators
       description: >-
-        Verifies the World ID proof (signal is the viewer's wallet), stores the
-        terms on Arkiv, then creates the creator, tranches, pool and first
+        Verifies the World ID proof (signal is the viewer's wallet), writes the
+        L-ISA legal terms to 0G Storage, then creates the creator, tranches, pool and first
         price tick in one statement. Use it from the launch form. The viewer
         needs a linked wallet and one World ID can launch once. Returns `201`
         with the creator for JSON callers and an `HX-Redirect` to the token
@@ -315,6 +315,10 @@ paths:
             schema:
               $ref: '#/components/schemas/ProofBody'
       responses:
+        '200':
+          description: >-
+            Acknowledged without a new audit: a failure event, a redelivery, or
+            a result that cannot verify (retrying would not help).
         '201':
           description: Audit result.
           content:
@@ -400,8 +404,11 @@ paths:
         - Income
       description: >-
         Marks a due dividend paid, splits it pro rata across current holders and
-        queues the onchain distribution and the Hedera stream. Only the
-        creator can pay; `409` when it is already paid.
+        queues the onchain distribution. When the body carries a
+        `paymentPayload` (the transaction the creator's wallet signed for the
+        x402 payment request), the server settles it on Hedera first; without
+        one the payment rail pays holders from the worker. Only the creator
+        can pay; `409` when it is already paid.
       security:
         - BearerAuth: []
       parameters:
@@ -411,6 +418,12 @@ paths:
           description: Dividend id.
           schema:
             $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayDividendRequest'
       responses:
         '201':
           description: The paid dividend.
@@ -425,6 +438,100 @@ paths:
         '404':
           $ref: '#/components/responses/ProblemResponse'
         '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /dividends/{dividendId}/payment-request:
+    post:
+      summary: Create a dividend payment request
+      operationId: CreateDividendPaymentRequest
+      tags:
+        - Income
+      description: >-
+        Returns the x402 payment requirements for a due dividend: what the
+        creator's wallet must sign on Hedera to pay every holder. Only the
+        creator can call it. Splits come from SQL (pro rata by holdings). Sign
+        the transaction in the browser, then send it as `paymentPayload` to
+        `POST /dividends/{dividendId}/payment`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: dividendId
+          in: path
+          required: true
+          description: Dividend id.
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '201':
+          description: x402 payment requirements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentRequest'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /reclaim/sessions/{sessionId}:
+    get:
+      summary: Reclaim session status
+      operationId: GetReclaimSessionStatus
+      tags:
+        - Income
+      description: >-
+        Polling fallback for the SSE feed: the status of a Reclaim verification
+        session created by `CreateReclaimSession`. While the session is
+        pending, the server also asks Reclaim for its current status. Only the
+        creator can read it.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: Reclaim session id.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+      responses:
+        '200':
+          description: Session status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReclaimSessionStatus'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/rp-signature:
+    post:
+      summary: Sign a World ID request
+      operationId: CreateRpSignature
+      tags:
+        - Creators
+      description: >-
+        Signs the World ID 4.0 relying-party request on the server (the signing
+        key never reaches the browser). The signal is the wallet of the SIWE
+        session, never the request. Pass the result to IDKit as `rp_context`.
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Signed request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorldIdRequest'
+        '400':
           $ref: '#/components/responses/ProblemResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
@@ -466,21 +573,123 @@ paths:
       tags:
         - Income
       description: >-
-        A fake bank page with a hardcoded $5,000 deposit. It is the data source
-        for the Reclaim provider in the demo: the HTML page shows the statement
-        and the JSON form is what the provider extracts from.
+        A fake bank statement page (simulates HDFC) with a hardcoded $5,000
+        deposit. Redirects to `/mock-bank/login` without the `smx_bank_session`
+        cookie. The page calls `GET /mock-bank/api/transactions`, which is what
+        the Reclaim provider proves.
       security:
         - {}
       responses:
         '200':
-          description: Statement page (HTML) or statement (JSON).
+          description: Statement page.
           content:
             text/html:
               schema:
                 $ref: '#/components/schemas/HtmlContent'
+        '302':
+          description: Not signed in; redirect to the login page.
+          headers:
+            Location:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /mock-bank/login:
+    get:
+      summary: Mock bank login page
+      operationId: GetMockBankLogin
+      tags:
+        - Income
+      description: Login form for the mock bank. Any non-empty values work.
+      security:
+        - {}
+      responses:
+        '200':
+          description: Login page.
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+        '302':
+          description: Already signed in; redirect to the statement.
+          headers:
+            Location:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+    post:
+      summary: Mock bank login
+      operationId: MockBankLogin
+      tags:
+        - Income
+      description: >-
+        Accepts any non-empty username and password, sets the httpOnly
+        `smx_bank_session` cookie and redirects to `/mock-bank`.
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 1
+                  maxLength: 60
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 1
+                  maxLength: 60
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+      responses:
+        '303':
+          description: Signed in; redirect to the statement.
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /mock-bank/api/transactions:
+    get:
+      summary: Mock bank transactions
+      operationId: GetMockBankTransactions
+      tags:
+        - Income
+      description: >-
+        Statement JSON for the signed-in mock bank customer. Requires the
+        `smx_bank_session` cookie; `401` otherwise. This is the auth-bound
+        request the Reclaim provider proves.
+      security:
+        - {}
+      responses:
+        '200':
+          description: Statement.
+          content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MockBank'
+        '401':
+          $ref: '#/components/responses/ProblemResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
 components:
@@ -685,15 +894,18 @@ components:
               $ref: '#/components/schemas/DecimalString'
             minIncome:
               $ref: '#/components/schemas/DecimalString'
-            arkivEntityKey:
+            termsRef:
               type: string
               maxLength: 200
+              description: 0G Storage root hash of the L-ISA legal terms.
             termsHash:
               type: string
               maxLength: 200
             contractAddress:
               $ref: '#/components/schemas/EvmAddress'
             tokenAddress:
+              $ref: '#/components/schemas/EvmAddress'
+            atsTokenAddress:
               $ref: '#/components/schemas/EvmAddress'
             chainId:
               type: integer
@@ -909,6 +1121,8 @@ components:
             - GRACE_STARTED
             - DEFAULTED
             - TRADE
+            - ESCROW_FROZEN
+            - ESCROW_UNFROZEN
         payload:
           type: object
           description: Kind-specific details; always includes `ticker`.
@@ -1105,6 +1319,9 @@ components:
         account:
           type: string
           maxLength: 100
+        holderName:
+          type: string
+          maxLength: 100
         balance:
           $ref: '#/components/schemas/Money'
         transactions:
@@ -1186,10 +1403,84 @@ components:
       properties:
         ticker:
           $ref: '#/components/schemas/Ticker'
+    PayDividendRequest:
+      type: object
+      properties:
+        paymentPayload:
+          type: object
+          description: >-
+            The signed Hedera payment from the x402 loop (opaque; the payment
+            rail settles it).
+          maxProperties: 50
+          additionalProperties: true
+    PaymentRequest:
+      type: object
+      description: x402 payment requirements for a dividend (opaque to the app).
+      maxProperties: 50
+      additionalProperties: true
+    ReclaimSessionStatus:
+      type: object
+      required: [sessionId, status]
+      properties:
+        sessionId:
+          type: string
+          maxLength: 200
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum: [PENDING, SUCCESS, REJECTED, ERROR, CANCELLED, EXPIRED]
+        failureReason:
+          type: string
+          maxLength: 500
+        proofId:
+          $ref: '#/components/schemas/Uuid'
+        proofStatus:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    WorldIdRequest:
+      type: object
+      required: [rpContext, appId, action, environment, signal, demo]
+      properties:
+        rpContext:
+          type: object
+          required: [rp_id, nonce, created_at, expires_at, signature]
+          properties:
+            rp_id:
+              type: string
+              maxLength: 200
+            nonce:
+              type: string
+              maxLength: 200
+            created_at:
+              type: integer
+            expires_at:
+              type: integer
+            signature:
+              type: string
+              maxLength: 500
+        appId:
+          type: string
+          maxLength: 200
+        action:
+          type: string
+          maxLength: 200
+        environment:
+          type: string
+          enum: [staging, production]
+        signal:
+          type: string
+          maxLength: 100
+        demo:
+          type: boolean
     ProofBody:
       type: object
       description: >-
-        A Reclaim proof as posted by the Reclaim SDK or the CRE workflow. The
+        A Reclaim callback delivery (or a demo proof when `DEMO_MODE=1`). The
         shape belongs to Reclaim; the server verifies it.
       maxProperties: 100
       additionalProperties: true

@@ -27,6 +27,7 @@ import {
 	ORACLE_PRIVATE_KEY,
 } from '../consts.ts'
 import { LOGGER } from '../logger.ts'
+import { mintCreatorEquityToken, simulateEquityToken } from './hedera-ats.ts'
 import type { ChainJob, ChainJobResult } from './types.ts'
 import { keccakUtf8, nullifierHash } from './util.ts'
 
@@ -71,6 +72,8 @@ export function simulateChainJob(job: ChainJob): ChainJobResult {
 		result.deployed = {
 			isa: fakeAddress(`isa:${job.id}`),
 			token: fakeAddress(`token:${job.id}`),
+			atsToken: simulateEquityToken(atsInput(job, fakeAddress(`isa:${job.id}`)))
+				.evmAddress,
 		}
 	}
 
@@ -148,10 +151,15 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 				logs: receipt.logs,
 			})
 			assert(created, new Error('ISACreated event missing from receipt'))
+			const atsToken = await mirrorAtsToken(created.args.isa)
 			return {
 				status: 'CONFIRMED',
 				txHash: hash,
-				deployed: { isa: created.args.isa, token: created.args.token },
+				deployed: {
+					isa: created.args.isa,
+					token: created.args.token,
+					atsToken,
+				},
 			}
 		}
 
@@ -188,9 +196,35 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 
 		case 'unlockNextTranche':
 		case 'executeLiquidation':
+		case 'freezeEscrow':
+		case 'unfreezeEscrow':
 			return finish(await send({
 				address: to, abi: liquidISAAbi, functionName: job.fn,
 			}))
+	}
+
+	/**
+	 * Mints the Hedera ATS equity token for a new ISA and records it onchain.
+	 * Never fails the job: the ISA works without the ATS mirror.
+	 */
+	async function mirrorAtsToken(isa: Address) {
+		const ats = await mintCreatorEquityToken(atsInput(job, account.address))
+		if(ats.status !== 'CONFIRMED') {
+			return ats.evmAddress
+		}
+
+		try {
+			await send({
+				address: isa,
+				abi: liquidISAAbi,
+				functionName: 'setAtsToken',
+				args: [getAddress(ats.evmAddress)],
+			})
+		} catch(err) {
+			LOGGER.warn({ err, isa }, 'setAtsToken failed')
+		}
+
+		return ats.evmAddress
 	}
 
 	/** Mint (MockUSDC only) and approve `amount` of the ISA's USDC. */
@@ -230,6 +264,18 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 			args: [isa, amount],
 		})
 		await publicClient.waitForTransactionReceipt({ hash: approve })
+	}
+}
+
+/** ATS mint input from a `createISA` job (1 USDC raised = 1 share). */
+function atsInput(job: ChainJob, holder: string) {
+	const { args } = job
+	return {
+		ticker: String(args.ticker ?? ''),
+		name: String(args.name ?? ''),
+		supply: String(args.totalRaise ?? '0').split('.')[0],
+		decimals: 18,
+		holder,
 	}
 }
 

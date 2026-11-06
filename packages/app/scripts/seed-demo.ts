@@ -114,7 +114,7 @@ async function seedCreator(c: (typeof CREATORS)[number]) {
 			target_raise: c.raise,
 			stake_amount: c.stake,
 			nullifier: c.nullifier,
-			arkiv_entity_key: `local:demo-${c.ticker.toLowerCase()}`,
+			terms_ref: `local:demo-${c.ticker.toLowerCase()}`,
 			terms_hash: `demo-${c.ticker.toLowerCase()}`,
 			chain_id: 296,
 		},

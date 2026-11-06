@@ -49,7 +49,7 @@ FROM smx.launch_ipo(
 	:target_raise!,
 	:stake_amount!,
 	:nullifier!,
-	:arkiv_entity_key,
+	:terms_ref,
 	:terms_hash,
 	:chain_id
 ) AS c;
@@ -92,15 +92,65 @@ SELECT
 	c.ticker AS "ticker!",
 	c.share_bps AS "share_bps!",
 	c.min_income::TEXT AS "min_income!",
-	c.terms_hash
+	c.terms_hash,
+	c.terms_ref
 FROM smx.submit_income_proof(
 	:creator_id!::UUID,
 	:provider!,
 	:reclaim_proof_id!,
 	:amount!::NUMERIC,
-	:raw::JSONB
+	:raw::JSONB,
+	NULL,
+	:reclaim_session_id
 ) AS p
 JOIN smx.creators c ON c.id = p.creator_id;
+
+
+/* @name CreateReclaimSessionRow */
+-- Records a verification session we created. Route: CreateReclaimSession.
+INSERT INTO smx.reclaim_sessions(id, creator_id, org_id)
+VALUES (:id!, :creator_id!::UUID, :org_id)
+RETURNING id;
+
+
+/* @name GetReclaimSession */
+-- Session by id (callback lookup, no ownership check). Routes:
+-- ReclaimCallback, AuditMilestone.
+SELECT r.id AS "id!", r.creator_id AS "creator_id!", r.org_id, r.status::TEXT AS "status!"
+FROM smx.reclaim_sessions r
+WHERE r.id = :id!;
+
+
+/* @name GetOwnedReclaimSession */
+-- Session JSON for its creator's owner (403 for someone else's, no row when
+-- unknown). Route: GetReclaimSessionStatus.
+SELECT smx.reclaim_session_json(r) AS j
+FROM smx.reclaim_sessions r
+WHERE r.id = :id! AND smx.assert_creator_owner(r.creator_id, :viewer_id!);
+
+
+/* @name FinishReclaimSession */
+-- Terminal failure (or poll result) of a session. Routes: ReclaimCallback,
+-- GetReclaimSessionStatus.
+SELECT smx.reclaim_session_json(r) AS j
+FROM smx.finish_reclaim_session(
+	:id!, :status!::smx.reclaim_session_status, :reason
+) AS r;
+
+
+/* @name GetDividendForPayment */
+-- A due dividend the viewer may pay, with its holder splits. Routes:
+-- CreateDividendPaymentRequest, PayDividend.
+SELECT
+	d.id AS "id!",
+	d.creator_id AS "creator_id!",
+	d.amount_due::TEXT AS "amount_due!",
+	d.status::TEXT AS "status!",
+	c.ticker AS "ticker!",
+	smx.dividend_splits_json(d.id) AS "splits!"
+FROM smx.dividends d
+JOIN smx.creators c ON c.id = d.creator_id
+WHERE d.id = :dividend_id! AND smx.assert_creator_owner(d.creator_id, :viewer_id!);
 
 
 /* @name AuditIncomeProof */
@@ -119,9 +169,18 @@ FROM smx.demo_trigger_default(:ticker!) AS c;
 
 
 /* @name PayDividend */
--- Creator pays a due dividend. Route: PayDividend.
+-- Creator pays a due dividend; `tx_hash` is the settled Hedera transaction
+-- id when the browser paid through the x402 loop. Route: PayDividend.
 SELECT smx.dividend_json(d) AS j
-FROM smx.pay_dividend(:dividend_id!, NULL, :viewer_id!) AS d;
+FROM smx.pay_dividend(:dividend_id!, :tx_hash, :viewer_id!) AS d;
+
+
+/* @name GetPaidDividendReceipts */
+-- Whether a dividend already has stream receipts (settled in the request).
+-- Worker.
+SELECT d.id, d.stream_receipts IS NOT NULL AS "settled!"
+FROM smx.dividends d
+WHERE d.id = :dividend_id!;
 
 
 /* @name GetCreatorIdByTicker */
@@ -156,7 +215,8 @@ RETURNING j.id, j.fn, j.args, c.contract_address::TEXT AS contract_address;
 -- Settles a sent job and copies the result onto the domain row. Worker.
 SELECT j.id, j.status
 FROM smx.complete_chain_job(
-	:id!, :status!::smx.chain_job_status, :tx_hash, :error, :isa, :token
+	:id!, :status!::smx.chain_job_status, :tx_hash, :error, :isa, :token,
+	:ats_token
 ) AS j;
 
 
@@ -213,6 +273,6 @@ RETURNING id;
 
 
 /* @name CheckLaunchable */
--- Fails fast (403 banned, 409 used) before the route spends an Arkiv write.
+-- Fails fast (403 banned, 409 used) before the route spends a 0G Storage write.
 -- Route: LaunchIpo.
 SELECT smx.assert_nullifier_available(:nullifier!) AS ok;

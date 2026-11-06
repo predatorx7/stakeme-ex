@@ -221,7 +221,8 @@ CREATE TYPE proof_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
 CREATE TYPE dividend_status AS ENUM ('DUE', 'PAID');
 CREATE TYPE oracle_event_kind AS ENUM (
 	'IPO', 'INVESTED', 'PROOF_VERIFIED', 'PROOF_REJECTED', 'TRANCHE_RELEASED',
-	'DIVIDEND_PAID', 'GRACE_STARTED', 'DEFAULTED', 'TRADE'
+	'DIVIDEND_PAID', 'GRACE_STARTED', 'DEFAULTED', 'TRADE',
+	'ESCROW_FROZEN', 'ESCROW_UNFROZEN'
 );
 CREATE TYPE chain_job_status AS ENUM (
 	'QUEUED', 'SENT', 'CONFIRMED', 'FAILED', 'SIMULATED'
@@ -229,6 +230,10 @@ CREATE TYPE chain_job_status AS ENUM (
 -- Where money left the system for a holder: a dividend share, a refund of
 -- locked escrow, or a slice of the slashed creator stake.
 CREATE TYPE payout_kind AS ENUM ('DIVIDEND', 'REFUND', 'SLASH');
+-- Lifecycle of a Reclaim verification session (mirrors the Builder status).
+CREATE TYPE reclaim_session_status AS ENUM (
+	'PENDING', 'SUCCESS', 'REJECTED', 'ERROR', 'CANCELLED', 'EXPIRED'
+);
 
 -- ─── creators ─────────────────────────────────────────────────
 -- One row per L-ISA. A human (World ID nullifier) can launch exactly one, and
@@ -256,10 +261,13 @@ CREATE TABLE creators(
 	world_id_nullifier TEXT NOT NULL UNIQUE CHECK (
 		world_id_nullifier ~ '^([0-9]{1,78}|0x[0-9a-fA-F]{1,64})$'
 	),
-	arkiv_entity_key   TEXT CHECK (length(arkiv_entity_key) <= 200),
+	-- 0G Storage root hash (or `local:<sha256>`) of the L-ISA legal terms.
+	terms_ref          TEXT CHECK (length(terms_ref) <= 200),
 	terms_hash         TEXT CHECK (length(terms_hash) <= 200),
 	contract_address   evm_address,
 	token_address      evm_address,
+	-- Hedera Asset Tokenization Studio equity token (EVM address).
+	ats_token_address  evm_address,
 	chain_id           INTEGER CHECK (chain_id > 0),
 	next_proof_due_at  TIMESTAMPTZ,
 	grace_until        TIMESTAMPTZ,
@@ -363,6 +371,8 @@ CREATE TABLE income_proofs(
 	period           INTEGER NOT NULL CHECK (period >= 0),
 	provider         TEXT NOT NULL CHECK (length(provider) BETWEEN 1 AND 200),
 	reclaim_proof_id TEXT NOT NULL CHECK (length(reclaim_proof_id) BETWEEN 1 AND 500),
+	-- Reclaim verification session that produced the proof (NULL for demo).
+	reclaim_session_id TEXT CHECK (length(reclaim_session_id) <= 200),
 	verified_amount  money_amount NOT NULL,
 	status           proof_status NOT NULL DEFAULT 'PENDING',
 	-- Auditor output (0G agent or the rules engine).
@@ -380,6 +390,26 @@ CREATE UNIQUE INDEX income_proofs_one_approved_per_period
 	ON income_proofs(creator_id, period) WHERE status = 'APPROVED';
 CREATE TRIGGER income_proofs_touch_updated_at
 	BEFORE UPDATE ON income_proofs
+	FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ─── reclaim_sessions ─────────────────────────────────────────
+-- One row per verification session we created. The callback and the status
+-- poll move it out of PENDING exactly once; `proof_id` is set on success.
+CREATE TABLE reclaim_sessions(
+	id             TEXT PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 200),
+	creator_id     UUID NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+	-- Reclaim organization the result must be addressed to (`aud`).
+	org_id         TEXT CHECK (length(org_id) <= 200),
+	status         reclaim_session_status NOT NULL DEFAULT 'PENDING',
+	failure_reason TEXT CHECK (length(failure_reason) <= 500),
+	proof_id       UUID REFERENCES income_proofs(id),
+	created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX reclaim_sessions_creator_idx
+	ON reclaim_sessions(creator_id, created_at DESC);
+CREATE TRIGGER reclaim_sessions_touch_updated_at
+	BEFORE UPDATE ON reclaim_sessions
 	FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ─── dividends ────────────────────────────────────────────────
@@ -450,7 +480,8 @@ CREATE TABLE chain_jobs(
 	creator_id UUID NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
 	fn         TEXT NOT NULL CHECK (fn IN (
 		'createISA', 'initializeIPO', 'invest', 'unlockNextTranche',
-		'distributeDividend', 'executeLiquidation'
+		'distributeDividend', 'executeLiquidation', 'freezeEscrow',
+		'unfreezeEscrow'
 	)),
 	args       JSONB NOT NULL DEFAULT '{}',
 	status     chain_job_status NOT NULL DEFAULT 'QUEUED',
@@ -674,7 +705,7 @@ CREATE OR REPLACE FUNCTION launch_ipo(
 	p_target_raise money_amount,
 	p_stake_amount money_amount,
 	p_nullifier TEXT,
-	p_arkiv_entity_key TEXT,
+	p_terms_ref TEXT,
 	p_terms_hash TEXT,
 	p_chain_id INTEGER DEFAULT NULL,
 	p_tranche_bps INTEGER[] DEFAULT ARRAY[2000, 4000, 4000]
@@ -706,13 +737,13 @@ BEGIN
 	INSERT INTO creators(
 		owner_user_id, owner_wallet, ticker, display_name, headline, share_bps,
 		term_months, target_raise, stake_amount, status, world_id_nullifier,
-		arkiv_entity_key, terms_hash, chain_id, ipo_at, next_proof_due_at,
+		terms_ref, terms_hash, chain_id, ipo_at, next_proof_due_at,
 		created_by
 	)
 	VALUES (
 		p_owner, p_wallet, p_ticker, p_display_name, coalesce(p_headline, ''),
 		p_share_bps, p_term_months, p_target_raise, p_stake_amount, 'LIVE',
-		p_nullifier, p_arkiv_entity_key, p_terms_hash, p_chain_id,
+		p_nullifier, p_terms_ref, p_terms_hash, p_chain_id,
 		now(), now() + interval '30 days', p_owner
 	)
 	RETURNING * INTO v_creator;
@@ -751,7 +782,9 @@ BEGIN
 		'targetRaise', p_target_raise::TEXT,
 		'stakeAmount', p_stake_amount::TEXT,
 		'trancheBps', to_jsonb(p_tranche_bps),
-		'termsHash', p_terms_hash
+		'termsHash', p_terms_hash,
+		'termsRef', p_terms_ref,
+		'worldIdNullifier', p_nullifier
 	));
 	PERFORM enqueue_chain_job(v_creator.id, 'initializeIPO', jsonb_build_object(
 		'stakeAmount', p_stake_amount::TEXT
@@ -926,7 +959,8 @@ CREATE OR REPLACE FUNCTION submit_income_proof(
 	p_reclaim_proof_id TEXT,
 	p_amount money_amount,
 	p_raw JSONB DEFAULT NULL,
-	p_period INTEGER DEFAULT NULL
+	p_period INTEGER DEFAULT NULL,
+	p_reclaim_session_id TEXT DEFAULT NULL
 )
 RETURNS income_proofs
 LANGUAGE plpgsql
@@ -950,7 +984,8 @@ BEGIN
 	);
 
 	INSERT INTO income_proofs(
-		creator_id, period, provider, reclaim_proof_id, verified_amount, raw
+		creator_id, period, provider, reclaim_proof_id, verified_amount, raw,
+		reclaim_session_id
 	)
 	VALUES (
 		p_creator,
@@ -958,9 +993,12 @@ BEGIN
 			SELECT count(*)::INTEGER FROM income_proofs ip
 			WHERE ip.creator_id = p_creator AND ip.status = 'APPROVED'
 		)),
-		p_provider, p_reclaim_proof_id, p_amount, p_raw
+		p_provider, p_reclaim_proof_id, p_amount, p_raw, p_reclaim_session_id
 	)
 	RETURNING * INTO v_proof;
+
+	UPDATE reclaim_sessions SET status = 'SUCCESS', proof_id = v_proof.id
+	WHERE id = p_reclaim_session_id AND creator_id = p_creator;
 	RETURN v_proof;
 END;
 $$;
@@ -1045,6 +1083,14 @@ BEGIN
 		ORDER BY t.idx LIMIT 1 FOR UPDATE
 	)
 	RETURNING * INTO v_tranche;
+
+	-- A late proof inside the grace period lifts the escrow freeze.
+	IF v_creator.status = 'GRACE' THEN
+		PERFORM emit_oracle_event(v_creator.id, 'ESCROW_UNFROZEN', jsonb_build_object(
+			'proofId', p_proof, 'period', v_proof.period
+		));
+		PERFORM enqueue_chain_job(v_creator.id, 'unfreezeEscrow', '{}');
+	END IF;
 
 	-- From the later of the old deadline and now, so a late proof doesn't
 	-- leave the creator immediately overdue again.
@@ -1143,7 +1189,8 @@ CREATE OR REPLACE FUNCTION complete_chain_job(
 	p_tx_hash tx_hash DEFAULT NULL,
 	p_error TEXT DEFAULT NULL,
 	p_isa evm_address DEFAULT NULL,
-	p_token evm_address DEFAULT NULL
+	p_token evm_address DEFAULT NULL,
+	p_ats_token evm_address DEFAULT NULL
 )
 RETURNS chain_jobs
 LANGUAGE plpgsql
@@ -1159,7 +1206,9 @@ BEGIN
 
 	IF p_status IN ('CONFIRMED', 'SIMULATED') THEN
 		IF v_job.fn = 'createISA' AND p_isa IS NOT NULL THEN
-			UPDATE creators SET contract_address = p_isa, token_address = p_token
+			UPDATE creators SET
+				contract_address = p_isa, token_address = p_token,
+				ats_token_address = p_ats_token
 			WHERE id = v_job.creator_id;
 		ELSIF v_job.fn = 'unlockNextTranche' THEN
 			UPDATE tranches SET tx_hash = p_tx_hash
@@ -1244,6 +1293,23 @@ BEGIN
 END;
 $$;
 
+-- Safe-stop fallback: the 0G agent freezes the Hedera escrow while a creator
+-- is in GRACE (no more tranche releases or dividend distributions); a late
+-- approved proof lifts it (see `audit_income_proof`). Liquidation still
+-- follows when the grace period ends.
+CREATE OR REPLACE FUNCTION freeze_escrow(p_creator UUID, p_reason TEXT)
+RETURNS UUID
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+BEGIN
+	PERFORM emit_oracle_event(p_creator, 'ESCROW_FROZEN', jsonb_build_object(
+		'reason', p_reason
+	));
+	RETURN enqueue_chain_job(p_creator, 'freezeEscrow', '{}');
+END;
+$$;
+
 -- Periodic deadline sweep. LIVE creators past `next_proof_due_at` enter GRACE
 -- for 14 days; GRACE creators past `grace_until` are liquidated; LIVE creators
 -- past the term end complete. `SKIP LOCKED` lets overlapping sweeps (cron plus
@@ -1278,6 +1344,7 @@ BEGIN
 			PERFORM emit_oracle_event(r.id, 'GRACE_STARTED', jsonb_build_object(
 				'graceUntil', p_now + interval '14 days'
 			));
+			PERFORM freeze_escrow(r.id, 'Proof deadline missed');
 			creator_id := r.id; transition := 'GRACE'; RETURN NEXT;
 		END IF;
 	END LOOP;
@@ -1305,6 +1372,7 @@ BEGIN
 		PERFORM emit_oracle_event(v_id, 'GRACE_STARTED', jsonb_build_object(
 			'graceUntil', now()
 		));
+		PERFORM freeze_escrow(v_id, 'Proof deadline missed');
 	END IF;
 	UPDATE creators SET
 		status = 'GRACE',
@@ -1564,10 +1632,11 @@ AS $$
 		'termMonths', c.term_months,
 		'stakeAmount', c.stake_amount::TEXT,
 		'minIncome', c.min_income::TEXT,
-		'arkivEntityKey', c.arkiv_entity_key,
+		'termsRef', c.terms_ref,
 		'termsHash', c.terms_hash,
 		'contractAddress', c.contract_address::TEXT,
 		'tokenAddress', c.token_address::TEXT,
+		'atsTokenAddress', c.ats_token_address::TEXT,
 		'chainId', c.chain_id,
 		'nextProofDueAt', c.next_proof_due_at,
 		'graceUntil', c.grace_until,
@@ -1597,6 +1666,61 @@ AS $$
 			)
 		)
 	))
+$$;
+
+CREATE OR REPLACE FUNCTION reclaim_session_json(r reclaim_sessions)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	SELECT jsonb_strip_nulls(jsonb_build_object(
+		'sessionId', r.id,
+		'creatorId', r.creator_id,
+		'status', r.status,
+		'failureReason', r.failure_reason,
+		'proofId', r.proof_id,
+		'proofStatus', (SELECT p.status FROM income_proofs p WHERE p.id = r.proof_id),
+		'createdAt', r.created_at,
+		'updatedAt', r.updated_at
+	))
+$$;
+
+-- Moves a PENDING session to a terminal status exactly once (a repeated or
+-- late callback is a no-op). Returns the session either way.
+CREATE OR REPLACE FUNCTION finish_reclaim_session(
+	p_session TEXT, p_status reclaim_session_status, p_reason TEXT DEFAULT NULL
+)
+RETURNS reclaim_sessions
+LANGUAGE plpgsql
+SET search_path = smx, public
+AS $$
+DECLARE
+	v_row reclaim_sessions;
+BEGIN
+	UPDATE reclaim_sessions SET
+		status = p_status, failure_reason = left(p_reason, 500)
+	WHERE id = p_session AND status = 'PENDING'
+	RETURNING * INTO v_row;
+	IF NOT FOUND THEN
+		SELECT * INTO v_row FROM reclaim_sessions WHERE id = p_session;
+	END IF;
+	RETURN v_row;
+END;
+$$;
+
+-- Splits for a dividend, as the payment rail needs them: pro rata by holdings
+-- at call time (the same split `pay_dividend` records).
+CREATE OR REPLACE FUNCTION dividend_splits_json(p_dividend UUID)
+RETURNS JSONB
+LANGUAGE sql STABLE
+SET search_path = smx, public
+AS $$
+	SELECT coalesce(jsonb_agg(
+		jsonb_build_object('wallet', s.wallet::TEXT, 'amount', s.amount::TEXT)
+		ORDER BY s.amount DESC, s.wallet
+	), '[]')
+	FROM dividends d, pro_rata_split(d.creator_id, d.amount_due, 'HOLDINGS') s
+	WHERE d.id = p_dividend
 $$;
 
 -- Result of AuditMilestone / ReclaimCallback: the audited proof plus the

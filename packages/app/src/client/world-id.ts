@@ -7,7 +7,7 @@ import { pick, postJson, renderLinkAndQr, toastError } from './web3-util.ts'
  *   [data-world-id]            trigger. Attributes:
  *       data-app-id            World app id; empty means demo mode.
  *       data-rp-url            POST route returning the RP signature
- *                              (default `/api/world-id/rp-signature`).
+ *                              (default `/api/rp-signature`).
  *       data-signal            wallet the proof binds to (server-rendered).
  *   form input[name=worldIdProof]  receives the JSON result.
  *   form [data-world-id-submit]    (else the submit button) gets enabled.
@@ -19,7 +19,7 @@ import { pick, postJson, renderLinkAndQr, toastError } from './web3-util.ts'
  * Contract: docs/frontend-hooks.md.
  */
 
-const DEFAULT_RP_URL = '/api/world-id/rp-signature'
+const DEFAULT_RP_URL = '/api/rp-signature'
 const DEFAULT_ACTION = 'smx-launch-ipo'
 
 document.addEventListener('click', (event) => {

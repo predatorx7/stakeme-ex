@@ -31,7 +31,13 @@ export type ReclaimSession = {
 	sessionId: string
 	requestUrl: string
 	statusUrl: string
+	/** Reclaim organization id the result is addressed to; null in demo. */
+	orgId?: string | null
 }
+
+/** Remote state of a verification session (mirrors the Reclaim status). */
+export type ProofRequestStatus =
+	| 'PENDING' | 'SUCCESS' | 'REJECTED' | 'ERROR' | 'CANCELLED' | 'EXPIRED'
 
 export type VerifiedIncome = {
 	/** Stable id used to dedupe proofs. */
@@ -46,11 +52,14 @@ export type VerifiedIncome = {
 }
 
 export type IncomeAuditInput = {
+	creatorId?: string
 	ticker: string
 	shareBps: number
 	minIncome: string
 	period: number
 	termsHash: string
+	/** Storage ref of the L-ISA terms, echoed into the audit log. */
+	termsRef?: string
 	income: VerifiedIncome
 }
 
@@ -61,7 +70,7 @@ export type IncomeAudit = {
 	reasoning: string
 	/** Model id, or `rules-engine` for the fallback. */
 	model: string
-	/** 0G Storage root hash of the audit log, when uploaded. */
+	/** 0G Storage root hash (or `local:<sha256>`) of the audit log. */
 	logRef: string | null
 }
 
@@ -78,8 +87,8 @@ export type LisaTerms = {
 }
 
 export type StoredTerms = {
-	/** Arkiv entity key, or `local:<hash>` in demo mode. */
-	entityKey: string
+	/** Storage reference of the terms (0G root hash, or `local:<sha256>`). */
+	termsRef: string
 	/** sha256 hex of canonical terms JSON. */
 	termsHash: string
 }
@@ -91,6 +100,10 @@ export type ChainFn =
 	| 'unlockNextTranche'
 	| 'distributeDividend'
 	| 'executeLiquidation'
+	| 'freezeEscrow'
+	| 'unfreezeEscrow'
+	| 'freezeEscrow'
+	| 'unfreezeEscrow'
 
 export type ChainJob = {
 	id: string
@@ -104,7 +117,7 @@ export type ChainJobResult = {
 	status: 'CONFIRMED' | 'SIMULATED' | 'FAILED'
 	txHash: string | null
 	/** Set for `createISA`: deployed addresses. */
-	deployed?: { isa: string, token: string }
+	deployed?: { isa: string, token: string, atsToken?: string }
 	error?: string
 }
 
@@ -114,4 +127,12 @@ export type DividendStreamResult = {
 	status: 'CONFIRMED' | 'SIMULATED'
 	/** One reference per payment (tx hash or x402 receipt id). */
 	receipts: string[]
+}
+
+/** Allows a rail to expose a signed-payment flow (x402) to the browser. */
+export type PaymentRequestInput = {
+	dividendId: string
+	ticker: string
+	amount: string
+	splits: DividendSplit[]
 }

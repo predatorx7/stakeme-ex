@@ -186,4 +186,28 @@ describe('sweep_deadlines', () => {
 		await db.query('SELECT * FROM sweep_deadlines(now() + interval \'15 days\')')
 		assert.strictEqual(await status(), 'DEFAULTED')
 	})
+
+	it('freezes the escrow in GRACE and unfreezes on a late approved proof', async() => {
+		const { id } = await launch('FRZE')
+		const jobs = async() => (await db.query<{ fn: string }>(
+			`SELECT fn FROM chain_jobs WHERE creator_id = $1
+			AND fn IN ('freezeEscrow', 'unfreezeEscrow') ORDER BY seq`, [id],
+		)).rows.map((r) => r.fn)
+		const events = async() => (await db.query<{ kind: string }>(
+			`SELECT kind FROM oracle_events WHERE creator_id = $1
+			AND kind IN ('ESCROW_FROZEN', 'ESCROW_UNFROZEN') ORDER BY created_at`,
+			[id],
+		)).rows.map((r) => r.kind)
+
+		await db.query(
+			`UPDATE creators SET next_proof_due_at = now() - interval '1 day'
+			WHERE id = $1`, [id],
+		)
+		await db.query('SELECT * FROM sweep_deadlines()')
+		assert.deepStrictEqual(await jobs(), ['freezeEscrow'])
+
+		await audit(await proof(id, 'late-1', 5000), 5000)
+		assert.deepStrictEqual(await jobs(), ['freezeEscrow', 'unfreezeEscrow'])
+		assert.deepStrictEqual(await events(), ['ESCROW_FROZEN', 'ESCROW_UNFROZEN'])
+	})
 })

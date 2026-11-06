@@ -30,6 +30,7 @@ import {
 	AUTH_BASE_PATH,
 	BASE_PATH,
 	betterAuthSecret,
+	canonicalOrigin,
 	GRACEFUL_SHUTDOWN_TIMEOUT_S,
 	IS_PRODUCTION,
 } from './consts.ts'
@@ -312,6 +313,9 @@ export async function createApp(
 			server: {
 				middlewareMode: true,
 				hmr: { server },
+				// Vite blocks unknown Host headers in dev. Allow the canonical host
+				// so a tunnel (cloudflared) can serve the mock bank to Reclaim.
+				allowedHosts: [new URL(canonicalOrigin()).hostname],
 				fs: {
 					allow: [
 						searchForWorkspaceRoot(import.meta.dirname),

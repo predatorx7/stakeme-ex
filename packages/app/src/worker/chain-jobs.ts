@@ -73,6 +73,7 @@ async function settle(
 				error: result.error ?? null,
 				isa: result.deployed?.isa ?? null,
 				token: result.deployed?.token ?? null,
+				ats_token: result.deployed?.atsToken ?? null,
 			},
 			pg,
 		)
@@ -86,6 +87,7 @@ async function settle(
 				error: err instanceof Error ? err.message.slice(0, 1000) : 'failed',
 				isa: null,
 				token: null,
+				ats_token: null,
 			},
 			pg,
 		)

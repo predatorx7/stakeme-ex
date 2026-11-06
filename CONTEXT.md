@@ -80,11 +80,21 @@ Reference clones (read-only, may be deleted; re-clone with `gh repo clone`):
 | 3 | Integration research + docs + Arkiv files | `docs/integrations/**`, `arkiv/**`, `README.md` | Done |
 | 4 | Backend domain: OpenAPI, SQL, mutation routes, worker | `openapi.yaml`, `sql/**`, `src/routes/` (POST), `src/worker/**` | Done |
 | 5 | Integrations code | `packages/app/src/integrations/**`, `src/client/{wallet,world-id,reclaim}.ts` | Done |
-| 6 | UI: pages, components, CSS, client JS | GET routes, `src/components/**`, `public/styles/**` | In progress |
-| 7 | Adapter refactor + MVP sponsor focus + Reclaim client switch + mock bank login | `src/integrations/**`, `src/services/**`, mutation routes, worker, `GetMockBank`, mock bank API | In progress |
-| 8 | Reclaim provider via MCP (mock bank), callback proxy, end-to-end proof | Main session (needs developer) | Todo |
+| 6 | UI: pages, components, CSS, client JS | GET routes, `src/components/**`, `public/styles/**` | Done |
+| 7 | Adapter refactor + MVP sponsor focus + Reclaim client switch + mock bank login | `src/integrations/**`, `src/services/**`, mutation routes, worker, `GetMockBank`, mock bank API | Done |
+| 8 | Reclaim provider via MCP (mock bank), callback proxy, end-to-end proof | Main session | Provider live; e2e session test pending |
+| 9 | Hedera financial engine: ATS equity token, freeze/unfreeze escrow, x402 dividend loop | `packages/contracts/**`, `integrations/{chain,hedera-ats}.ts`, `services/payment/hedera-*.ts`, `client/hedera-pay.ts`, `docs/integrations/hedera.md` | Done |
 
 Workstream 8 note: Mock bank login ready: `GET http://localhost:4020/mock-bank/login` (form, any non-empty username/password), `POST /mock-bank/login` (sets httpOnly `smx_bank_session`, 303 to `/mock-bank`), `GET /mock-bank` (statement page; redirects to login without cookie; fetches the API), `GET /mock-bank/api/transactions` (JSON `{account, holderName, balance, transactions[]}`, 401 without cookie; the auth-bound request to prove). Code: `packages/app/src/services/mock-bank.ts`.
+
+Workstream 8 status (2026-11-06):
+- Provider `3fefebae-05cb-4d6b-b319-f3f639a31201` ("SMX Mock Bank Deposit", PRIVATE, live v0.1.1) in org `73351799-e315-4b65-bb8e-4df3496c7ec5`. Built with the Reclaim MCP: capture → draft → replay (200 signed in, 401 without cookie: auth-bound) → `run_proof` verified (`amount` 5000.00, `deposit_date`) → publish. `RECLAIM_PROVIDER_ID` is set in `.env`.
+- Extracted params: `amount`, `deposit_date` (`$.transactions[0]`). The mock bank dates the withdrawal a day earlier so the deposit date is unique, and its statement fetch uses `referrerPolicy: 'no-referrer'` (the attestor can't redact a Referer that repeats the URL).
+- Result encryption is OFF for the org (`canEncryptResult: false`), so `RECLAIM_ORG_ETH_PRIVATE_KEY` is optional.
+- `run_proof` created a local proof-signing test key `RECLAIM_PRIVATE_KEY` in `.env` (gitignored).
+- Hosting: the provider URL is a cloudflared quick tunnel (`https://history-cheers-extra-plan.trycloudflare.com` → local port 4030). Quick-tunnel URLs change on restart; then a new provider version is needed. For the stage demo, move the mock bank to a stable host (named tunnel or deploy) and publish a new version with that URL.
+- Dev `allowedHosts` in `src/app.ts` includes the `CANONICAL_ORIGIN` host so Vite accepts the tunnel's Host header.
+- Remaining: forward callbacks with MCP `proxy_callback_events({ port, path: '/reclaim/callback' })`, create a session from the Hub, sign in on the hosted verification page, and confirm `PROOF_VERIFIED` arrives.
 
 ## Done
 
@@ -94,7 +104,22 @@ Workstream 8 note: Mock bank login ready: `GET http://localhost:4020/mock-bank/l
 
 - Workstream 5: all six integration modules and the three browser modules are implemented with demo fallbacks. `npm run check`, `lint:fix`, `node --test tests/integrations.test.ts` (9 tests) and `npm run build` pass. `chain.ts` was also run for real against a local Hardhat node (createISA, initializeIPO, invest, distributeDividend, unlockNextTranche, executeLiquidation, revert -> FAILED). The other sponsors were not run live (no keys).
 
+- Workstream 6 (UI, 2026-11-06): Exchange, Creator page, Hub, Launch built (server-rendered TSX, htmx, light/dark, 390px). `npm run check` passes; `lint:fix` passes except `tests/services.test.ts:52` (workstream 7). Components added (`src/components/`):
+  - `charts/Sparkline` row trend line; `charts/PriceChart` framed area chart with price ticks.
+  - `PriceChange` signed green/red 24h change; `CreatorStatus` (`CreatorStatusBadge`, `isEscrowFrozen`: GRACE or last ESCROW_FROZEN event).
+  - `Countdown` ticking `<time data-countdown>`; `ChainJobBadge` + `PendingChainBadge` (flipped by `chain-job` SSE); `TxLink`/`HashRef` shortened hash + Copy (explorer: hashscan testnet).
+  - `Header` rewritten: brand, Exchange/Hub/Launch, theme toggle, "Launch your IPO" CTA, `data-wallet-connect` button, `.rc-bottom-tabs` below 900px. Anonymous Hub/Launch links sign in via wallet, then redirect.
+  - Pages: `ExchangePage`, `CreatorPage`, `CreatorHubPage`, `LaunchPage` (fleshed out). `OracleEventItem` restyled (ESCROW_FROZEN/UNFROZEN supported). `DataTable` columns take `col` (`data-col`, hidden under 560px).
+  - Client: `src/client/live.ts` (toasts on HX-Trigger events, chain-job badges, `smx:oracle-event` region reloads, countdown tick, form reset) and `src/client/launch-form.ts` (turns `worldIdProof` into an object and share % into `shareBps` for the JSON body). CSS: `public/styles/smx.css`.
+  - Hub renders the x402 Hedera button + `<output data-hedera-pay-status>` per scope update 2; Reclaim start/demo buttons per `docs/frontend-hooks.md`.
+  - Screenshots (chrome-devtools, light/dark, 1280px and 390px) of `/`, `/creators/MUSH`, `/creators/RAHUL` (defaulted: danger notice), `/hub`, `/launch` looked right after fixes (bottom tabs pinned, KPI grid single column under 560px, tranche list alignment). Burner sign-in and the full Launch flow (World ID simulate -> IPO -> redirect) worked.
 - Workstream 1: Builder-style monorepo skeleton. `npm install`, `gen:check`, `check`, `lint`, `test`, `build` and `npm run dev` (http://localhost:4020, `/healthz`, styled `/`) all verified on 2026-11-06. One initial migration (`packages/app/migrations/20261106105127299.init.sql`) holds the base schema only.
+
+- Workstream 9 (2026-11-06): Hedera financial engine. Details in [`docs/integrations/hedera.md`](docs/integrations/hedera.md).
+  - Contracts: `LiquidISA.freezeEscrow/unfreezeEscrow` (oracle only; frozen blocks `unlockNextTranche`, `reclaimStake`, and the auto tranche-0 release; claims and liquidation still work), `setAtsToken`. Factory already stores `isaOfNullifier` and the blacklist. 4 tests pass.
+  - ATS decision: `@hashgraph/asset-tokenization-sdk` 8.0.0 has no private-key signer (WalletConnect, MetaMask, DFNS, Fireblocks, AWS KMS only) and its ESM build isn't Node-loadable, so `integrations/hedera-ats.ts` calls the ATS `Factory.deployEquity` + `Equity.mint` with viem. The ATS token MIRRORS the cap table; `CreatorShareToken` stays the escrow/dividend source of truth (an ATS token can't reuse the ISA's O(1) dividend math). Wired into the `createISA` chain job (`deployed.atsToken`). Behind `ATS_ENABLED=1` + `ATS_FACTORY_ADDRESS` + `ATS_RESOLVER_ADDRESS`; SIMULATED otherwise or on error. Not run against a live ATS deployment.
+  - x402 loop: `HederaPaymentRail` is the default rail. `createPaymentRequest` returns one x402 requirement per holder; the creator signs ONE multi-transfer tx; the server rebuilds requirements from SQL, checks transfers, adds the operator fee-payer signature and executes with `@hiero-ledger/sdk` (the stock `exact` facilitator verifies a single payee, so it isn't used). Pure builder + validator: `services/payment/hedera-payment-requirements.ts` (tested in `tests/hedera-payment.test.ts`). Browser: `client/hedera-pay.ts` (burner ECDSA key, lazy Hiero SDK chunk ~1.9 MB). Removed `integrations/hedera-x402.ts`.
+  - Env: `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_NETWORK`, `HEDERA_DIVIDEND_TOKEN_ID` (unset = HBAR, 1 USDC = 0.01 HBAR), `HEDERA_RPC_URL`, `ATS_ENABLED`, `ATS_FACTORY_ADDRESS`, `ATS_RESOLVER_ADDRESS`, `ATS_CONFIG_VERSION`.
 
 ## How to run
 
@@ -148,9 +173,9 @@ Code: `packages/app/src/integrations/` (import from `index.ts`), browser hooks i
 | Sponsor | Env vars | Demo fallback (LOGGER warns) |
 | --- | --- | --- |
 | World ID | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION`, `WORLD_ENV` | Fixture proofs (`demo: true`), `DEMO_MODE=1` only. Deterministic nullifier; "Simulate Sybil" repeats it. |
-| Reclaim | `RECLAIM_APP_ID`, `RECLAIM_APP_SECRET`, `RECLAIM_PROVIDER_ID` | `demoIncomeProof(context, amount)` fixture, `DEMO_MODE=1` only. Demo session links to `/mock-bank`. |
+| Reclaim | `RECLAIM_ORG_SECRET`, `RECLAIM_PROVIDER_ID`, `RECLAIM_ORG_ETH_PRIVATE_KEY` (optional; org encryption is OFF) | `demoIncomeProof(context, amount)` fixture, `DEMO_MODE=1` only. Demo session links to `/mock-bank`. |
 | 0G | `ZG_PRIVATE_KEY`, `ZG_RPC_URL`, `ZG_INDEXER_URL`, `ZG_PROVIDER_ADDRESS`, `ZG_LEDGER_DEPOSIT` | Rules engine (`model: 'rules-engine'`), `logRef = local:<sha256>`. Also used when Compute errors. |
-| Arkiv | `ARKIV_PRIVATE_KEY`, `ARKIV_ACCESS_KEY` | `entityKey = local:<termsHash>`; `termsHash` is sha256 of canonical JSON. |
+| Storage | `STORAGE_PROVIDER=0g\|local` (default `0g`), `ZG_*` | Without `ZG_PRIVATE_KEY` or on upload failure: `LocalStorageProvider`, ref `local:<sha256>`. |
 | Chain | `CHAIN_RPC_URL`, `CHAIN_ID`, `ORACLE_PRIVATE_KEY`, `FACTORY_ADDRESS` | `CHAIN_RPC_URL` unset: SIMULATED, tx hash = keccak256(job id), fake ISA/token addresses. |
 | Hedera | `HEDERA_OPERATOR_ID`/`HEDERA_ACCOUNT_ID`, `HEDERA_OPERATOR_KEY`/`HEDERA_PRIVATE_KEY`, `HEDERA_DIVIDEND_TOKEN_ID`, `HEDERA_NETWORK` | SIMULATED `sim:0x...` receipts. |
 
@@ -178,13 +203,38 @@ Workstream 4, done 2026-11-06. Full guide: [`docs/backend.md`](docs/backend.md).
 - Page components for workstream 6 to flesh out (`src/components/pages/`, props are OpenAPI types from `src/types/domain.ts`): `ExchangePage({ exchange: Exchange })`, `CreatorPage({ page: CreatorPage })`, `CreatorHubPage({ hub: CreatorHub })`, `LaunchPage({ state: LaunchState })`, `MockBankPage({ bank: MockBank })`, plus `OracleEventItem({ event: OracleEvent })`. Each is a minimal placeholder; handlers need no change. Mutation endpoints the UI calls: see `docs/backend.md` routes table. `Creator.chain.pendingJobs > 0` means show the pending badge until a `chain-job` SSE event.
 - Seed: `npm run seed:demo` (PGlite by default, `-- --pg` for Docker Postgres). Seed before `npm run dev`; PGlite is single-process. Tests: `tests/domain.test.ts` (4 describes).
 
+## Adapter map (workstream 7, done 2026-11-06)
+
+Docs: [`docs/architecture-adapters.md`](docs/architecture-adapters.md) (class diagram). Code under `packages/app/src/services/`; routes and workers import only from `services/index.ts`.
+
+| Interface | Default | Factory / switch |
+| --- | --- | --- |
+| `IStorageProvider` (`putJson({kind, key, data, attributes}) -> {ref, contentHash}`) | `ZeroGravityStorage` inside `FallbackStorage`, then `LocalStorageProvider` | `createStorageProvider()`; env `STORAGE_PROVIDER=0g\|local`; no `ZG_PRIVATE_KEY` gives local. |
+| `IOracle` (`createProofRequest`, `fetchVerifiedIncome`, `getProofRequestStatus`) | `ZeroGravityAgent` (also `audit()` on 0G Compute, log written through the storage provider) | `createOracle()`; `OracleDecorator` wraps another oracle. |
+| `IPaymentRail` (`payout`, optional `createPaymentRequest`, `settle`) | `HederaPaymentRail` (workstream 9) | `createPaymentService(pg)` / `createPaymentRail()`. `PaymentService` takes splits from SQL, checks they sum, records receipts. |
+
+- New implementation: add a class, return it from the factory. No other file changes.
+- Refs in Postgres: `creators.terms_ref` (L-ISA terms, 0G root hash or `local:`), `income_proofs.audit_log_ref` (every APPROVED/DENIED audit log).
+- Safe stop: `sweep_deadlines` LIVE->GRACE calls `freeze_escrow` (event `ESCROW_FROZEN`, chain job `freezeEscrow`); a late approved proof in GRACE emits `ESCROW_UNFROZEN` and queues `unfreezeEscrow`. `creators.ats_token_address` (JSON `atsTokenAddress`) is stored by `complete_chain_job`.
+- World ID: `POST /api/rp-signature` (`CreateRpSignature`, signal = SIWE wallet). `createISA` job args now include `worldIdNullifier` and `termsRef`.
+- API surface added: `GetMockBankLogin`, `MockBankLogin`, `GetMockBankTransactions`, `GetReclaimSessionStatus`, `CreateRpSignature`, `CreateDividendPaymentRequest`; `PayDividend` takes optional `{ paymentPayload }`.
+- JSON change: creator `arkivEntityKey` is now `termsRef` (CreatorPage updated).
+- One migration: `migrations/20261106114000000.adapters.sql` (hand-edited: rename `arkiv_entity_key` -> `terms_ref`). New table `reclaim_sessions`, column `income_proofs.reclaim_session_id`.
+
+### Reclaim client flow
+
+`@reclaimprotocol/client` 0.1.43 (js-sdk removed). Env: `RECLAIM_ORG_SECRET`, `RECLAIM_PROVIDER_ID`, `RECLAIM_ORG_ETH_PRIVATE_KEY` (optional: org result encryption is OFF, results are plaintext; passed only when set). `CreateReclaimSession` -> `sessions.create` (context `{creatorId, ticker}`), row in `reclaim_sessions`. Callback: `POST /reclaim/callback` on port 4020; it looks up the session by the envelope `sessionId` and calls `results.receive` with `reclaimSessionId` and `expectedAud` from the DB. `ResultVerificationError`: `retryable` -> 503, else 200. Failure events set session status and `failure_reason`. Polling fallback `GET /reclaim/sessions/{sessionId}`. The provider must expose the deposit as extracted parameter `amount`, `deposit_amount`, `depositAmount` or `income`.
+
+Known issues (workstream 7): live Reclaim/0G/World ID paths are untested (no live callback yet); `npm install` nested a stale `@types/node@18` into `packages/app/node_modules/@types/node` (moved aside; reinstalling may recreate it and break `tsc`); lint/tsc errors in `ChainJobBadge.tsx`, `CreatorHubPage.tsx`, `CreatorPage.tsx` come from the UI agent's in-progress files; `docs/pitch.md`, `docs/product-spec.md` still mention Arkiv/Chainlink; unauthenticated failure events can end a pending session (low risk: ids are random).
+
 ## Remaining
 
-- Workstream 6 (UI) in the table above.
-- Backend: no `Last-Event-ID` replay on SSE; no e2e test for `AuditMilestone`; `DRAFT` creator status unused; Arkiv entity extension not scheduled in the worker.
+- UI follow-ups for workstream 7: `GetExchange` has no totals, so the "Dividends paid" KPI sums `DIVIDEND_PAID` events in the latest 20 (shows $0.00 when none are in the window) and "Total raised" sums trending creators; add `totals` to `exchange_json`. `GetCreatorHub` returns no events, so the Hub feed starts empty and fills from SSE. The demo button "Simulate $5,000 deposit" (`/api/audit-milestone`, no session id) now fails with 400 "Delivery has no session id" (`income-audit.ts`); the pending-dividend card could not be exercised live. `data-hedera-pay` button markup is unrun against `hedera-pay.ts`.
+- Backend: no `Last-Event-ID` replay on SSE; no e2e test for `AuditMilestone`; `DRAFT` creator status unused.
 
 ## Known issues
 
+- UI (workstream 6): the `/events` feed shows time only (local), not date. Trade and Invest forms sit below the page content on phones (the Buy/Sell links jump to `#trade`). No dialog-based quick trade on the Exchange; Buy/Sell link to the creator page. Event-driven region reloads (`hx-get` + `hx-select`) replace the region's markup, so a half-typed field outside the Invest/Trade forms would be lost (the forms themselves are outside the regions). The dev DB now holds a `TESTR` creator from the launch test (`npm run dev -- --clear` then `seed:demo` resets). Dev server does not hot-reload TSX; restart it after component edits.
 - Foundation (workstream 1):
   - `@reclaimprotocol/design` is pinned to the latest commit `60641e29` (Builder pins `291e295`). It builds and serves fine.
   - `@adiwajshing/eslint-config` must stay on commit `607fc28f` (newer commits switched to oxlint and break `eslint.config.js`).
@@ -201,15 +251,19 @@ Workstream 4, done 2026-11-06. Full guide: [`docs/backend.md`](docs/backend.md).
   - Chainlink CRE TypeScript lists Ethereum Sepolia and Arc Testnet but not Hedera or 0G Galileo. CRE writes go through a `KeystoneForwarder` to a consumer contract implementing `IReceiver`. `LiquidISA`'s oracle must be such a receiver for a real CRE run (contracts owner to decide). The sample workflow in the doc is a design sketch, not compiled. Deploying needs CRE access, so plan on simulation only.
   - World ID is 4.0: use the `/api/v4/verify/{rp_id}` endpoint and an RP signing key (`WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`). Staging actions verify only in the Simulator. `@worldcoin/idkit` is React only, so use `@worldcoin/idkit-core`. Nullifiers are 256-bit: store as `NUMERIC(78,0)` or text.
   - 0G: `@0glabs/*` packages are deprecated; use `@0gfoundation/*`. Both SDKs need `ethers` v6. Minimum compute ledger deposit not verified.
-  - Reclaim: a newer Builder API (`@reclaimprotocol/client` 0.1.43) exists; SMX docs use `js-sdk`. Provider creation needs a public HTTPS `/mock-bank` JSON endpoint (tunnel in dev). Unverified whether `toJsonString()` includes the app secret: don't send it to the browser until checked.
-  - Arkiv: entities live at most about 182 days per write, so the worker must call `extendEntity` about every 150 days. Needs an access key and tGLM from the Arkiv hub. Could not find the official prize wording online. We kept `/arkiv/schema.md` and `/arkiv/friction.md` at repo root as the pitch playbook says. Re-check the ETHGlobal prize page for any extra required file (for example a README section).
+  - Reclaim: a newer Builder API (`@reclaimprotocol/client` 0.1.43) exists; SMX now uses it (workstream 7). Provider creation needs a public HTTPS `/mock-bank` JSON endpoint (tunnel in dev). Unverified whether `toJsonString()` includes the app secret: don't send it to the browser until checked.
   - Hashio (Hedera relay) is development-only and can throttle.
 - Integrations (workstream 5):
-  - Live sponsor paths (World ID, Reclaim, 0G, Arkiv, Hedera) are typechecked against package types but unrun; only chain and the demo paths are proven.
+  - Live sponsor paths (World ID, Reclaim, 0G, Hedera) are typechecked against package types but unrun; only chain and the demo paths are proven.
   - `terms_hash` is sha256, not keccak (changed `arkiv/schema.md` to match).
   - Hedera uses direct HTS transfers, not x402 (operator pays fees). 0G `ethers` is duplicated (storage SDK pins 6.13), so two casts bridge the types.
   - The routes the browser calls (`/api/world-id/rp-signature`, the Reclaim session route, `/api/audit-milestone`) are owned by workstream 4; none exists yet.
   - `npm install` of the new deps also updated `package-lock.json`.
+- Hedera (workstream 9):
+  - Live ATS mint and live x402 settlement are unrun (no operator key, no ATS deployment). The ATS ABI subset and role hash (`ROLE_ISSUER`, v8) come from `@hashgraph/asset-tokenization-contracts` 8.0.0; the README's reference testnet deployment is older, so deploy ATS yourself.
+  - HashPack via `@hashgraph/hedera-wallet-connect` isn't wired (it pins `@hiero-ledger/sdk` 2.79.0, needs a WalletConnect project id). The browser uses a burner key; the user funds its EVM address once.
+  - `worker/dividends.ts` still imports the removed `streamDividend`; workstream 7 must switch it to `PaymentService`. `chain.ts` handles `freezeEscrow`/`unfreezeEscrow`, but nothing enqueues them yet (the sweep should insert those chain jobs).
+  - HTS dividend mode needs the payer funded with the token and holders associated.
 - Backend (workstream 4):
   - `POST /api/world-id/rp-signature` (used by `client/world-id.ts`) is NOT implemented: it isn't in the spec routes table. It needs an OpenAPI operation plus a thin route over the signing helper in `integrations/world-id.ts`. `GetLaunch` only returns `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_ACTION`.
   - `npm run dev` always uses PGlite (it ignores `DB_URI`); `seed:demo` must run while the dev server is stopped. A dev-server `--seed` flag would be nicer but `scripts/dev.ts` isn't ours.

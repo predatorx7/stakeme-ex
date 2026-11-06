@@ -1,3 +1,5 @@
+import { conflict } from '@hapi/boom'
+import assert from 'node:assert'
 import type { ITypedExpressRequest } from '../types/openapi.ts'
 import { runIncomeAudit } from '../utils/income-audit.ts'
 
@@ -5,6 +7,7 @@ import { runIncomeAudit } from '../utils/income-audit.ts'
 export default async function AuditMilestone(
 	req: ITypedExpressRequest<'AuditMilestone'>,
 ) {
-	const result = await runIncomeAudit(req.pg, req.body)
-	req.res!.status(201).json(result)
+	const out = await runIncomeAudit(req.pg, req.body)
+	assert(out.kind === 'audited', conflict('Session already finished'))
+	req.res!.status(201).json(out.result)
 }

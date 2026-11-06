@@ -34,7 +34,8 @@ export function keccakUtf8(data: string): `0x${string}` {
 
 /**
  * World ID nullifier (decimal string) to the bytes32 stored onchain and in
- * Arkiv. Hashed so the raw nullifier never lands in a public record.
+ * the 0G terms record. Hashed so the raw nullifier never lands in a public
+ * record.
  */
 export function nullifierHash(nullifier: string): `0x${string}` {
 	return keccakUtf8(nullifier)

@@ -79,14 +79,22 @@ export const WORLD_ACTION = process.env.WORLD_ACTION || 'smx-launch-ipo'
 export const WORLD_ENV: 'staging' | 'production' =
 	process.env.WORLD_ENV === 'production' ? 'production' : 'staging'
 
-/** Reclaim zkTLS. `RECLAIM_APP_SECRET` never leaves the server. */
-export const RECLAIM_APP_ID = process.env.RECLAIM_APP_ID || ''
-export const RECLAIM_APP_SECRET = process.env.RECLAIM_APP_SECRET || ''
+/** Reclaim zkTLS via `@reclaimprotocol/client`. Secrets stay on the server. */
+export const RECLAIM_ORG_SECRET = process.env.RECLAIM_ORG_SECRET || ''
 export const RECLAIM_PROVIDER_ID = process.env.RECLAIM_PROVIDER_ID || ''
+/** Optional: only needed when the org has result encryption on. */
+export const RECLAIM_ORG_ETH_PRIVATE_KEY =
+	process.env.RECLAIM_ORG_ETH_PRIVATE_KEY || ''
+/** Optional Builder API override (defaults to the production Builder). */
+export const RECLAIM_BASE_URL = process.env.RECLAIM_BASE_URL || ''
 
-/** EVM chain. Simulated chain mode when `CHAIN_RPC_URL` is unset. */
+/**
+ * EVM chain. Simulated chain mode when `CHAIN_RPC_URL` is unset. A set RPC
+ * URL without `CHAIN_ID` means Hedera testnet (296, Hashio).
+ */
 export const CHAIN_RPC_URL = process.env.CHAIN_RPC_URL || ''
 export const CHAIN_ID = +(process.env.CHAIN_ID || 0)
+	|| (CHAIN_RPC_URL ? 296 : 0)
 /** Secret: oracle + relayer key (signs every job on testnet). */
 export const ORACLE_PRIVATE_KEY = process.env.ORACLE_PRIVATE_KEY || ''
 export const FACTORY_ADDRESS = process.env.FACTORY_ADDRESS || ''
@@ -101,11 +109,11 @@ export const ZG_INDEXER_URL = process.env.ZG_INDEXER_URL
 export const ZG_PROVIDER_ADDRESS = process.env.ZG_PROVIDER_ADDRESS || ''
 export const ZG_LEDGER_DEPOSIT = +(process.env.ZG_LEDGER_DEPOSIT || 3)
 
-/** Arkiv (Rabdi testnet). Unset key means a local record. */
-export const ARKIV_ACCESS_KEY = process.env.ARKIV_ACCESS_KEY || ''
-export const ARKIV_PRIVATE_KEY = process.env.ARKIV_PRIVATE_KEY || ''
+/** Storage adapter: `0g` (default, falls back to local) or `local`. */
+export const STORAGE_PROVIDER: '0g' | 'local' =
+	process.env.STORAGE_PROVIDER === 'local' ? 'local' : '0g'
 
-/** Hedera x402 / HTS dividend rail. Unset means simulated receipts. */
+/** Hedera dividend rail. Unset means simulated receipts. */
 export const HEDERA_ACCOUNT_ID = process.env.HEDERA_OPERATOR_ID
 	|| process.env.HEDERA_ACCOUNT_ID || ''
 export const HEDERA_PRIVATE_KEY = process.env.HEDERA_OPERATOR_KEY
@@ -114,6 +122,20 @@ export const HEDERA_DIVIDEND_TOKEN_ID =
 	process.env.HEDERA_DIVIDEND_TOKEN_ID || ''
 export const HEDERA_NETWORK: 'testnet' | 'mainnet' =
 	process.env.HEDERA_NETWORK === 'mainnet' ? 'mainnet' : 'testnet'
+
+/**
+ * Hedera Asset Tokenization Studio (ATS) equity token. Behind a flag because
+ * ATS needs its own factory + resolver deployed on the target network
+ * (docs/integrations/hedera.md). Unset means SIMULATED token ids.
+ */
+export const ATS_ENABLED = process.env.ATS_ENABLED === '1'
+export const ATS_FACTORY_ADDRESS = process.env.ATS_FACTORY_ADDRESS || ''
+export const ATS_RESOLVER_ADDRESS = process.env.ATS_RESOLVER_ADDRESS || ''
+/** Resolver config version; 0 means the latest registered version. */
+export const ATS_CONFIG_VERSION = +(process.env.ATS_CONFIG_VERSION || 0)
+/** Hedera JSON-RPC relay used for ATS calls when `CHAIN_RPC_URL` is unset. */
+export const HEDERA_RPC_URL =
+	process.env.HEDERA_RPC_URL || 'https://testnet.hashio.io/api'
 
 // ─── Backend domain (workstream 4) ───
 

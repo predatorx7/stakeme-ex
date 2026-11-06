@@ -109,30 +109,35 @@ written earlier in the same statement.
 | `GetCreator` | `GET /creators/{ticker}` | public | Token page document. |
 | `GetCreatorHub` | `GET /hub` | session | The viewer's dashboard. |
 | `GetLaunch` | `GET /launch` | session | Form state and World ID config. |
-| `LaunchIpo` | `POST /creators` | session | Verifies World ID, stores terms, calls `launch_ipo`. |
+| `CreateRpSignature` | `POST /api/rp-signature` | session | Signs the World ID 4.0 request on the server (signal = session wallet). |
+| `LaunchIpo` | `POST /creators` | session | Verifies World ID, writes the terms to 0G Storage, calls `launch_ipo`. |
 | `Invest` | `POST /creators/{ticker}/investments` | session | `record_investment`. |
 | `Trade` | `POST /creators/{ticker}/trades` | session | `amm_swap`. |
-| `CreateReclaimSession` | `POST /creators/{ticker}/reclaim-sessions` | session, owner | Starts a Reclaim session. |
-| `ReclaimCallback` | `POST /reclaim/callback` | public, proof verified | Same pipeline as `AuditMilestone`. |
+| `CreateReclaimSession` | `POST /creators/{ticker}/reclaim-sessions` | session, owner | `sessions.create`; stores the session row. |
+| `GetReclaimSessionStatus` | `GET /reclaim/sessions/{sessionId}` | session, owner | Polling fallback for SSE; asks Reclaim while pending. |
+| `ReclaimCallback` | `POST /reclaim/callback` | public, result verified | `results.receive`, then the `AuditMilestone` pipeline. `503` only when a retry can succeed. |
 | `AuditMilestone` | `POST /api/audit-milestone` | public, proof verified | Verify, audit, apply. |
 | `TriggerDefault` | `POST /api/trigger-default` | public, `DEMO_MODE=1` | `403` otherwise. |
-| `PayDividend` | `POST /dividends/{dividendId}/payment` | session, owner | `pay_dividend`. |
+| `CreateDividendPaymentRequest` | `POST /dividends/{dividendId}/payment-request` | session, owner | x402 payment requirements from `PaymentService`. Splits come from SQL. |
+| `PayDividend` | `POST /dividends/{dividendId}/payment` | session, owner | Optional `paymentPayload` is settled first, then `pay_dividend`. |
 | `StreamEvents` | `GET /events` | public | SSE. |
-| `GetMockBank` | `GET /mock-bank` | public | Fixed $5,000 deposit. |
+| `GetMockBankLogin`, `MockBankLogin` | `GET`, `POST /mock-bank/login` | public | Fake bank login; sets the `smx_bank_session` cookie. |
+| `GetMockBank` | `GET /mock-bank` | cookie | Statement page; redirects to login without the cookie. |
+| `GetMockBankTransactions` | `GET /mock-bank/api/transactions` | cookie | The auth-bound request Reclaim proves (`401` without the cookie). |
 
 Mutations return `201` and the resource to JSON callers, and `204` with
 `HX-Trigger` (and `HX-Redirect` for `LaunchIpo`) to htmx callers.
 
 ```mermaid
 sequenceDiagram
-    participant R as "Reclaim or CRE"
-    participant API as "AuditMilestone route"
-    participant I as "Integrations"
+    participant R as "Reclaim"
+    participant API as "ReclaimCallback route"
+    participant I as "Oracle (ZeroGravityAgent)"
     participant DB as "Postgres"
     R->>API: "POST proof"
-    API->>I: "verifyIncomeProof"
+    API->>I: "fetchVerifiedIncome (results.receive)"
     API->>DB: "submit_income_proof (PENDING)"
-    API->>I: "auditIncome (0G or rules)"
+    API->>I: "audit (0G Compute, log to storage)"
     API->>DB: "audit_income_proof"
     DB-->>API: "AuditResult JSON"
     API-->>R: "201"
@@ -148,16 +153,19 @@ is not supported; reload the page document instead.
 
 ## Worker
 
-`worker/register.ts` starts three things:
+`worker/register.ts` starts three things. Every sponsor call goes through the
+adapters in `src/services/` (see [architecture-adapters.md](architecture-adapters.md)):
 
 - **Chain jobs** (`worker/chain-jobs.ts`). Woken by the pgmb topic
   `smx.chain_jobs.insert`, with a drain at boot and a 15-second poll as a safety
   net. Each job is claimed (`QUEUED` to `SENT`), sent with `sendChainJob`, and
   settled by `complete_chain_job`. A failure marks the job `FAILED`; the worker
   never retries a sent job, to avoid sending a transaction twice.
-- **Dividend streaming** (`worker/dividends.ts`). A pgmb handler on
-  `smx.oracle_events.insert` runs `streamDividend` for each `DIVIDEND_PAID` event
-  and stores the receipts on the dividend. It retries with backoff.
+- **Dividend payout** (`worker/dividends.ts`). A pgmb handler on
+  `smx.oracle_events.insert` runs `PaymentService.payDividend` for each
+  `DIVIDEND_PAID` event and stores the receipts on the dividend. It skips
+  dividends the creator already settled through the x402 loop. It retries with
+  backoff.
 - **Deadline sweep** (`worker/sweep.ts`). One in-process timer calls
   `sweep_deadlines()` every `SWEEP_INTERVAL_S` seconds (default 60, `0` disables
   it). The timer serves PGlite, which has no `pg_cron`, and real Postgres alike.
@@ -183,3 +191,21 @@ trigger works from either state.
 `packages/app/tests/domain.test.ts` runs against a PGlite snapshot and covers
 the dividend math, tranche release and duplicate periods, AMM invariants and
 guards, liquidation payouts and the blacklist, and the deadline sweep.
+
+## Safe-stop fallback
+
+`sweep_deadlines` moves a creator from `LIVE` to `GRACE` and calls
+`freeze_escrow`: it emits `ESCROW_FROZEN` and queues a `freezeEscrow` chain job.
+A late proof approved inside `GRACE` emits `ESCROW_UNFROZEN` and queues
+`unfreezeEscrow` (before the next tranche unlock). Liquidation still follows
+when the grace period ends.
+
+## Reclaim sessions
+
+`reclaim_sessions` has one row per verification session: `status`
+(`PENDING`, `SUCCESS`, `REJECTED`, `ERROR`, `CANCELLED`, `EXPIRED`),
+`failure_reason`, `org_id` and `proof_id`. `finish_reclaim_session` moves a
+pending session exactly once. `income_proofs.reclaim_session_id` links the
+proof back. The callback looks the session up by the envelope's `sessionId`
+and verifies the signed result against the stored session id and org id, not
+against the body.

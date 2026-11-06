@@ -5,6 +5,8 @@ type Column = {
 	align?: 'end'
 	/** For a column with no visible heading, such as row actions. */
 	hidden?: boolean
+	/** Column key (`data-col`), so CSS can drop the column on small screens. */
+	col?: string
 }
 
 /** A scrolling `rc-table` with a captioned header. Rows go in as children. */
@@ -32,6 +34,7 @@ export function DataTable({ caption, columns, bordered, framed, children }: {
 							columns.map((column) => (
 								<th
 									scope='col'
+									data-col={column.col}
 									data-align={column.align}>
 									<span
 										class={column.hidden ? 'rc-visually-hidden' : undefined}>

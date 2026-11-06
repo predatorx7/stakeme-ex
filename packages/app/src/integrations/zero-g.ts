@@ -1,6 +1,5 @@
 import { parseUnits } from 'viem'
 import {
-	ZG_INDEXER_URL,
 	ZG_LEDGER_DEPOSIT,
 	ZG_PRIVATE_KEY,
 	ZG_PROVIDER_ADDRESS,
@@ -8,7 +7,7 @@ import {
 } from '../consts.ts'
 import { LOGGER } from '../logger.ts'
 import type { IncomeAudit, IncomeAuditInput } from './types.ts'
-import { canonicalJson, field, sha256Hex } from './util.ts'
+import { canonicalJson, field } from './util.ts'
 
 const RULES_MODEL = 'rules-engine'
 const COMPUTE_TIMEOUT_MS = 90_000
@@ -117,25 +116,19 @@ export function isZeroGConfigured() {
 }
 
 /**
- * Audits a verified income proof. With `ZG_PRIVATE_KEY` it runs the prompt on
- * 0G Compute and uploads the audit log to 0G Storage; any failure (or no key)
- * falls back to the rules engine and a local content hash.
+ * Runs the audit prompt on 0G Compute (needs `ZG_PRIVATE_KEY`). Any failure
+ * or a missing key falls back to the deterministic rules engine, so the audit
+ * never blocks. The caller writes the audit log to storage.
  */
-export async function auditIncome(
-	input: IncomeAuditInput,
-): Promise<IncomeAudit> {
-	let verdict: AuditVerdict | undefined
-	let model = RULES_MODEL
-	let provider: string | null = null
-	let teeVerified: boolean | null = null
-
+export async function runAuditVerdict(input: IncomeAuditInput): Promise<{
+	verdict: AuditVerdict
+	model: string
+	provider: string | null
+	teeVerified: boolean | null
+}> {
 	if(isZeroGConfigured()) {
 		try {
-			const out = await runCompute(input)
-			verdict = out.verdict
-			model = out.model
-			provider = out.provider
-			teeVerified = out.teeVerified
+			return await runCompute(input)
 		} catch(err) {
 			LOGGER.error({ err }, '0G Compute failed: rules-engine fallback')
 		}
@@ -143,25 +136,15 @@ export async function auditIncome(
 		LOGGER.warn('0G keys unset: rules-engine audit fallback active')
 	}
 
-	verdict ||= rulesAudit(input)
-
-	const log = canonicalJson({
-		version: 1,
-		engine: model === RULES_MODEL ? 'rules' : '0g-compute',
-		model,
-		provider,
-		teeVerified,
-		ticker: input.ticker,
-		period: input.period,
-		termsHash: input.termsHash,
-		proofId: input.income.proofId,
-		depositAmount: input.income.amount,
-		minIncome: input.minIncome,
-		verdict,
-		createdAt: new Date().toISOString(),
-	})
-	return { ...verdict, model, logRef: await storeLog(log) }
+	return {
+		verdict: rulesAudit(input),
+		model: RULES_MODEL,
+		provider: null,
+		teeVerified: null,
+	}
 }
+
+export { RULES_MODEL }
 
 async function runCompute(input: IncomeAuditInput) {
 	const { ethers } = await import('ethers')
@@ -237,44 +220,6 @@ async function runCompute(input: IncomeAuditInput) {
 	}
 
 	return { verdict, model, provider, teeVerified }
-}
-
-/** Uploads the log to 0G Storage; returns the root hash or `local:<sha256>`. */
-async function storeLog(log: string): Promise<string> {
-	const local = `local:${sha256Hex(log)}`
-	if(!isZeroGConfigured()) {
-		return local
-	}
-
-	try {
-		const { ethers } = await import('ethers')
-		const { Indexer, MemData } = await import('@0gfoundation/0g-storage-ts-sdk')
-		const signer = new ethers.Wallet(
-			ZG_PRIVATE_KEY,
-			new ethers.JsonRpcProvider(ZG_RPC_URL),
-		)
-		const file = new MemData(new TextEncoder().encode(log))
-		const [tree, treeErr] = await file.merkleTree()
-		if(treeErr !== null || !tree) {
-			throw treeErr || new Error('no merkle tree')
-		}
-
-		const indexer = new Indexer(ZG_INDEXER_URL)
-		// Cast: the storage SDK bundles ethers 6.13; same class, other copy.
-		const [, uploadErr] = await indexer.upload(
-			file,
-			ZG_RPC_URL,
-			signer as unknown as Parameters<typeof indexer.upload>[2],
-		)
-		if(uploadErr !== null) {
-			throw uploadErr
-		}
-
-		return tree.rootHash() || local
-	} catch(err) {
-		LOGGER.error({ err }, '0G Storage upload failed: local log ref')
-		return local
-	}
 }
 
 function toMicro(amount: string) {

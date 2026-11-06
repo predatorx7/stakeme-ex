@@ -6,16 +6,17 @@ import {
 	DEFAULT_TRANCHE_BPS,
 	DOMAIN_CHAIN_ID,
 } from '../consts.ts'
-import { storeTerms, verifyWorldIdProof } from '../integrations/index.ts'
+import { verifyWorldIdProof } from '../integrations/index.ts'
 import { LOGGER } from '../logger.ts'
 import { checkLaunchable, launchIpo } from '../queries.ts'
+import { createStorageProvider, storeTerms } from '../services/index.ts'
 import type { ITypedExpressRequest } from '../types/openapi.ts'
 import { respondMutation } from '../utils/mutation.ts'
 
 /**
- * `POST /creators` — verify World ID (signal = viewer wallet), store the terms
- * on Arkiv, then one SQL statement creates the IPO. The SQL asserts every
- * rule (banned or reused nullifier, ticker, tranche sum).
+ * `POST /creators` — verify World ID (signal = viewer wallet), write the L-ISA
+ * terms to 0G Storage, then one SQL statement creates the IPO. The SQL
+ * asserts every rule (banned or reused nullifier, ticker, tranche sum).
  */
 export default async function LaunchIpoRoute(
 	req: ITypedExpressRequest<'LaunchIpo'>,
@@ -42,7 +43,7 @@ export default async function LaunchIpoRoute(
 	// Cheap check first, so a banned human doesn't cost an Arkiv write.
 	await checkLaunchable.run({ nullifier: world.nullifier }, req.pg)
 
-	const stored = await storeTerms({
+	const stored = await storeTerms(createStorageProvider(), {
 		ticker: b.ticker,
 		displayName: b.displayName,
 		shareBps,
@@ -66,7 +67,7 @@ export default async function LaunchIpoRoute(
 			target_raise: b.targetRaise,
 			stake_amount: b.stakeAmount,
 			nullifier: world.nullifier,
-			arkiv_entity_key: stored.entityKey,
+			terms_ref: stored.termsRef,
 			terms_hash: stored.termsHash,
 			chain_id: DOMAIN_CHAIN_ID,
 		},

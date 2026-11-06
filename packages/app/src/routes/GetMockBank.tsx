@@ -1,45 +1,18 @@
-import { Layout } from '../components/Layout.tsx'
 import { MockBankPage } from '../components/pages/MockBankPage.tsx'
-import type { MockBank } from '../types/index.ts'
+import { buildStatement, getBankSession } from '../services/mock-bank.ts'
 import type { ITypedExpressRequest } from '../types/openapi.ts'
-import { shouldSendJson } from '../utils/negotiation.ts'
 
 /**
- * `GET /mock-bank` — a fake statement with a fixed $5,000 deposit. The Reclaim
- * provider reads it, so the figures are hardcoded and need no database.
+ * `GET /mock-bank` — statement page. Redirects to the login without the bank
+ * cookie. The page renders server-side and then re-fetches
+ * `/mock-bank/api/transactions` so the call shows up in network capture.
  */
 export default function GetMockBank(req: ITypedExpressRequest<'GetMockBank'>) {
-	const today = new Date().toISOString().slice(0, 10)
-	const bank: MockBank = {
-		account: 'SMX Demo Checking ****4242',
-		balance: '12957.50',
-		transactions: [
-			{
-				id: 'txn_0001',
-				date: today,
-				description: 'Acme Studio freelance income',
-				amount: '5000.00',
-				type: 'DEPOSIT',
-			},
-			{
-				id: 'txn_0002',
-				date: today,
-				description: 'Cloud hosting',
-				amount: '42.50',
-				type: 'WITHDRAWAL',
-			},
-		],
-	}
-	if(shouldSendJson(req)) {
-		req.res!.json(bank)
+	const session = getBankSession(req.headers.cookie)
+	if(!session) {
+		req.res!.redirect(302, '/mock-bank/login')
 		return
 	}
 
-	return (
-		<Layout
-			seo={{ title: 'Mock bank', robots: 'noindex, nofollow' }}
-			viewer={req.authMetadata}>
-			<MockBankPage bank={bank} />
-		</Layout>
-	)
+	return <MockBankPage bank={buildStatement(session.holderName)} />
 }
