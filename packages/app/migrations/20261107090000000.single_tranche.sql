@@ -1,3 +1,6 @@
+SET search_path TO smx, public;
+SET check_function_bodies = off;
+
 CREATE OR REPLACE FUNCTION smx.launch_ipo(p_owner uuid, p_wallet evm_address, p_ticker text, p_display_name text, p_headline text, p_share_bps integer, p_term_months integer, p_target_raise money_amount, p_stake_amount money_amount, p_nullifier text, p_terms_ref text, p_terms_hash text, p_chain_id integer DEFAULT NULL::integer, p_terms_document jsonb DEFAULT NULL::jsonb, p_tranche_bps integer[] DEFAULT ARRAY[2000, 4000, 4000], p_proof_cadence proof_cadence DEFAULT 'MONTHLY'::proof_cadence, p_social_links jsonb DEFAULT '{}'::jsonb)
  RETURNS creators
  LANGUAGE plpgsql
