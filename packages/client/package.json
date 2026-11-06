@@ -2,6 +2,7 @@
 	"name": "@stakeme/client",
 	"title": "StakeMe Client",
 	"version": "0.1.0",
+	"license": "MIT",
 	"description": "Typed HTTP client for the StakeMe Exchange (SMX) API, generated from packages/app/openapi.yaml.",
 	"type": "module",
 	"sideEffects": false,

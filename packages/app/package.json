@@ -1,6 +1,7 @@
 {
 	"name": "@stakeme/app",
 	"version": "0.1.0",
+	"license": "MIT",
 	"description": "StakeMe Exchange (SMX) app server and exchange UI",
 	"type": "module",
 	"private": true,

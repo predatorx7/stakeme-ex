@@ -1,6 +1,6 @@
 # AI use in StakeMe Exchange (SMX)
 
-This page discloses where and how the SMX team used AI tools during ETHGlobal
+This page discloses where and how the SMX developer used AI tools during ETHGlobal
 Mumbai (November 5-7, 2026). It answers the event rule on
 [Rules, project submission and judging](https://ethglobal.com/events/mumbai/info/details),
 fetched 2026-11-06:
@@ -13,12 +13,12 @@ fetched 2026-11-06:
 
 ## Summary
 
-The team used **Claude Code** (Anthropic) as an AI coding agent. The lead
+The developer, working solo, used **Claude Code** (Anthropic) as an AI coding agent. The lead
 agent planned the work, split it into workstreams, and delegated them to
 parallel subagents. Most of the code, tests, and documentation in this
-repository was written by AI agents. Humans directed the product, made the
-scope decisions, gave design feedback, did every step an agent cannot do, and
-reviewed the results.
+repository was written by AI agents. The developer directed the product, made
+the scope decisions, gave design feedback, did every step an agent cannot do,
+and reviewed the results.
 
 ## Tools used
 
@@ -29,11 +29,11 @@ reviewed the results.
 | Reclaim MCP server | Reclaim | Used by the agent to build and test the mock-bank provider (capture, replay, run proof, publish) |
 | Chrome DevTools MCP server | Google | Used by the agent for browser checks of the UI |
 
-## What the team did
+## What the developer did
 
-This list is derived from the team's verbatim prompts in
+This list is derived from the developer's verbatim prompts in
 [`prompts/session-user-prompts.md`](prompts/session-user-prompts.md) (79
-prompts). AI agents wrote most of the code; the items below are what the humans
+prompts). AI agents wrote most of the code; the items below are what the developer
 decided, directed, set up, and checked.
 
 - **Product concept and playbook.** Wrote the SMX idea (the liquid income share
@@ -75,14 +75,14 @@ decided, directed, set up, and checked.
   stuck deployment, and passed on judge feedback about last year's projects so
   the pitch and docs described the project honestly.
 
-Honest summary: AI agents wrote most of the code, tests, and docs. The team
+Honest summary: AI agents wrote most of the code, tests, and docs. The developer
 directed the work through the prompts above, made the product and scope
 decisions, did the account and infrastructure steps that agents cannot do, and
 verified results (see below). The prompt log shows direction and feedback, not
 the agents' replies; the agents' output is the code and docs in this
 repository.
 
-## What humans did
+## The developer's role in short
 
 - Set the product direction: the liquid income share agreement (L-ISA) idea,
   the user journeys, and the pitch. See [`pitch.md`](pitch.md).
@@ -105,10 +105,10 @@ repository.
 | SQL, migrations, OpenAPI | Agent-written |
 | Integrations (Hedera, World ID, 0G, Reclaim) | Agent-written from sponsor docs |
 | Tests | Agent-written, for core logic only (SQL business functions, contract math) |
-| Documentation (`docs/`, `README.md`) | Agent-written and human-edited |
-| Product and engineering direction | Human decisions; agents wrote the specs from them |
+| Documentation (`docs/`, `README.md`) | Agent-written and edited by the developer |
+| Product and engineering direction | Developer decisions; agents wrote the specs from them |
 
-## How we verified AI output
+## How the developer verified AI output
 
 - Type checking and linting across the monorepo.
 - Automated tests for the core logic.
@@ -131,7 +131,7 @@ AI output can contain errors. Where a check did not run live, the docs say so.
 | Agent rules | [`../AGENTS.md`](../AGENTS.md), `packages/app/AGENTS.md`, `packages/client/AGENTS.md`, `packages/contracts/AGENTS.md` | Rules the agents follow in this repository. |
 | Pitch playbook | [`pitch.md`](pitch.md) | Product and demo plan. |
 | Other planning docs | [`architecture-adapters.md`](architecture-adapters.md), [`backend.md`](backend.md), [`contracts.md`](contracts.md), [`frontend-hooks.md`](frontend-hooks.md), [`diwali-theme.md`](diwali-theme.md), [`integrations/`](integrations/README.md) | Design notes written by agents |
-| All human prompts, verbatim | [`prompts/session-user-prompts.md`](prompts/session-user-prompts.md) | Every message the team sent to the AI agent, exported from the Claude Code session log |
+| All human prompts, verbatim | [`prompts/session-user-prompts.md`](prompts/session-user-prompts.md) | Every message the developer sent to the AI agent, exported from the Claude Code session log |
 | Key decisions, summarized | [`prompts/`](prompts/README.md) | Short summaries of the main decisions, reconstructed from the repository |
 
 Note on prompts: `session-user-prompts.md` is the verbatim export (79 prompts,
@@ -142,4 +142,4 @@ the text in quotation marks in them is quoted from a repo file.
 ## Version control
 
 The work is committed to Git in small steps. Earlier commits were few and
-large; the team commits in smaller steps from now on.
+large; the developer commits in smaller steps from now on.

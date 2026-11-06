@@ -211,9 +211,18 @@ CONTEXT.md     Hand-off notes: status, decisions, known issues
 
 ## AI use
 
-The team built SMX with Claude Code, an AI coding agent that the team directed. Agents wrote most of the code, tests, and docs; humans set the product direction and scope, and reviewed the results. For the full disclosure, see [docs/ai-usage.md](docs/ai-usage.md). For the prompt records, see [docs/prompts/README.md](docs/prompts/README.md). The specs the agents followed are [docs/engineering-guide.md](docs/engineering-guide.md) and [docs/product-spec.md](docs/product-spec.md).
+The developer built SMX alone with Claude Code, an AI coding agent that the developer directed. Agents wrote most of the code, tests, and docs; the developer set the product direction and scope, and reviewed the results. For the full disclosure, see [docs/ai-usage.md](docs/ai-usage.md). For the prompt records, see [docs/prompts/README.md](docs/prompts/README.md). The specs the agents followed are [docs/engineering-guide.md](docs/engineering-guide.md) and [docs/product-spec.md](docs/product-spec.md).
+
+## Team
+
+Solo builder: Mushaheed Syed ([@_predatorx7](https://x.com/_predatorx7) on X,
+[predatorx7](https://github.com/predatorx7) on GitHub).
 
 ## Status
 
 Hackathon build in progress. See [CONTEXT.md](CONTEXT.md) for what works
 today, what's simulated, and what's left.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

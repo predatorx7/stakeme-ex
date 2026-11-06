@@ -1,6 +1,6 @@
 # Code reuse disclosure
 
-**Summary:** SMX's app skeleton (infrastructure, UI components, build scripts) was adapted from Reclaim Builder, a private Reclaim Protocol project that a team member contributes to; all StakeMe domain logic, contracts, integrations and pages were written during the hackathon; the UI library and other dependencies are published packages.
+**Summary:** SMX's app skeleton (infrastructure, UI components, build scripts) was adapted from Reclaim Builder, a private Reclaim Protocol project that the developer contributes to; all StakeMe domain logic, contracts, integrations and pages were written during the hackathon; the UI library and other dependencies are published packages.
 
 This file lists what is reused, what was adapted from reused code, and what is new. The comparison was a file-by-file heuristic (path and content diff against the Builder source), not a line-level audit.
 
@@ -8,7 +8,7 @@ This file lists what is reused, what was adapted from reused code, and what is n
 
 | Item | Source | License | Notes |
 | --- | --- | --- | --- |
-| App skeleton files copied from Reclaim Builder, unchanged (listed below) | [reclaimprotocol/builder](https://github.com/reclaimprotocol/builder) | Private repository, no public license. A team member contributes to it. | Infrastructure and generic UI. |
+| App skeleton files copied from Reclaim Builder, unchanged (listed below) | [reclaimprotocol/builder](https://github.com/reclaimprotocol/builder) | Private repository, no public license. The developer contributes to it. | Infrastructure and generic UI. |
 | `@reclaimprotocol/design` (UI components and styles), pinned to commit `60641e2` | [reclaimprotocol/reclaim-design](https://github.com/reclaimprotocol/reclaim-design) | MIT | Installed from GitHub as a dependency, not copied. |
 | Other npm dependencies (OpenZeppelin contracts, viem, Express, htmx, and so on) | npm | Each package's own license, see `package-lock.json` | Not modified. |
 

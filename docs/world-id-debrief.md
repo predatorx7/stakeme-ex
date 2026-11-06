@@ -176,10 +176,16 @@ leaves the Verify button usable. Error codes come from `IDKitErrorCodes` in
 
 ## Integration debrief
 
-- **Time to first success:** TODO(team): fill in the real number from your own
-  timeline before submitting; it was not measured. Most of the time went to choosing
-  the package and learning the v4 RP flow (below). Once `signRequest` and
-  `IDKit.request` were wired, a verification took minutes.
+- **Time to first success:** About 8 minutes from creating the Developer Portal app
+  to the first verified proof in the app (staging, World ID Simulator). Measured from
+  the Claude Code session log: the developer's message saying they had signed in to
+  the Developer Portal is stamped 15:07:34 UTC on 6 November 2026; the first
+  `POST /api/world-id/check` that returned 200 (v4 verify API, no demo fallback) is
+  logged at 15:15:17 UTC, 7 min 43 s later; the form showed "Verified as a unique
+  human." at 15:15:34 UTC. The developer already held a World ID (since 5 November
+  2026), so the figure excludes getting one. Reading the v4 docs and wiring
+  `signRequest` and `IDKit.request` happened earlier in the session and are not
+  counted. That earlier work is where most of the friction below sits.
 - **Friction:**
   1. Docs and playbooks point to `@worldcoin/idkit` (React). We had no React, and had to
      find that `@worldcoin/idkit-core` is the framework-neutral v4 client with
