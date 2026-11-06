@@ -1,10 +1,13 @@
 import { type Children, escapeHtml } from '@kitajs/html'
 import { markup } from '../utils/escape.ts'
+import { Avatar } from './Avatar.tsx'
 
 /** The heading block at the top of a console page. */
-export function PageHeader({ eyebrow, title, meta, lede, actions }: {
+export function PageHeader({ eyebrow, title, avatar, meta, lede, actions }: {
 	eyebrow?: string
 	title: string
+	/** Wallet or id to show a generated avatar beside the title. */
+	avatar?: string
 	/** A kind tag and a line of facts under the title. */
 	meta?: Children
 	lede?: string
@@ -21,7 +24,14 @@ export function PageHeader({ eyebrow, title, meta, lede, actions }: {
 						</span>
 					)
 				}
-				<h1>
+				<h1 class={avatar ? 'rc-page-header__title' : undefined}>
+					{
+						!!avatar && (
+							<Avatar
+								seed={avatar}
+								size='lg' />
+						)
+					}
 					{escapeHtml(title)}
 				</h1>
 				{

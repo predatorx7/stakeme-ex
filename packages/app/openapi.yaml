@@ -78,6 +78,65 @@ paths:
                 $ref: '#/components/schemas/Exchange'
         default:
           $ref: '#/components/responses/ProblemResponse'
+  /activity:
+    get:
+      summary: Oracle activity
+      operationId: ListActivity
+      tags:
+        - Exchange
+      description: >-
+        Lists oracle events, newest first, 50 per page. Use it as the full page
+        behind the live events feed (`GET /events` is the live stream).
+        Filter by `kind` and `ticker`. Page with `cursor` and
+        `nextPageCursor`.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          description: Only events of this kind. `all` (default) applies no filter.
+          schema:
+            type: string
+            default: all
+            enum:
+              - all
+              - IPO
+              - INVESTED
+              - PROOF_VERIFIED
+              - PROOF_REJECTED
+              - TRANCHE_RELEASED
+              - DIVIDEND_PAID
+              - GRACE_STARTED
+              - DEFAULTED
+              - TRADE
+              - ESCROW_FROZEN
+              - ESCROW_UNFROZEN
+              - STORAGE_CONFIRMED
+        - name: ticker
+          in: query
+          required: false
+          description: >-
+            Only events of this creator (case-insensitive). Empty applies no
+            filter.
+          schema:
+            type: string
+            pattern: ^[A-Za-z]{0,6}$
+            maxLength: 6
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Activity page (HTML) or one page of events (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityPage'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /creators/{ticker}:
     get:
       summary: Creator token page
@@ -104,6 +163,90 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreatorPage'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/holders:
+    get:
+      summary: Creator holders
+      operationId: ListCreatorHolders
+      tags:
+        - Creators
+      description: >-
+        Lists wallets holding a creator token, largest first, 25 per page. Use it as the full page behind the token page holders table; `404` when the ticker is unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Holders page (HTML) or one page of holders (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldersPage'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/proofs:
+    get:
+      summary: Creator income proofs
+      operationId: ListCreatorProofs
+      tags:
+        - Creators
+      description: >-
+        Lists a creator income proofs, newest first, 25 per page. Use it as the full page behind the token page proofs table; `404` when the ticker is unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Proofs page (HTML) or one page of income proofs (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofsPage'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/dividends:
+    get:
+      summary: Creator dividends
+      operationId: ListCreatorDividends
+      tags:
+        - Creators
+      description: >-
+        Lists a creator dividends, newest first, 25 per page. Use it as the full page behind the token page dividends table; `404` when the ticker is unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Dividends page (HTML) or one page of dividends (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DividendsPage'
         '404':
           $ref: '#/components/responses/ProblemResponse'
         default:
@@ -202,6 +345,57 @@ paths:
         default:
           $ref: '#/components/responses/ProblemResponse'
   /creators:
+    get:
+      summary: All creators
+      operationId: ListCreators
+      tags:
+        - Exchange
+      description: >-
+        Lists every creator, 25 per page, with price, 24h change and a
+        sparkline. Use it as the full page behind the trending widget. Sort by
+        `trending` (default), `newest` or `raised`, filter by `status`, and
+        search ticker or name with `q`. Page with `cursor` and
+        `nextPageCursor`.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - name: sort
+          in: query
+          required: false
+          description: Sort order.
+          schema:
+            type: string
+            enum: [trending, newest, raised]
+            default: trending
+        - name: status
+          in: query
+          required: false
+          description: Only creators with this status. `all` (default) applies no filter.
+          schema:
+            type: string
+            enum: [all, live, grace, defaulted]
+            default: all
+        - name: q
+          in: query
+          required: false
+          description: Case-insensitive match on ticker or display name. Empty applies no filter.
+          schema:
+            type: string
+            maxLength: 80
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Creators page (HTML) or one page of creators (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorsPage'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
     post:
       summary: Launch an IPO
       operationId: LaunchIpo
@@ -274,6 +468,33 @@ paths:
         default:
           $ref: '#/components/responses/ProblemResponse'
   /creators/{ticker}/trades:
+    get:
+      summary: Creator trades
+      operationId: ListCreatorTrades
+      tags:
+        - Creators
+      description: >-
+        Lists a creator trades, newest first, 25 per page. Use it as the full page for the trade history; `404` when the ticker is unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Trades page (HTML) or one page of trades (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TradesPage'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
     post:
       summary: Trade creator tokens
       operationId: Trade
@@ -1402,6 +1623,12 @@ components:
       type: object
       required: [totals, trending, events]
       properties:
+        hasMoreTrending:
+          type: boolean
+          description: True when `GET /creators` lists more than `trending`.
+        hasMoreEvents:
+          type: boolean
+          description: True when `GET /activity` lists more than `events`.
         totals:
           type: object
           description: Exchange-wide figures across all creators.
@@ -1465,6 +1692,21 @@ components:
           maxItems: 10
           items:
             $ref: '#/components/schemas/Dividend'
+        more:
+          type: object
+          description: >-
+            Per list, true when its full page holds more rows than shown here.
+          properties:
+            holders:
+              type: boolean
+            trades:
+              type: boolean
+            events:
+              type: boolean
+            proofs:
+              type: boolean
+            dividends:
+              type: boolean
         viewer:
           type: object
           properties:
@@ -1472,6 +1714,103 @@ components:
               $ref: '#/components/schemas/EvmAddress'
             holding:
               $ref: '#/components/schemas/Holding'
+    CreatorRef:
+      type: object
+      required: [ticker, displayName, status]
+      properties:
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        displayName:
+          type: string
+          maxLength: 80
+        status:
+          $ref: '#/components/schemas/CreatorStatus'
+    CreatorsPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/CreatorSummary'
+        nextPageCursor:
+          type: string
+          maxLength: 500
+          description: Pass as `cursor` for the next page. Absent on the last page.
+    ActivityPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OracleEvent'
+        nextPageCursor:
+          type: string
+          maxLength: 500
+          description: Pass as `cursor` for the next page. Absent on the last page.
+    HoldersPage:
+      type: object
+      required: [creator, items]
+      properties:
+        creator:
+          $ref: '#/components/schemas/CreatorRef'
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Holding'
+        nextPageCursor:
+          type: string
+          maxLength: 500
+          description: Pass as `cursor` for the next page. Absent on the last page.
+    TradesPage:
+      type: object
+      required: [creator, items]
+      properties:
+        creator:
+          $ref: '#/components/schemas/CreatorRef'
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Trade'
+        nextPageCursor:
+          type: string
+          maxLength: 500
+          description: Pass as `cursor` for the next page. Absent on the last page.
+    ProofsPage:
+      type: object
+      required: [creator, items]
+      properties:
+        creator:
+          $ref: '#/components/schemas/CreatorRef'
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/IncomeProof'
+        nextPageCursor:
+          type: string
+          maxLength: 500
+          description: Pass as `cursor` for the next page. Absent on the last page.
+    DividendsPage:
+      type: object
+      required: [creator, items]
+      properties:
+        creator:
+          $ref: '#/components/schemas/CreatorRef'
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Dividend'
+        nextPageCursor:
+          type: string
+          maxLength: 500
+          description: Pass as `cursor` for the next page. Absent on the last page.
     CreatorHub:
       type: object
       description: >-
@@ -1497,6 +1836,18 @@ components:
           maxItems: 10
           items:
             $ref: '#/components/schemas/ChainJob'
+        more:
+          type: object
+          description: >-
+            Per list, true when its full page holds more rows than shown here
+            (`events`: true when the creator has any).
+          properties:
+            proofs:
+              type: boolean
+            dividends:
+              type: boolean
+            events:
+              type: boolean
         collateral:
           type: object
           required: [stakeAmount, atRisk]

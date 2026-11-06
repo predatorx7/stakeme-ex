@@ -15,6 +15,53 @@ WHERE u.id = :id!;
 SELECT smx.exchange_json(:limit!::INTEGER) AS j;
 
 
+/* @name ListCreators */
+-- One page of the full creators list (`next` is the keyset of the last item,
+-- null on the last page). Route: ListCreators.
+SELECT smx.creators_page_json(
+	:sort!, :status, :q, :after_key, :after_id, :limit!::INTEGER
+) AS j;
+
+
+/* @name ListActivity */
+-- One page of oracle events, newest first. Route: ListActivity.
+SELECT smx.activity_page_json(
+	:kind, :ticker, :after_key, :after_id, :limit!::INTEGER
+) AS j;
+
+
+/* @name ListCreatorHolders */
+-- One page of a creator's holders (404 for an unknown ticker).
+-- Route: ListCreatorHolders.
+SELECT smx.creator_holders_page_json(
+	:ticker!, :after_key, :after_id, :limit!::INTEGER
+) AS j;
+
+
+/* @name ListCreatorTrades */
+-- One page of a creator's trades (404 for an unknown ticker).
+-- Route: ListCreatorTrades.
+SELECT smx.creator_trades_page_json(
+	:ticker!, :after_key, :after_id, :limit!::INTEGER
+) AS j;
+
+
+/* @name ListCreatorProofs */
+-- One page of a creator's income proofs (404 for an unknown ticker).
+-- Route: ListCreatorProofs.
+SELECT smx.creator_proofs_page_json(
+	:ticker!, :after_key, :after_id, :limit!::INTEGER
+) AS j;
+
+
+/* @name ListCreatorDividends */
+-- One page of a creator's dividends (404 for an unknown ticker).
+-- Route: ListCreatorDividends.
+SELECT smx.creator_dividends_page_json(
+	:ticker!, :after_key, :after_id, :limit!::INTEGER
+) AS j;
+
+
 /* @name GetOracleEventsSince */
 -- SSE replay: events after cursor `since`, oldest first, at most `limit`.
 -- `creatorId` is optional. Route: StreamEvents.

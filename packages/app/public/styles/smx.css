@@ -469,3 +469,13 @@ button[aria-busy='true'] {
 .smx-tranches .rc-pill {
 	justify-self: start;
 }
+
+/* Avatar image covers the initials, which stay behind as the fallback. */
+.rc-avatar[data-image] {
+	position: relative;
+}
+
+.rc-avatar[data-image] > img {
+	inset: 0;
+	position: absolute;
+}

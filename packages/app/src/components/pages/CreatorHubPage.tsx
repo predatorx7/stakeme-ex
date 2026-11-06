@@ -14,6 +14,7 @@ import { DataTable } from '../DataTable.tsx'
 import { EmptyState } from '../EmptyState.tsx'
 import { FormError } from '../forms/FormError.tsx'
 import { HxForm } from '../forms/HxForm.tsx'
+import { ViewAll } from '../lists/ViewAll.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { LinearProgress } from '../Progress.tsx'
 import { ProofAudit } from '../ProofAudit.tsx'
@@ -105,6 +106,7 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 				<PageHeader
 					eyebrow={`$${c.ticker}`}
 					title='Creator hub'
+					avatar={c.id}
 					lede={c.displayName}
 					meta={
 						<>
@@ -396,6 +398,13 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 				</SectionCard>
 				<SectionCard
 					title='Income proofs'
+					meta={
+						hub.more?.proofs && (
+							<ViewAll
+								href={`/creators/${c.ticker}/proofs`}
+								label='income proofs' />
+						)
+					}
 					count={proofs.length}>
 					{
 						proofs.length === 0
@@ -441,6 +450,13 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 				</SectionCard>
 				<SectionCard
 					title='Dividends paid'
+					meta={
+						hub.more?.dividends && (
+							<ViewAll
+								href={`/creators/${c.ticker}/dividends`}
+								label='dividends' />
+						)
+					}
 					count={dividends.length}>
 					{
 						dividends.length === 0
@@ -483,7 +499,14 @@ export function CreatorHubPage({ hub }: { hub: CreatorHub }) {
 			</Live>
 			<div class='smx-page'>
 				<SectionCard
-					title='Oracle events'>
+					title='Oracle events'
+					meta={
+						hub.more?.events && (
+							<ViewAll
+								href={`/activity?ticker=${c.ticker}`}
+								label='events' />
+						)
+					}>
 					<ul
 						class='smx-feed'
 						aria-live='polite'

@@ -2,6 +2,7 @@
 @import './app.css';
 @import './public.css';
 @import './smx.css';
+@import './lists.css';
 /* Diwali theme: tokens first, then shared effects, then per-surface files.
    Each file has one owner; see docs/diwali-theme.md. */
 @import './diwali-tokens.css';

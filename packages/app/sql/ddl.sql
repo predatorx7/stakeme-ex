@@ -283,6 +283,11 @@ CREATE TABLE creators(
 	CHECK (raised_amount <= target_raise)
 );
 CREATE INDEX creators_status_due_idx ON creators(status, next_proof_due_at);
+-- /creators search (ILIKE) and the newest sort.
+CREATE INDEX creators_ticker_trgm_idx ON creators USING gin (ticker gin_trgm_ops);
+CREATE INDEX creators_name_trgm_idx
+	ON creators USING gin (display_name gin_trgm_ops);
+CREATE INDEX creators_created_idx ON creators(created_at DESC, id DESC);
 CREATE TRIGGER creators_touch_updated_at
 	BEFORE UPDATE ON creators
 	FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
@@ -328,6 +333,9 @@ CREATE TABLE holdings(
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 	PRIMARY KEY (creator_id, wallet)
 );
+-- /creators/{ticker}/holders keyset order.
+CREATE INDEX holdings_creator_balance_idx
+	ON holdings(creator_id, balance DESC, wallet) WHERE balance > 0;
 
 -- ─── pools ────────────────────────────────────────────────────
 -- Simulated constant-product AMM, one per creator. Reserves are seeded with
@@ -390,6 +398,8 @@ CREATE TABLE income_proofs(
 	UNIQUE (creator_id, reclaim_proof_id)
 );
 -- Backstop for "one approved proof per period" under concurrency.
+CREATE INDEX income_proofs_creator_idx
+	ON income_proofs(creator_id, created_at DESC, id DESC);
 CREATE UNIQUE INDEX income_proofs_one_approved_per_period
 	ON income_proofs(creator_id, period) WHERE status = 'APPROVED';
 CREATE TRIGGER income_proofs_touch_updated_at
@@ -467,6 +477,7 @@ CREATE UNIQUE INDEX oracle_events_seq_idx ON oracle_events(seq);
 CREATE INDEX oracle_events_created_idx ON oracle_events(created_at DESC, id);
 CREATE INDEX oracle_events_creator_idx
 	ON oracle_events(creator_id, created_at DESC);
+CREATE INDEX oracle_events_creator_seq_idx ON oracle_events(creator_id, seq DESC);
 
 -- Publish every new event to pgmb (topic `smx.oracle_events.insert`) from a
 -- trigger, inside the writing transaction: the SSE stream and the dividend
@@ -2049,7 +2060,12 @@ AS $$
 			SELECT coalesce(jsonb_agg(oracle_event_json(e) ORDER BY e.created_at DESC, e.id), '[]')
 			FROM oracle_events e
 			WHERE e.id IN (SELECT y.id FROM oracle_events y  ORDER BY created_at DESC, id LIMIT 20)
-		)
+		),
+		-- "View all" flags: true when the full pages hold more than the widgets.
+		'hasMoreTrending', (
+			SELECT count(*) > p_limit FROM creators c WHERE c.status <> 'DRAFT'
+		),
+		'hasMoreEvents', (SELECT count(*) > 20 FROM (SELECT 1 FROM oracle_events LIMIT 21) y)
 	)
 $$;
 
@@ -2086,6 +2102,14 @@ AS $$
 			SELECT coalesce(jsonb_agg(dividend_json(d) ORDER BY d.created_at DESC, d.id), '[]')
 			FROM dividends d
 			WHERE d.id IN (SELECT y.id FROM dividends y WHERE y.creator_id = c.id ORDER BY y.created_at DESC, y.id LIMIT 10)
+		),
+		-- "View all" flags: true when the full list holds more than shown here.
+		'more', jsonb_build_object(
+			'holders', (SELECT count(*) > 20 FROM (SELECT 1 FROM holdings y WHERE y.creator_id = c.id AND y.balance > 0 LIMIT 21) y),
+			'trades', (SELECT count(*) > 20 FROM (SELECT 1 FROM trades y WHERE y.creator_id = c.id LIMIT 21) y),
+			'events', (SELECT count(*) > 20 FROM (SELECT 1 FROM oracle_events y WHERE y.creator_id = c.id LIMIT 21) y),
+			'proofs', (SELECT count(*) > 10 FROM (SELECT 1 FROM income_proofs y WHERE y.creator_id = c.id LIMIT 11) y),
+			'dividends', (SELECT count(*) > 10 FROM (SELECT 1 FROM dividends y WHERE y.creator_id = c.id LIMIT 11) y)
 		),
 		'viewer', jsonb_build_object(
 			'wallet', p_wallet,
@@ -2128,6 +2152,11 @@ AS $$
 				FROM chain_jobs j
 			WHERE j.id IN (SELECT y.id FROM chain_jobs y WHERE y.creator_id = c.id ORDER BY y.seq DESC LIMIT 10)
 			),
+			'more', jsonb_build_object(
+				'proofs', (SELECT count(*) > 10 FROM (SELECT 1 FROM income_proofs y WHERE y.creator_id = c.id LIMIT 11) y),
+				'dividends', (SELECT count(*) > 10 FROM (SELECT 1 FROM dividends y WHERE y.creator_id = c.id LIMIT 11) y),
+				'events', (SELECT count(*) > 0 FROM (SELECT 1 FROM oracle_events y WHERE y.creator_id = c.id LIMIT 1) y)
+			),
 			'collateral', jsonb_build_object(
 				'stakeAmount', c.stake_amount::TEXT,
 				'atRisk', c.status IN ('LIVE', 'GRACE')
@@ -2135,4 +2164,326 @@ AS $$
 		))
 		FROM creators c WHERE c.owner_user_id = p_user
 	), '{}'::JSONB)
+$$;
+
+-- ─── paginated list pages ─────────────────────────────────────
+-- Keyset pages for the "View all" screens. Every function fetches
+-- `p_limit + 1` rows: the extra row only says there is a next page. They
+-- return `items` plus `next` ({key, id} of the last item, or null on the last
+-- page). The route turns `next` into the opaque `nextPageCursor`, and passes
+-- the decoded cursor back as `p_after_key` / `p_after_id`.
+
+-- GET /creators : every non-draft creator. Sorts: `trending` (live first, then
+-- 24h volume, then raised, then ticker), `newest`, `raised`. `p_status` is
+-- live | grace | defaulted (or NULL). `p_q` matches ticker or name.
+-- Trending keys on the 24h volume, which drifts as trades age out, so a page
+-- boundary can shift slightly between requests.
+CREATE OR REPLACE FUNCTION creators_page_json(
+	p_sort      TEXT,
+	p_status    TEXT,
+	p_q         TEXT,
+	p_after_key TEXT,
+	p_after_id  TEXT,
+	p_limit     INTEGER
+)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	WITH base AS (
+		SELECT c,
+			(c.status IN ('LIVE', 'GRACE'))::INTEGER AS active,
+			CASE WHEN p_sort = 'trending' THEN (
+				SELECT coalesce(sum(tr.usdc_amount), 0) FROM trades tr
+				WHERE tr.creator_id = c.id
+					AND tr.created_at > now() - interval '24 hours'
+			) ELSE 0 END AS vol
+		FROM creators c
+		WHERE c.status <> 'DRAFT'
+			AND (p_status IS NULL OR c.status = upper(p_status)::creator_status)
+			AND (
+				coalesce(p_q, '') = '' OR (
+					c.ticker ILIKE '%' || replace(replace(replace(
+						p_q, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+					OR c.display_name ILIKE '%' || replace(replace(replace(
+						p_q, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+				)
+			)
+	),
+	page AS (
+		SELECT b.c,
+			CASE p_sort
+				WHEN 'newest' THEN (b.c).created_at::TEXT
+				WHEN 'raised' THEN (b.c).raised_amount::TEXT
+				ELSE b.active || '|' || b.vol || '|' || (b.c).raised_amount
+			END AS k,
+			CASE p_sort WHEN 'newest' THEN (b.c).id::TEXT ELSE (b.c).ticker END AS i,
+			row_number() OVER (ORDER BY
+				CASE WHEN p_sort NOT IN ('newest', 'raised') THEN b.active END DESC,
+				CASE WHEN p_sort NOT IN ('newest', 'raised') THEN b.vol END DESC,
+				CASE WHEN p_sort = 'newest' THEN (b.c).created_at END DESC,
+				CASE WHEN p_sort = 'newest' THEN (b.c).id END DESC,
+				CASE WHEN p_sort <> 'newest' THEN (b.c).raised_amount END DESC,
+				(b.c).ticker
+			) AS n
+		FROM base b
+		WHERE p_after_key IS NULL OR CASE p_sort
+			WHEN 'newest' THEN
+				((b.c).created_at, (b.c).id)
+					< (p_after_key::TIMESTAMPTZ, p_after_id::UUID)
+			WHEN 'raised' THEN
+				(b.c).raised_amount < p_after_key::NUMERIC
+				OR ((b.c).raised_amount = p_after_key::NUMERIC
+					AND (b.c).ticker > p_after_id)
+			ELSE
+				(b.active, b.vol, (b.c).raised_amount) < (
+					split_part(p_after_key, '|', 1)::INTEGER,
+					split_part(p_after_key, '|', 2)::NUMERIC,
+					split_part(p_after_key, '|', 3)::NUMERIC
+				)
+				OR (
+					(b.active, b.vol, (b.c).raised_amount) = (
+						split_part(p_after_key, '|', 1)::INTEGER,
+						split_part(p_after_key, '|', 2)::NUMERIC,
+						split_part(p_after_key, '|', 3)::NUMERIC
+					) AND (b.c).ticker > p_after_id
+				)
+		END
+		ORDER BY n
+		LIMIT least(greatest(p_limit, 1), 100) + 1
+	)
+	SELECT jsonb_build_object(
+		'items', coalesce((
+			SELECT jsonb_agg(creator_summary_json(p.c) ORDER BY p.n)
+			FROM page p WHERE p.n <= least(greatest(p_limit, 1), 100)
+		), '[]'),
+		'next', (
+			SELECT jsonb_build_object('key', p.k, 'id', p.i)
+			FROM page p
+			WHERE p.n = least(greatest(p_limit, 1), 100)
+				AND EXISTS (SELECT 1 FROM page x WHERE x.n > p.n)
+		)
+	)
+$$;
+
+-- GET /activity : the oracle event feed, newest first (by `seq`), optionally
+-- one kind and/or one ticker. An unknown ticker yields an empty page.
+CREATE OR REPLACE FUNCTION activity_page_json(
+	p_kind      TEXT,
+	p_ticker    TEXT,
+	p_after_key TEXT,
+	p_after_id  TEXT,
+	p_limit     INTEGER
+)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	WITH page AS (
+		SELECT e, e.seq::TEXT AS k, e.id::TEXT AS i,
+			row_number() OVER (ORDER BY e.seq DESC) AS n
+		FROM oracle_events e
+		WHERE (p_after_key IS NULL OR e.seq < p_after_key::BIGINT)
+			AND (p_kind IS NULL OR e.kind = p_kind::oracle_event_kind)
+			AND (
+				p_ticker IS NULL OR e.creator_id IN (
+					SELECT c.id FROM creators c WHERE c.ticker = p_ticker
+				)
+			)
+		ORDER BY e.seq DESC
+		LIMIT least(greatest(p_limit, 1), 100) + 1
+	)
+	SELECT jsonb_build_object(
+		'items', coalesce((
+			SELECT jsonb_agg(oracle_event_json(p.e) ORDER BY p.n)
+			FROM page p WHERE p.n <= least(greatest(p_limit, 1), 100)
+		), '[]'),
+		'next', (
+			SELECT jsonb_build_object('key', p.k, 'id', p.i)
+			FROM page p
+			WHERE p.n = least(greatest(p_limit, 1), 100)
+				AND EXISTS (SELECT 1 FROM page x WHERE x.n > p.n)
+		)
+	)
+$$;
+
+-- GET /creators/{ticker}/holders : holders with a balance, largest first.
+-- Raises 404 for an unknown ticker.
+CREATE OR REPLACE FUNCTION creator_holders_page_json(
+	p_ticker TEXT, p_after_key TEXT, p_after_id TEXT, p_limit INTEGER
+)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	WITH cr AS (
+		SELECT c.id, c.ticker, c.display_name, c.status FROM creators c
+		WHERE c.id = creator_id_by_ticker(p_ticker)
+	),
+	page AS (
+		SELECT h, h.balance::TEXT AS k, h.wallet::TEXT AS i,
+			row_number() OVER (ORDER BY h.balance DESC, h.wallet) AS n
+		FROM holdings h
+		WHERE h.creator_id = (SELECT id FROM cr) AND h.balance > 0
+			AND (
+				p_after_key IS NULL OR h.balance < p_after_key::NUMERIC
+				OR (h.balance = p_after_key::NUMERIC AND h.wallet::TEXT > p_after_id)
+			)
+		ORDER BY h.balance DESC, h.wallet
+		LIMIT least(greatest(p_limit, 1), 100) + 1
+	)
+	SELECT jsonb_build_object(
+		'creator', (
+			SELECT jsonb_build_object(
+				'ticker', cr.ticker, 'displayName', cr.display_name,
+				'status', cr.status
+			) FROM cr
+		),
+		'items', coalesce((
+			SELECT jsonb_agg(holding_json(p.h) ORDER BY p.n)
+			FROM page p WHERE p.n <= least(greatest(p_limit, 1), 100)
+		), '[]'),
+		'next', (
+			SELECT jsonb_build_object('key', p.k, 'id', p.i)
+			FROM page p
+			WHERE p.n = least(greatest(p_limit, 1), 100)
+				AND EXISTS (SELECT 1 FROM page x WHERE x.n > p.n)
+		)
+	)
+$$;
+
+-- GET /creators/{ticker}/trades : newest first. Raises 404 for an unknown ticker.
+CREATE OR REPLACE FUNCTION creator_trades_page_json(
+	p_ticker TEXT, p_after_key TEXT, p_after_id TEXT, p_limit INTEGER
+)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	WITH cr AS (
+		SELECT c.id, c.ticker, c.display_name, c.status FROM creators c
+		WHERE c.id = creator_id_by_ticker(p_ticker)
+	),
+	page AS (
+		SELECT t, t.created_at::TEXT AS k, t.id::TEXT AS i,
+			row_number() OVER (ORDER BY t.created_at DESC, t.id DESC) AS n
+		FROM trades t
+		WHERE t.creator_id = (SELECT id FROM cr)
+			AND (
+				p_after_key IS NULL
+				OR (t.created_at, t.id)
+					< (p_after_key::TIMESTAMPTZ, p_after_id::UUID)
+			)
+		ORDER BY t.created_at DESC, t.id DESC
+		LIMIT least(greatest(p_limit, 1), 100) + 1
+	)
+	SELECT jsonb_build_object(
+		'creator', (
+			SELECT jsonb_build_object(
+				'ticker', cr.ticker, 'displayName', cr.display_name,
+				'status', cr.status
+			) FROM cr
+		),
+		'items', coalesce((
+			SELECT jsonb_agg(trade_json(p.t) ORDER BY p.n)
+			FROM page p WHERE p.n <= least(greatest(p_limit, 1), 100)
+		), '[]'),
+		'next', (
+			SELECT jsonb_build_object('key', p.k, 'id', p.i)
+			FROM page p
+			WHERE p.n = least(greatest(p_limit, 1), 100)
+				AND EXISTS (SELECT 1 FROM page x WHERE x.n > p.n)
+		)
+	)
+$$;
+
+-- GET /creators/{ticker}/proofs : newest first. Raises 404 for an unknown ticker.
+CREATE OR REPLACE FUNCTION creator_proofs_page_json(
+	p_ticker TEXT, p_after_key TEXT, p_after_id TEXT, p_limit INTEGER
+)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	WITH cr AS (
+		SELECT c.id, c.ticker, c.display_name, c.status FROM creators c
+		WHERE c.id = creator_id_by_ticker(p_ticker)
+	),
+	page AS (
+		SELECT x, x.created_at::TEXT AS k, x.id::TEXT AS i,
+			row_number() OVER (ORDER BY x.created_at DESC, x.id DESC) AS n
+		FROM income_proofs x
+		WHERE x.creator_id = (SELECT id FROM cr)
+			AND (
+				p_after_key IS NULL
+				OR (x.created_at, x.id)
+					< (p_after_key::TIMESTAMPTZ, p_after_id::UUID)
+			)
+		ORDER BY x.created_at DESC, x.id DESC
+		LIMIT least(greatest(p_limit, 1), 100) + 1
+	)
+	SELECT jsonb_build_object(
+		'creator', (
+			SELECT jsonb_build_object(
+				'ticker', cr.ticker, 'displayName', cr.display_name,
+				'status', cr.status
+			) FROM cr
+		),
+		'items', coalesce((
+			SELECT jsonb_agg(income_proof_json(p.x) ORDER BY p.n)
+			FROM page p WHERE p.n <= least(greatest(p_limit, 1), 100)
+		), '[]'),
+		'next', (
+			SELECT jsonb_build_object('key', p.k, 'id', p.i)
+			FROM page p
+			WHERE p.n = least(greatest(p_limit, 1), 100)
+				AND EXISTS (SELECT 1 FROM page x WHERE x.n > p.n)
+		)
+	)
+$$;
+
+-- GET /creators/{ticker}/dividends : newest first. Raises 404 for an unknown
+-- ticker.
+CREATE OR REPLACE FUNCTION creator_dividends_page_json(
+	p_ticker TEXT, p_after_key TEXT, p_after_id TEXT, p_limit INTEGER
+)
+RETURNS JSONB
+LANGUAGE sql
+SET search_path = smx, public
+AS $$
+	WITH cr AS (
+		SELECT c.id, c.ticker, c.display_name, c.status FROM creators c
+		WHERE c.id = creator_id_by_ticker(p_ticker)
+	),
+	page AS (
+		SELECT d, d.created_at::TEXT AS k, d.id::TEXT AS i,
+			row_number() OVER (ORDER BY d.created_at DESC, d.id DESC) AS n
+		FROM dividends d
+		WHERE d.creator_id = (SELECT id FROM cr)
+			AND (
+				p_after_key IS NULL
+				OR (d.created_at, d.id)
+					< (p_after_key::TIMESTAMPTZ, p_after_id::UUID)
+			)
+		ORDER BY d.created_at DESC, d.id DESC
+		LIMIT least(greatest(p_limit, 1), 100) + 1
+	)
+	SELECT jsonb_build_object(
+		'creator', (
+			SELECT jsonb_build_object(
+				'ticker', cr.ticker, 'displayName', cr.display_name,
+				'status', cr.status
+			) FROM cr
+		),
+		'items', coalesce((
+			SELECT jsonb_agg(dividend_json(p.d) ORDER BY p.n)
+			FROM page p WHERE p.n <= least(greatest(p_limit, 1), 100)
+		), '[]'),
+		'next', (
+			SELECT jsonb_build_object('key', p.k, 'id', p.i)
+			FROM page p
+			WHERE p.n = least(greatest(p_limit, 1), 100)
+				AND EXISTS (SELECT 1 FROM page x WHERE x.n > p.n)
+		)
+	)
 $$;

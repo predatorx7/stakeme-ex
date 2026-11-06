@@ -1,6 +1,7 @@
 import type { Exchange } from '../../types/index.ts'
 import { escapeText } from '../../utils/escape.ts'
 import { formatUsdc } from '../../utils/money.ts'
+import { Avatar } from '../Avatar.tsx'
 import { PriceChart } from '../charts/PriceChart.tsx'
 import { Sparkline } from '../charts/Sparkline.tsx'
 import { CreatorStatusBadge, isEscrowFrozen } from '../CreatorStatus.tsx'
@@ -8,6 +9,7 @@ import { DataTable } from '../DataTable.tsx'
 import { EmptyState } from '../EmptyState.tsx'
 import { OracleEventItem } from '../events/OracleEventItem.tsx'
 import { Kpi } from '../Kpi.tsx'
+import { ViewAll } from '../lists/ViewAll.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { PriceChange } from '../PriceChange.tsx'
 import { SectionCard } from '../SectionCard.tsx'
@@ -48,6 +50,13 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 				</div>
 				<SectionCard
 					title='Trending creators'
+					meta={
+						exchange.hasMoreTrending && (
+							<ViewAll
+								href='/creators'
+								label='creators' />
+						)
+					}
 					count={trending.length}>
 					{
 						trending.length === 0
@@ -85,6 +94,9 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 													<a
 														class='smx-who'
 														href={`/creators/${c.ticker}`}>
+														<Avatar
+															seed={c.id}
+															fallbackFor={c.displayName} />
 														<span>
 															<strong class='smx-ticker'>
 																{escapeText(`$${c.ticker}`)}
@@ -164,6 +176,13 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 			<div class='smx-page smx-xc-feed'>
 				<SectionCard
 					title='Live oracle events'
+					meta={
+						exchange.hasMoreEvents && (
+							<ViewAll
+								href='/activity'
+								label='activity' />
+						)
+					}
 					context='Proof audits and trades, as they happen.'>
 					<ul
 						class='smx-feed'

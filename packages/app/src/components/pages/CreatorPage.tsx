@@ -3,6 +3,7 @@ import type { CreatorPage as CreatorPageData } from '../../types/index.ts'
 import { formatDate } from '../../utils/dates.ts'
 import { escapeText } from '../../utils/escape.ts'
 import { formatTokens, formatUsdc, shortHex } from '../../utils/money.ts'
+import { Avatar } from '../Avatar.tsx'
 import { Badge } from '../Badge.tsx'
 import { BlockingWarning } from '../BlockingWarning.tsx'
 import { PendingChainBadge } from '../ChainJobBadge.tsx'
@@ -15,6 +16,7 @@ import { Field } from '../forms/Field.tsx'
 import { FormError } from '../forms/FormError.tsx'
 import { HxForm } from '../forms/HxForm.tsx'
 import { Kpi } from '../Kpi.tsx'
+import { ViewAll } from '../lists/ViewAll.tsx'
 import { PageHeader } from '../PageHeader.tsx'
 import { PriceChange } from '../PriceChange.tsx'
 import { LinearProgress } from '../Progress.tsx'
@@ -73,6 +75,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					<PageHeader
 						eyebrow={`$${c.ticker}`}
 						title={c.displayName}
+						avatar={c.id}
 						lede={c.headline}
 						meta={
 							<>
@@ -272,6 +275,13 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					</SectionCard>
 					<SectionCard
 						title='Holders'
+						meta={
+							page.more?.holders && (
+								<ViewAll
+									href={`${path}/holders`}
+									label='holders' />
+							)
+						}
 						count={page.holders.length}>
 						{
 							page.holders.length === 0
@@ -295,19 +305,21 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 											page.holders.map((h) => (
 												<tr>
 													<td>
-														<span class='smx-mono'>
-															{escapeText(shortHex(h.wallet))}
-														</span>
-														{
-															h.wallet === page.viewer.wallet && (
-																<>
-																	{' '}
+														<span class='smx-who'>
+															<Avatar
+																seed={h.wallet}
+																size='sm' />
+															<span class='smx-mono'>
+																{escapeText(shortHex(h.wallet))}
+															</span>
+															{
+																h.wallet === page.viewer.wallet && (
 																	<Badge tone='info'>
 																		You
 																	</Badge>
-																</>
-															)
-														}
+																)
+															}
+														</span>
 													</td>
 													<td data-align='end'>
 														{escapeText(formatTokens(h.balance))}
@@ -329,6 +341,13 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					</SectionCard>
 					<SectionCard
 						title='Income proofs'
+						meta={
+							page.more?.proofs && (
+								<ViewAll
+									href={`${path}/proofs`}
+									label='income proofs' />
+							)
+						}
 						context='Bank income verified with zkTLS.'
 						count={page.proofs.length}>
 						{
@@ -374,6 +393,13 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					</SectionCard>
 					<SectionCard
 						title='Dividends'
+						meta={
+							page.more?.dividends && (
+								<ViewAll
+									href={`${path}/dividends`}
+									label='dividends' />
+							)
+						}
 						count={page.dividends.length}>
 						{
 							page.dividends.length === 0
@@ -423,7 +449,24 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					</SectionCard>
 				</div>
 				<SectionCard
-					title='Events'>
+					title='Events'
+					meta={
+						<>
+							<a
+								class='rc-button'
+								data-size='sm'
+								href={`${path}/trades`}>
+								Trade history
+							</a>
+							{
+								!!page.more?.events && (
+									<ViewAll
+										href={`/activity?ticker=${c.ticker}`}
+										label='events' />
+								)
+							}
+						</>
+					}>
 					<ul
 						class='smx-feed'
 						aria-live='polite'

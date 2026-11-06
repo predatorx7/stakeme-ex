@@ -1,12 +1,13 @@
 import { escapeHtml } from '@kitajs/html'
 import { APP_NAME, BASE_PATH } from '../consts.ts'
 import { shortHex } from '../utils/money.ts'
+import { Avatar } from './Avatar.tsx'
 import { Icon, type IconName } from './Icon.tsx'
 import { navLink } from './nav-swap.ts'
 import { KeyExportDialog, WalletConnectDialog } from './WalletDialogs.tsx'
 
 /** The primary tab a page belongs to, set through `Layout`'s `nav` prop. */
-export type NavKey = 'exchange' | 'hub' | 'launch'
+export type NavKey = 'exchange' | 'creators' | 'activity' | 'hub' | 'launch'
 
 type NavItem = {
 	key: NavKey
@@ -19,6 +20,18 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
 	{ key: 'exchange', label: 'Exchange', href: BASE_PATH, icon: 'barChart' },
+	{
+		key: 'creators',
+		label: 'Creators',
+		href: `${BASE_PATH}creators`,
+		icon: 'users',
+	},
+	{
+		key: 'activity',
+		label: 'Activity',
+		href: `${BASE_PATH}activity`,
+		icon: 'activity',
+	},
 	{
 		key: 'hub',
 		label: 'Hub',
@@ -116,7 +129,7 @@ export function Header({ viewer, nav }: HeaderProps) {
 						data-variant='primary'
 						data-hide-compact
 						data-dw-sparkle
-						{...linkProps(NAV_ITEMS[2])}>
+						{...linkProps(NAV_ITEMS.find((item) => item.key === 'launch')!)}>
 						Launch your IPO
 					</a>
 					{
@@ -165,7 +178,6 @@ export function Header({ viewer, nav }: HeaderProps) {
 function ProfileMenu({ viewer }: { viewer: Viewer }) {
 	const address = viewer.walletAddress
 	const short = address ? shortHex(address) : viewer.name
-	const initials = address ? address.slice(2, 4).toUpperCase() : 'ME'
 	return (
 		<>
 			<button
@@ -174,9 +186,10 @@ function ProfileMenu({ viewer }: { viewer: Viewer }) {
 				popovertarget='profile-menu'
 				aria-label='Open profile menu'
 				aria-haspopup='menu'>
-				<span>
-					{escapeHtml(initials)}
-				</span>
+				<Avatar
+					seed={address}
+					initials={address ? undefined : 'ME'}
+					size='sm' />
 				<strong
 					class='smx-mono'
 					data-wallet-address
@@ -195,6 +208,9 @@ function ProfileMenu({ viewer }: { viewer: Viewer }) {
 				role='menu'
 				popover>
 				<div class='rc-profile-menu__identity'>
+					<Avatar
+						seed={address}
+						initials={address ? undefined : 'ME'} />
 					<strong
 						class='smx-mono'
 						data-wallet-address

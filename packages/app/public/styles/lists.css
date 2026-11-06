@@ -1,0 +1,19 @@
+/* Full-page lists: the filter bar above a table and the load-more pager. */
+
+.smx-filters {
+	padding: var(--rc-space-200, 16px);
+	margin: 0;
+}
+
+.smx-pager {
+	padding-block: var(--rc-space-200, 16px);
+}
+
+.smx-pager[hidden] {
+	display: none;
+}
+
+/* "Back to" and "View all" sit in card headers; keep them from wrapping. */
+.rc-card__meta .rc-button {
+	white-space: nowrap;
+}

@@ -10,7 +10,14 @@ type Column = {
 }
 
 /** A scrolling `rc-table` with a captioned header. Rows go in as children. */
-export function DataTable({ caption, columns, bordered, framed, children }: {
+export function DataTable({
+	caption,
+	columns,
+	bordered,
+	framed,
+	bodyId,
+	children,
+}: {
 	caption: string
 	/** Draws the table's own border and panel, with ordinary rows. */
 	framed?: boolean
@@ -18,6 +25,8 @@ export function DataTable({ caption, columns, bordered, framed, children }: {
 	 *  a wide minimum width, and rows that are one link. */
 	bordered?: boolean
 	columns: Column[]
+	/** Id of the `<tbody>`, so a "Load more" link can append rows to it. */
+	bodyId?: string
 	children: Children
 }) {
 	return (
@@ -45,7 +54,7 @@ export function DataTable({ caption, columns, bordered, framed, children }: {
 						}
 					</tr>
 				</thead>
-				<tbody>
+				<tbody id={bodyId}>
 					{children}
 				</tbody>
 			</table>

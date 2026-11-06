@@ -79,6 +79,212 @@ const getExchangeIR: any = {"usedParamSet":{"limit":true},"params":[{"name":"lim
 export const getExchange = new PreparedQuery<IGetExchangeParams,IGetExchangeResult>(getExchangeIR);
 
 
+/** 'ListCreators' parameters type */
+export interface IListCreatorsParams {
+  after_id?: string | null | void;
+  after_key?: string | null | void;
+  limit: number;
+  q?: string | null | void;
+  sort: string;
+  status?: string | null | void;
+}
+
+/** 'ListCreators' return type */
+export interface IListCreatorsResult {
+  j: unknown | null;
+}
+
+/** 'ListCreators' query type */
+export interface IListCreatorsQuery {
+  params: IListCreatorsParams;
+  result: IListCreatorsResult;
+}
+
+const listCreatorsIR: any = {"usedParamSet":{"sort":true,"status":true,"q":true,"after_key":true,"after_id":true,"limit":true},"params":[{"name":"sort","required":true,"transform":{"type":"scalar"},"locs":[{"a":158,"b":163}]},{"name":"status","required":false,"transform":{"type":"scalar"},"locs":[{"a":166,"b":172}]},{"name":"q","required":false,"transform":{"type":"scalar"},"locs":[{"a":175,"b":176}]},{"name":"after_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":179,"b":188}]},{"name":"after_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":191,"b":199}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":202,"b":208}]}],"statement":"-- One page of the full creators list (`next` is the keyset of the last item,\n-- null on the last page). Route: ListCreators.\nSELECT smx.creators_page_json(\n\t:sort!, :status, :q, :after_key, :after_id, :limit!::INTEGER\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One page of the full creators list (`next` is the keyset of the last item,
+ * -- null on the last page). Route: ListCreators.
+ * SELECT smx.creators_page_json(
+ * 	:sort!, :status, :q, :after_key, :after_id, :limit!::INTEGER
+ * ) AS j
+ * ```
+ */
+export const listCreators = new PreparedQuery<IListCreatorsParams,IListCreatorsResult>(listCreatorsIR);
+
+
+/** 'ListActivity' parameters type */
+export interface IListActivityParams {
+  after_id?: string | null | void;
+  after_key?: string | null | void;
+  kind?: string | null | void;
+  limit: number;
+  ticker?: string | null | void;
+}
+
+/** 'ListActivity' return type */
+export interface IListActivityResult {
+  j: unknown | null;
+}
+
+/** 'ListActivity' query type */
+export interface IListActivityQuery {
+  params: IListActivityParams;
+  result: IListActivityResult;
+}
+
+const listActivityIR: any = {"usedParamSet":{"kind":true,"ticker":true,"after_key":true,"after_id":true,"limit":true},"params":[{"name":"kind","required":false,"transform":{"type":"scalar"},"locs":[{"a":97,"b":101}]},{"name":"ticker","required":false,"transform":{"type":"scalar"},"locs":[{"a":104,"b":110}]},{"name":"after_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":113,"b":122}]},{"name":"after_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":125,"b":133}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":136,"b":142}]}],"statement":"-- One page of oracle events, newest first. Route: ListActivity.\nSELECT smx.activity_page_json(\n\t:kind, :ticker, :after_key, :after_id, :limit!::INTEGER\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One page of oracle events, newest first. Route: ListActivity.
+ * SELECT smx.activity_page_json(
+ * 	:kind, :ticker, :after_key, :after_id, :limit!::INTEGER
+ * ) AS j
+ * ```
+ */
+export const listActivity = new PreparedQuery<IListActivityParams,IListActivityResult>(listActivityIR);
+
+
+/** 'ListCreatorHolders' parameters type */
+export interface IListCreatorHoldersParams {
+  after_id?: string | null | void;
+  after_key?: string | null | void;
+  limit: number;
+  ticker: string;
+}
+
+/** 'ListCreatorHolders' return type */
+export interface IListCreatorHoldersResult {
+  j: unknown | null;
+}
+
+/** 'ListCreatorHolders' query type */
+export interface IListCreatorHoldersQuery {
+  params: IListCreatorHoldersParams;
+  result: IListCreatorHoldersResult;
+}
+
+const listCreatorHoldersIR: any = {"usedParamSet":{"ticker":true,"after_key":true,"after_id":true,"limit":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":133,"b":140}]},{"name":"after_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":143,"b":152}]},{"name":"after_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":155,"b":163}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":166,"b":172}]}],"statement":"-- One page of a creator's holders (404 for an unknown ticker).\n-- Route: ListCreatorHolders.\nSELECT smx.creator_holders_page_json(\n\t:ticker!, :after_key, :after_id, :limit!::INTEGER\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One page of a creator's holders (404 for an unknown ticker).
+ * -- Route: ListCreatorHolders.
+ * SELECT smx.creator_holders_page_json(
+ * 	:ticker!, :after_key, :after_id, :limit!::INTEGER
+ * ) AS j
+ * ```
+ */
+export const listCreatorHolders = new PreparedQuery<IListCreatorHoldersParams,IListCreatorHoldersResult>(listCreatorHoldersIR);
+
+
+/** 'ListCreatorTrades' parameters type */
+export interface IListCreatorTradesParams {
+  after_id?: string | null | void;
+  after_key?: string | null | void;
+  limit: number;
+  ticker: string;
+}
+
+/** 'ListCreatorTrades' return type */
+export interface IListCreatorTradesResult {
+  j: unknown | null;
+}
+
+/** 'ListCreatorTrades' query type */
+export interface IListCreatorTradesQuery {
+  params: IListCreatorTradesParams;
+  result: IListCreatorTradesResult;
+}
+
+const listCreatorTradesIR: any = {"usedParamSet":{"ticker":true,"after_key":true,"after_id":true,"limit":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":130,"b":137}]},{"name":"after_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":140,"b":149}]},{"name":"after_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":152,"b":160}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":163,"b":169}]}],"statement":"-- One page of a creator's trades (404 for an unknown ticker).\n-- Route: ListCreatorTrades.\nSELECT smx.creator_trades_page_json(\n\t:ticker!, :after_key, :after_id, :limit!::INTEGER\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One page of a creator's trades (404 for an unknown ticker).
+ * -- Route: ListCreatorTrades.
+ * SELECT smx.creator_trades_page_json(
+ * 	:ticker!, :after_key, :after_id, :limit!::INTEGER
+ * ) AS j
+ * ```
+ */
+export const listCreatorTrades = new PreparedQuery<IListCreatorTradesParams,IListCreatorTradesResult>(listCreatorTradesIR);
+
+
+/** 'ListCreatorProofs' parameters type */
+export interface IListCreatorProofsParams {
+  after_id?: string | null | void;
+  after_key?: string | null | void;
+  limit: number;
+  ticker: string;
+}
+
+/** 'ListCreatorProofs' return type */
+export interface IListCreatorProofsResult {
+  j: unknown | null;
+}
+
+/** 'ListCreatorProofs' query type */
+export interface IListCreatorProofsQuery {
+  params: IListCreatorProofsParams;
+  result: IListCreatorProofsResult;
+}
+
+const listCreatorProofsIR: any = {"usedParamSet":{"ticker":true,"after_key":true,"after_id":true,"limit":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":137,"b":144}]},{"name":"after_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":147,"b":156}]},{"name":"after_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":159,"b":167}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":170,"b":176}]}],"statement":"-- One page of a creator's income proofs (404 for an unknown ticker).\n-- Route: ListCreatorProofs.\nSELECT smx.creator_proofs_page_json(\n\t:ticker!, :after_key, :after_id, :limit!::INTEGER\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One page of a creator's income proofs (404 for an unknown ticker).
+ * -- Route: ListCreatorProofs.
+ * SELECT smx.creator_proofs_page_json(
+ * 	:ticker!, :after_key, :after_id, :limit!::INTEGER
+ * ) AS j
+ * ```
+ */
+export const listCreatorProofs = new PreparedQuery<IListCreatorProofsParams,IListCreatorProofsResult>(listCreatorProofsIR);
+
+
+/** 'ListCreatorDividends' parameters type */
+export interface IListCreatorDividendsParams {
+  after_id?: string | null | void;
+  after_key?: string | null | void;
+  limit: number;
+  ticker: string;
+}
+
+/** 'ListCreatorDividends' return type */
+export interface IListCreatorDividendsResult {
+  j: unknown | null;
+}
+
+/** 'ListCreatorDividends' query type */
+export interface IListCreatorDividendsQuery {
+  params: IListCreatorDividendsParams;
+  result: IListCreatorDividendsResult;
+}
+
+const listCreatorDividendsIR: any = {"usedParamSet":{"ticker":true,"after_key":true,"after_id":true,"limit":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":139,"b":146}]},{"name":"after_key","required":false,"transform":{"type":"scalar"},"locs":[{"a":149,"b":158}]},{"name":"after_id","required":false,"transform":{"type":"scalar"},"locs":[{"a":161,"b":169}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":172,"b":178}]}],"statement":"-- One page of a creator's dividends (404 for an unknown ticker).\n-- Route: ListCreatorDividends.\nSELECT smx.creator_dividends_page_json(\n\t:ticker!, :after_key, :after_id, :limit!::INTEGER\n) AS j"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- One page of a creator's dividends (404 for an unknown ticker).
+ * -- Route: ListCreatorDividends.
+ * SELECT smx.creator_dividends_page_json(
+ * 	:ticker!, :after_key, :after_id, :limit!::INTEGER
+ * ) AS j
+ * ```
+ */
+export const listCreatorDividends = new PreparedQuery<IListCreatorDividendsParams,IListCreatorDividendsResult>(listCreatorDividendsIR);
+
+
 /** 'GetOracleEventsSince' parameters type */
 export interface IGetOracleEventsSinceParams {
   creatorId?: string | null | void;
