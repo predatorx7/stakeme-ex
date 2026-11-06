@@ -93,3 +93,9 @@ Run these from the repository root.
 
 Follow the Google developer documentation style guide: second person, present
 tense, active voice, sentence-case headings, no "please".
+
+Draw every diagram (architecture, flows, sequences, state machines) as a
+` ```mermaid ` block, never ASCII art. Quote labels that contain parentheses,
+slashes, or colons. Render-check new diagrams with
+`npx -p @mermaid-js/mermaid-cli mmdc -i <file>.mmd -o /tmp/out.svg`. File
+trees stay in ` ```text ` blocks.
