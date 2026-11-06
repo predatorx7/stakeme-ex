@@ -25,6 +25,52 @@ Reference clones (read-only, may be deleted; re-clone with `gh repo clone`):
   broad e2e suites.
 - Docs follow the Google developer documentation style guide.
 
+### Scope update (2026-11-06): MVP = Reclaim, Hedera, World ID, 0G
+
+- Build only Reclaim, Hedera, World ID, and 0G for the Friday/Saturday MVP.
+  Chainlink CRE, Arkiv, and Arc/Whitechain are omitted (Sunday stretch).
+- Adapter pattern so omitted sponsors drop in later without touching app logic:
+  - `IStorageProvider`, default `ZeroGravityStorage` (0G Storage). Arkiv later
+    as `ArkivStorage`. L-ISA terms and audit logs go through this interface.
+  - `IOracle` fetches and verifies Reclaim proofs. Implemented directly by
+    `ZeroGravityAgent` (which also runs the 0G audit). Chainlink later as
+    `ChainlinkCREAdapter`.
+  - `PaymentService` executes dividend payouts over a payment rail. Default
+    `HederaPaymentRail` (standard Hedera testnet transactions). Arc later as
+    `ArcPaymasterRail`.
+- Reclaim uses Builder's `@reclaimprotocol/client` (`sessions.create`,
+  `results.receive`) and a provider built with the Reclaim MCP, replacing
+  `@reclaimprotocol/js-sdk`. Org: `73351799-e315-4b65-bb8e-4df3496c7ec5`.
+  `RECLAIM_ORG_SECRET` is in `.env` (gitignored, never print it). Local
+  callbacks arrive through the MCP `proxy_callback_events` tool.
+- `/arkiv/schema.md` and `/arkiv/friction.md` stay for the Sunday stretch.
+
+### Scope update 2 (2026-11-06, supersedes the stretch plan above)
+
+- Exactly three sponsors: **Hedera, World ID, 0G**. Chainlink CRE, Arkiv, Arc,
+  and Whitechain are deprecated: no code, no env vars, no adapter seams named
+  after them. Their docs moved to `docs/deprecated/`. Reclaim stays as the
+  zkTLS proof source that the 0G agent verifies.
+- Adapters stay generic (`IStorageProvider`, `IOracle`, `IPaymentRail`) with
+  only the three-sponsor implementations.
+- World ID v4: `POST /api/rp-signature` signs the RP request on the server with
+  `@worldcoin/idkit-core/signing` (the browser never signs). Verify with
+  `POST https://developer.world.org/api/v4/verify/{rp_id}` on the server. The
+  nullifier is saved in Postgres and on the factory contract to block double
+  IPOs and flag defaulters. The playbook asks for `@worldcoin/idkit` ^4.x, which
+  is React-only; SMX has no React (no Next.js), so the browser uses
+  `@worldcoin/idkit-core` ^4.x, the same v4 SDK without React bindings.
+- Hedera: creator equity token minted with the Hedera Asset Tokenization
+  Studio (ATS) SDK. Dividends use the x402 payment loop: when the 0G agent
+  approves a dividend, the creator's browser signs a Hedera transfer that pays
+  holders (micro-streams). Native Hedera transactions only.
+- 0G: the auditor agent (verifies the Reclaim proof, approves or denies) runs on
+  0G Compute. L-ISA legal parameters and every approve/deny log go to the 0G
+  Storage Log Layer. Safe-stop fallback: when a creator misses a proof deadline,
+  the 0G agent freezes the Hedera escrow (`freezeEscrow`), and unfreezes on a
+  late approved proof; liquidation still follows after grace.
+- "Next.js route" in the playbook maps to an Express OpenAPI route here.
+
 ## Workstreams
 
 | # | Workstream | Owner files | Status |
@@ -34,7 +80,11 @@ Reference clones (read-only, may be deleted; re-clone with `gh repo clone`):
 | 3 | Integration research + docs + Arkiv files | `docs/integrations/**`, `arkiv/**`, `README.md` | Done |
 | 4 | Backend domain: OpenAPI, SQL, mutation routes, worker | `openapi.yaml`, `sql/**`, `src/routes/` (POST), `src/worker/**` | Done |
 | 5 | Integrations code | `packages/app/src/integrations/**`, `src/client/{wallet,world-id,reclaim}.ts` | Done |
-| 6 | UI: pages, components, CSS, client JS | GET routes, `src/components/**`, `public/styles/**` | Todo |
+| 6 | UI: pages, components, CSS, client JS | GET routes, `src/components/**`, `public/styles/**` | In progress |
+| 7 | Adapter refactor + MVP sponsor focus + Reclaim client switch + mock bank login | `src/integrations/**`, `src/services/**`, mutation routes, worker, `GetMockBank`, mock bank API | In progress |
+| 8 | Reclaim provider via MCP (mock bank), callback proxy, end-to-end proof | Main session (needs developer) | Todo |
+
+Workstream 8 note: Mock bank login ready: `GET http://localhost:4020/mock-bank/login` (form, any non-empty username/password), `POST /mock-bank/login` (sets httpOnly `smx_bank_session`, 303 to `/mock-bank`), `GET /mock-bank` (statement page; redirects to login without cookie; fetches the API), `GET /mock-bank/api/transactions` (JSON `{account, holderName, balance, transactions[]}`, 401 without cookie; the auth-bound request to prove). Code: `packages/app/src/services/mock-bank.ts`.
 
 ## Done
 
