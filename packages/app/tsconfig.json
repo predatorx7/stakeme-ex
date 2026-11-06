@@ -1,0 +1,17 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"outDir": "lib",
+		"rootDir": "src",
+		"jsx": "react-jsx",
+		"jsxImportSource": "@kitajs/html",
+		"plugins": [
+			{
+				"name": "@kitajs/ts-html-plugin"
+			}
+		],
+		"types": ["typed-htmx"]
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "lib", "public/assets/vendor/**"]
+}

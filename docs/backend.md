@@ -1,0 +1,185 @@
+# Backend
+
+This guide describes the SMX backend domain: the data model, the state machine,
+the SQL functions that hold the business rules, the routes, the worker, and the
+demo seed. The spec is [`product-spec.md`](product-spec.md); code style is in
+[`engineering-guide.md`](engineering-guide.md).
+
+## Design in one paragraph
+
+All business rules live in Postgres functions in
+`packages/app/sql/ddl.sql`. A route verifies external proofs (World ID,
+Reclaim), calls one SQL statement, and returns the JSON the SQL built. Every
+mutation commits its final state at once and queues the onchain call in
+`chain_jobs`. A worker sends the call later, and the UI learns about it over
+SSE. This is the optimistic UI described in the spec.
+
+## Data model
+
+```mermaid
+erDiagram
+    users ||--o| creators : owns
+    creators ||--|| pools : "has AMM"
+    creators ||--o{ tranches : escrows
+    creators ||--o{ investments : raises
+    creators ||--o{ holdings : "balances"
+    creators ||--o{ trades : swaps
+    creators ||--o{ price_ticks : charts
+    creators ||--o{ income_proofs : proves
+    income_proofs ||--o| dividends : approves
+    dividends ||--o{ payouts : splits
+    creators ||--o{ payouts : "refunds and slashes"
+    creators ||--o{ oracle_events : emits
+    creators ||--o{ chain_jobs : queues
+    creators ||--o| blacklisted_nullifiers : "bans on default"
+```
+
+| Table | Purpose |
+| --- | --- |
+| `creators` | One L-ISA per user. Holds terms, status, deadlines, and the World ID nullifier (unique). |
+| `tranches` | Escrow schedule (default 20/40/40 of the target). Tranche 0 releases at IPO. |
+| `investments`, `holdings` | Primary purchases and derived token balances. |
+| `pools`, `trades`, `price_ticks` | Simulated constant-product AMM, its fills, and the chart history. |
+| `income_proofs`, `dividends` | Reclaim proofs per period, and the 5% dividend each approval creates. |
+| `payouts` | Per-holder money movements: `DIVIDEND`, `REFUND`, `SLASH`. |
+| `oracle_events` | The live feed. Insert triggers publish each row to pgmb. |
+| `chain_jobs` | Outbox of onchain calls. |
+| `blacklisted_nullifiers` | World IDs banned after a default. |
+
+Money is `money_amount` (6 decimals), tokens are `token_amount` (18 decimals),
+and the API sends both as decimal strings.
+
+## State machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> LIVE: "launch_ipo"
+    LIVE --> GRACE: "sweep_deadlines: past next_proof_due_at"
+    GRACE --> LIVE: "audit_income_proof approves a proof"
+    LIVE --> LIVE: "audit_income_proof approves a proof"
+    GRACE --> DEFAULTED: "sweep_deadlines: past grace_until (14 days)"
+    LIVE --> DEFAULTED: "demo_trigger_default"
+    GRACE --> DEFAULTED: "demo_trigger_default"
+    LIVE --> COMPLETED: "sweep_deadlines: term ended"
+    DEFAULTED --> [*]
+    COMPLETED --> [*]
+```
+
+`DRAFT` exists in the enum for future use; `launch_ipo` creates creators
+directly as `LIVE`. Trading and investing are rejected once a creator is
+`DEFAULTED`.
+
+A chain job moves through its own states:
+
+```mermaid
+stateDiagram-v2
+    [*] --> QUEUED: "enqueue_chain_job"
+    QUEUED --> SENT: "worker claims the job"
+    SENT --> CONFIRMED: "sent onchain"
+    SENT --> SIMULATED: "no CHAIN_RPC_URL"
+    SENT --> FAILED: "send threw"
+```
+
+## SQL functions
+
+| Function | What it does |
+| --- | --- |
+| `launch_ipo(...)` | Asserts the nullifier is free, one IPO per user, ticker unique. Creates the creator, tranches, pool (virtual liquidity, price 1.0), IPO event, and `createISA` and `initializeIPO` jobs. |
+| `record_investment(creator, wallet, usdc)` | Mints tokens 1:1, caps at the remaining raise, updates holdings, emits `INVESTED`, queues `invest`. |
+| `amm_swap(creator, wallet, side, amount_in, min_out)` | Constant product with a 0.3% fee that stays in the pool. Rejects slippage, oversells, and non-trading creators. Emits `TRADE`. |
+| `submit_income_proof(...)` | Stores a verified Reclaim proof as `PENDING`. Rejects a replayed proof id. |
+| `audit_income_proof(proof, amount, audit)` | Rules engine. Approves when the amount meets `min_income`, the period is not yet approved, and the auditor did not veto. Approval creates the dividend, releases the next tranche, moves the deadline 30 days, clears grace, and emits events and jobs. Otherwise it records `REJECTED`. |
+| `pay_dividend(dividend, tx_hash, user)` | Marks paid, splits pro rata by holdings into `payouts`, emits `DIVIDEND_PAID`, queues `distributeDividend`. |
+| `sweep_deadlines(now)` | The transitions in the state machine. Uses `FOR UPDATE SKIP LOCKED`, so overlapping sweeps are safe. |
+| `liquidate_creator(creator)` | Refunds locked escrow pro rata to investors, slashes the stake pro rata to holders, blacklists the nullifier, emits `DEFAULTED`, queues `executeLiquidation`. |
+| `complete_chain_job(...)` | Settles a job and copies the result onto the creator, tranche, dividend, or investment. |
+| `emit_oracle_event(...)` | Inserts the event and one price tick. Every event and tick pair comes from here. |
+| `pro_rata_split(...)` | Splits an amount so the parts sum exactly. The rounding remainder goes to the largest position. |
+| `*_json(...)`, `exchange_json`, `creator_page_json`, `creator_hub_json` | Build the API documents. They match the `openapi.yaml` schemas. |
+
+Errors use `assert_that` with an HTTP status in the SQLSTATE (`H0409`). The
+JSON builders are `VOLATILE` on purpose: a `STABLE` function would not see rows
+written earlier in the same statement.
+
+## Routes
+
+| Operation | Method and path | Auth | Notes |
+| --- | --- | --- | --- |
+| `GetExchange` | `GET /` | public | Trending creators and events. |
+| `GetCreator` | `GET /creators/{ticker}` | public | Token page document. |
+| `GetCreatorHub` | `GET /hub` | session | The viewer's dashboard. |
+| `GetLaunch` | `GET /launch` | session | Form state and World ID config. |
+| `LaunchIpo` | `POST /creators` | session | Verifies World ID, stores terms, calls `launch_ipo`. |
+| `Invest` | `POST /creators/{ticker}/investments` | session | `record_investment`. |
+| `Trade` | `POST /creators/{ticker}/trades` | session | `amm_swap`. |
+| `CreateReclaimSession` | `POST /creators/{ticker}/reclaim-sessions` | session, owner | Starts a Reclaim session. |
+| `ReclaimCallback` | `POST /reclaim/callback` | public, proof verified | Same pipeline as `AuditMilestone`. |
+| `AuditMilestone` | `POST /api/audit-milestone` | public, proof verified | Verify, audit, apply. |
+| `TriggerDefault` | `POST /api/trigger-default` | public, `DEMO_MODE=1` | `403` otherwise. |
+| `PayDividend` | `POST /dividends/{dividendId}/payment` | session, owner | `pay_dividend`. |
+| `StreamEvents` | `GET /events` | public | SSE. |
+| `GetMockBank` | `GET /mock-bank` | public | Fixed $5,000 deposit. |
+
+Mutations return `201` and the resource to JSON callers, and `204` with
+`HX-Trigger` (and `HX-Redirect` for `LaunchIpo`) to htmx callers.
+
+```mermaid
+sequenceDiagram
+    participant R as "Reclaim or CRE"
+    participant API as "AuditMilestone route"
+    participant I as "Integrations"
+    participant DB as "Postgres"
+    R->>API: "POST proof"
+    API->>I: "verifyIncomeProof"
+    API->>DB: "submit_income_proof (PENDING)"
+    API->>I: "auditIncome (0G or rules)"
+    API->>DB: "audit_income_proof"
+    DB-->>API: "AuditResult JSON"
+    API-->>R: "201"
+```
+
+### Event stream
+
+`GET /events` sends three SSE event names. `oracle-event` carries the HTML
+fragment rendered by `components/events/OracleEventItem.tsx` (for htmx
+`sse-swap`), `oracle-event-json` carries the JSON, and `chain-job` announces a
+settled onchain call. Pass `?ticker=` to filter. Replay through `Last-Event-ID`
+is not supported; reload the page document instead.
+
+## Worker
+
+`worker/register.ts` starts three things:
+
+- **Chain jobs** (`worker/chain-jobs.ts`). Woken by the pgmb topic
+  `smx.chain_jobs.insert`, with a drain at boot and a 15-second poll as a safety
+  net. Each job is claimed (`QUEUED` to `SENT`), sent with `sendChainJob`, and
+  settled by `complete_chain_job`. A failure marks the job `FAILED`; the worker
+  never retries a sent job, to avoid sending a transaction twice.
+- **Dividend streaming** (`worker/dividends.ts`). A pgmb handler on
+  `smx.oracle_events.insert` runs `streamDividend` for each `DIVIDEND_PAID` event
+  and stores the receipts on the dividend. It retries with backoff.
+- **Deadline sweep** (`worker/sweep.ts`). One in-process timer calls
+  `sweep_deadlines()` every `SWEEP_INTERVAL_S` seconds (default 60, `0` disables
+  it). The timer serves PGlite, which has no `pg_cron`, and real Postgres alike.
+
+## Demo seed
+
+`npm run seed:demo` creates three creators through the SQL functions:
+
+| Ticker | State |
+| --- | --- |
+| `MUSH` | Mushaheed, software developer. Live, four investors, 14 trades spread over 7 days, one approved proof, one paid dividend. |
+| `RAVI` | Medical student. Live with two investors and no proofs, for the live happy path. |
+| `RAHUL` | Live and overdue, ready for `POST /api/trigger-default`. |
+
+The script uses the PGlite dev database by default and `--pg` for Docker
+Postgres. PGlite allows one process, so seed before `npm run dev`, or stop the
+server first. The script is idempotent, and `npm run dev -- --clear` resets the
+database. The deadline sweep may move `RAHUL` to `GRACE` within a minute; the
+trigger works from either state.
+
+## Tests
+
+`packages/app/tests/domain.test.ts` runs against a PGlite snapshot and covers
+the dividend math, tranche release and duplicate periods, AMM invariants and
+guards, liquidation payouts and the blacklist, and the deadline sweep.

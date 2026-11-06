@@ -1,0 +1,93 @@
+import { CHAIN_JOB_BATCH } from '../consts.ts'
+import type { ChainFn } from '../integrations/index.ts'
+import { sendChainJob } from '../integrations/index.ts'
+import { LOGGER } from '../logger.ts'
+import {
+	claimChainJob,
+	completeChainJob,
+	listQueuedChainJobs,
+} from '../queries.ts'
+import type { IPgClientLike } from '../types/index.ts'
+
+let running: Promise<number> | undefined
+
+/**
+ * Sends every QUEUED chain job, oldest first. Mutations already committed the
+ * final DB state (optimistic UI); this settles the onchain side and the
+ * `complete_chain_job` update fires the SSE `chain-job` event. A job that
+ * throws is marked FAILED with the error, never retried silently, so a
+ * half-sent transaction can't be sent twice. Calls overlap-safe: a second call
+ * while one is draining joins it. Returns the number of jobs settled.
+ */
+export function processChainJobs(pg: IPgClientLike): Promise<number> {
+	running ||= drain(pg).finally(() => {
+		running = undefined
+	})
+	return running
+}
+
+async function drain(pg: IPgClientLike) {
+	let settled = 0
+	for(;;) {
+		const jobs = await listQueuedChainJobs.run({ batch: CHAIN_JOB_BATCH }, pg)
+		if(!jobs.length) {
+			return settled
+		}
+
+		for(const queued of jobs) {
+			// Claiming makes the pass safe against a second worker process.
+			const [job] = await claimChainJob.run({ id: queued.id }, pg)
+			if(!job) {
+				continue
+			}
+
+			await settle(pg, job)
+			settled++
+		}
+	}
+}
+
+async function settle(
+	pg: IPgClientLike,
+	job: {
+		id: string
+		fn: string
+		args: unknown
+		contract_address: string | null
+	},
+) {
+	try {
+		const result = await sendChainJob({
+			id: job.id,
+			// Cast: `fn` is constrained by a CHECK in chain_jobs to ChainFn values.
+			fn: job.fn as ChainFn,
+			// Cast: `args` is built by SQL as a JSON object.
+			args: job.args as Record<string, unknown>,
+			contractAddress: job.contract_address,
+		})
+		await completeChainJob.run(
+			{
+				id: job.id,
+				status: result.status,
+				tx_hash: result.txHash,
+				error: result.error ?? null,
+				isa: result.deployed?.isa ?? null,
+				token: result.deployed?.token ?? null,
+			},
+			pg,
+		)
+	} catch(err) {
+		LOGGER.error({ err, jobId: job.id, fn: job.fn }, 'chain job failed')
+		await completeChainJob.run(
+			{
+				id: job.id,
+				status: 'FAILED',
+				tx_hash: null,
+				error: err instanceof Error ? err.message.slice(0, 1000) : 'failed',
+				isa: null,
+				token: null,
+			},
+			pg,
+		)
+	}
+}

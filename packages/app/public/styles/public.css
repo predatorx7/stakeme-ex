@@ -1,0 +1,115 @@
+/* Pages outside the console: the anonymous header, sign-in and account
+   decisions, single-message pages, and the flow pages (verify, contribute). */
+
+.public-main {
+	margin-inline: auto;
+	max-inline-size: 72rem;
+	padding: var(--rc-layout-page-padding-block-start)
+		var(--rc-layout-page-padding-inline) var(--rc-layout-page-padding-block-end);
+}
+
+.public-main:has(> .rc-page) {
+	max-inline-size: none;
+	padding: 0;
+}
+
+.public-main > .rc-page {
+	margin-inline: auto;
+}
+
+.auth {
+	display: grid;
+	gap: var(--rc-space-4);
+	margin-inline: auto;
+	max-inline-size: 35rem;
+	padding: clamp(var(--rc-space-4), 4vh, var(--rc-space-600)) var(--rc-space-4);
+}
+
+.auth .rc-page-header {
+	margin: 0;
+}
+
+.auth-card {
+	display: grid;
+	gap: var(--rc-space-4);
+}
+
+.auth-card .hx-form {
+	gap: var(--rc-space-4);
+}
+
+.auth-card .rc-button[data-variant='inline'] {
+	align-self: center;
+}
+
+.auth-note {
+	margin: 0;
+}
+
+.auth-divider {
+	align-items: center;
+	color: var(--rc-color-text-tertiary);
+	display: flex;
+	font-family: var(--rc-font-family-mono);
+	font-size: var(--rc-font-size-label);
+	gap: var(--rc-space-3);
+	letter-spacing: var(--rc-font-letter-spacing-label);
+	margin: 0;
+	text-transform: uppercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+	background: var(--rc-color-border-default);
+	block-size: var(--rc-border-width-default);
+	content: '';
+	flex: 1;
+}
+
+.auth-scopes {
+	display: grid;
+	gap: var(--rc-space-2);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.auth-scopes li {
+	align-items: center;
+	display: flex;
+	gap: var(--rc-space-2);
+}
+
+.auth-scopes svg {
+	color: var(--rc-color-status-success);
+	flex: none;
+	inline-size: var(--rc-icon-size-md);
+}
+
+.form-error {
+	background: var(--rc-color-status-danger-subtle);
+	border-radius: var(--rc-radius-control);
+	color: var(--rc-color-status-danger);
+	font-size: var(--rc-font-size-small);
+	line-height: var(--rc-font-line-height-small);
+	margin: 0;
+	padding: var(--rc-space-2) var(--rc-space-3);
+}
+
+.form-error:empty {
+	display: none;
+}
+
+.rc-hint ul {
+	color: var(--rc-color-text-tertiary);
+	font-size: var(--rc-font-size-field);
+	line-height: var(--rc-font-line-height-note);
+	margin: var(--rc-space-2) 0 0;
+	padding-inline-start: var(--rc-space-4);
+}
+
+@media (max-width: 40rem) {
+	.public-main {
+		padding-inline: var(--rc-layout-page-padding-inline-compact);
+	}
+}

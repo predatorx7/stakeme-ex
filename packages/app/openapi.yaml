@@ -1,0 +1,1233 @@
+openapi: 3.1.1
+info:
+  title: StakeMe Exchange
+  version: 0.1.0
+  description: |
+    StakeMe Exchange (SMX) serves two surfaces from the same routes through
+    content negotiation:
+
+    - **HTML / htmx** pages and fragments for the exchange UI
+      (`Accept: text/html`). Mutating endpoints called from htmx may return
+      `HX-Redirect` / `HX-Trigger` response headers to drive client-side
+      navigation.
+    - **JSON API** for SDK and backend clients (`Accept: application/json`).
+
+    Errors from JSON callers follow **RFC 9457 (Problem Details for HTTP
+    APIs)**, returned with `Content-Type: application/problem+json`. HTML
+    callers receive a rendered error page with the same status code. Every
+    operation declares `default: ProblemResponse`; specific status codes are
+    spelled out only when they're part of the operation's contract (for
+    example, `404` on a resource GET, `409` on a constraint violation).
+
+    **Pagination.** List endpoints use opaque cursor pagination. First
+    request: omit `?cursor`. The response includes `nextPageCursor` if more
+    results exist; omit the field on the final page. Pass the received cursor
+    back verbatim as `?cursor=` on the next request. Clients MUST treat it as
+    opaque.
+
+    **Authentication.** Sign in with Ethereum (EIP-4361) through Better
+    Auth: `POST /auth/siwe/nonce`, sign the message, `POST /auth/siwe/verify`.
+    The session is an HTTP-only cookie, or a bearer token for API clients.
+    The `/auth/*` routes belong to Better Auth and are not listed here.
+servers:
+  - url: http://localhost:4020
+    description: Dev
+tags:
+  - name: Exchange
+    description: Public exchange pages and the JSON that backs them.
+  - name: Creators
+    description: Launching an L-ISA IPO and investing in or trading a creator.
+  - name: Income
+    description: Reclaim income proofs, audits, dividends and defaults.
+  - name: Events
+    description: Live oracle events (Server-Sent Events).
+paths:
+  /:
+    get:
+      summary: Exchange
+      operationId: GetExchange
+      tags:
+        - Exchange
+      description: >-
+        Lists trending creators with price, 24h change and a sparkline, plus
+        the latest oracle events. Use it as the exchange home page; the HTML
+        page subscribes to `GET /events` for live updates. At most `limit`
+        creators are returned.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of trending creators.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Exchange page (HTML) or exchange document (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchange'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}:
+    get:
+      summary: Creator token page
+      operationId: GetCreator
+      tags:
+        - Creators
+      description: >-
+        Returns one creator's terms, escrow progress, price chart, top holders,
+        recent trades, proofs, dividends and events, plus the signed-in
+        viewer's holding. Use it for the token page; `404` when the ticker is
+        unknown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      responses:
+        '200':
+          description: Token page (HTML) or creator page document (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorPage'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /hub:
+    get:
+      summary: Creator hub
+      operationId: GetCreatorHub
+      tags:
+        - Creators
+      description: >-
+        Returns the signed-in viewer's own creator dashboard: escrow, pending
+        dividend, proofs, chain jobs and collateral. `creator` is absent when
+        the viewer hasn't launched an IPO yet.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Hub page (HTML) or hub document (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorHub'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /launch:
+    get:
+      summary: Launch an IPO
+      operationId: GetLaunch
+      tags:
+        - Creators
+      description: >-
+        Returns the IPO form state: the viewer's wallet, default terms, the
+        World ID configuration and whether the viewer already launched. The
+        form posts to `POST /creators`.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Launch page (HTML) or launch state (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LaunchState'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators:
+    post:
+      summary: Launch an IPO
+      operationId: LaunchIpo
+      tags:
+        - Creators
+      description: >-
+        Verifies the World ID proof (signal is the viewer's wallet), stores the
+        terms on Arkiv, then creates the creator, tranches, pool and first
+        price tick in one statement. Use it from the launch form. The viewer
+        needs a linked wallet and one World ID can launch once. Returns `201`
+        with the creator for JSON callers and an `HX-Redirect` to the token
+        page for htmx.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LaunchIpoRequest'
+      responses:
+        '201':
+          description: The new creator.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Creator'
+        '204':
+          description: htmx request; the `HX-Redirect` header points at the token page.
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/investments:
+    post:
+      summary: Invest in a creator
+      operationId: Invest
+      tags:
+        - Creators
+      description: >-
+        Buys creator tokens 1:1 with USDC at the IPO price from the primary
+        market, capped at the remaining raise. Use it while the creator is
+        `LIVE`; `409` when the raise is full or closed. State commits
+        immediately and the onchain call is queued.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvestRequest'
+      responses:
+        '201':
+          description: The investment and the resulting holding.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Investment'
+        '204':
+          description: htmx request; the `HX-Trigger` header carries the result.
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/trades:
+    post:
+      summary: Trade creator tokens
+      operationId: Trade
+      tags:
+        - Creators
+      description: >-
+        Swaps against the simulated constant-product pool with a 0.3% fee.
+        `BUY` spends USDC (`amountIn`), `SELL` spends tokens. Use `minOut` as
+        the slippage guard; `409` when output falls below it, the creator is
+        defaulted, or the seller lacks balance.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TradeRequest'
+      responses:
+        '201':
+          description: The executed trade.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '204':
+          description: htmx request; the `HX-Trigger` header carries the result.
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/reclaim-sessions:
+    post:
+      summary: Start a Reclaim income proof
+      operationId: CreateReclaimSession
+      tags:
+        - Income
+      description: >-
+        Creates a Reclaim verification session for the creator's bank deposit.
+        Only the creator can call it. Open `requestUrl` to prove the deposit
+        and poll `statusUrl`; Reclaim posts the proof to `POST
+        /reclaim/callback`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      responses:
+        '201':
+          description: The Reclaim session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReclaimSession'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /reclaim/callback:
+    post:
+      summary: Reclaim proof callback
+      operationId: ReclaimCallback
+      tags:
+        - Income
+      description: >-
+        Receives the proof Reclaim posts after a session. Public, because the
+        caller is Reclaim; the proof signature is verified, so an unverifiable
+        body is rejected. Verified proofs are audited and may approve a
+        milestone, exactly like `POST /api/audit-milestone`.
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProofBody'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProofBody'
+      responses:
+        '201':
+          description: Audit result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResult'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/audit-milestone:
+    post:
+      summary: Audit an income proof
+      operationId: AuditMilestone
+      tags:
+        - Income
+      description: >-
+        Verifies a Reclaim proof, runs the 0G audit, then applies the SQL rules
+        engine: approval creates the dividend and releases the next tranche.
+        Public, but the proof must verify (`400` otherwise). Use it for the
+        CRE workflow or manual runs; a duplicate proof returns `409`.
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProofBody'
+      responses:
+        '201':
+          description: Audit result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResult'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /api/trigger-default:
+    post:
+      summary: Trigger a default (demo)
+      operationId: TriggerDefault
+      tags:
+        - Income
+      description: >-
+        Demo only. Fast-forwards the creator's deadline and grace period, then
+        liquidates: refunds locked escrow, slashes the stake, blacklists the
+        World ID. Returns `403` unless the server runs with `DEMO_MODE=1`.
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerDefaultRequest'
+      responses:
+        '201':
+          description: The defaulted creator.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Creator'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /dividends/{dividendId}/payment:
+    post:
+      summary: Pay a dividend
+      operationId: PayDividend
+      tags:
+        - Income
+      description: >-
+        Marks a due dividend paid, splits it pro rata across current holders and
+        queues the onchain distribution and the Hedera stream. Only the
+        creator can pay; `409` when it is already paid.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: dividendId
+          in: path
+          required: true
+          description: Dividend id.
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '201':
+          description: The paid dividend.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dividend'
+        '204':
+          description: htmx request; the `HX-Trigger` header carries the result.
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /events:
+    get:
+      summary: Stream oracle events
+      operationId: StreamEvents
+      tags:
+        - Events
+      description: >-
+        Server-Sent Events of new oracle events, optionally for one ticker.
+        Each event is sent twice: `oracle-event` carries an HTML list item (for
+        htmx `sse-swap`) and `oracle-event-json` carries the JSON. `chain-job`
+        events announce onchain call status changes. Reconnect with
+        `Last-Event-ID` to resume.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - name: ticker
+          in: query
+          required: false
+          description: Only events for this ticker.
+          schema:
+            $ref: '#/components/schemas/Ticker'
+      responses:
+        '200':
+          description: An event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /mock-bank:
+    get:
+      summary: Mock bank statement
+      operationId: GetMockBank
+      tags:
+        - Income
+      description: >-
+        A fake bank page with a hardcoded $5,000 deposit. It is the data source
+        for the Reclaim provider in the demo: the HTML page shows the statement
+        and the JSON form is what the provider extracts from.
+      security:
+        - {}
+      responses:
+        '200':
+          description: Statement page (HTML) or statement (JSON).
+          content:
+            text/html:
+              schema:
+                $ref: '#/components/schemas/HtmlContent'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockBank'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        Opaque Better Auth session token returned by `POST /auth/siwe/verify`.
+        Sent as a bearer header or in the `better-auth.session_token` cookie;
+        the server resolves it to a user.
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+      description: Browser session cookie set by `POST /auth/siwe/verify`.
+  responses:
+    HTMLResponse:
+      description: HTML response
+      content:
+        text/html:
+          schema:
+            $ref: '#/components/schemas/HtmlContent'
+    ProblemResponse:
+      description: >-
+        Error response. JSON callers receive an RFC 9457 problem document; HTML
+        callers receive a rendered error page. Status code is set by the origin
+        server and reflected in the `Problem.status` field.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        text/html:
+          schema:
+            $ref: '#/components/schemas/HtmlContent'
+  parameters:
+    Ticker:
+      name: ticker
+      in: path
+      required: true
+      description: Creator ticker, 3 to 6 uppercase letters.
+      schema:
+        $ref: '#/components/schemas/Ticker'
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: >-
+        Opaque pagination cursor from a previous response's `nextPageCursor`.
+        Omit for the first page.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 500
+  schemas:
+    HtmlContent:
+      type: string
+      example: <html><body><h1>Hello, World!</h1></body></html>
+    Timestamp:
+      type: string
+      format: date-time
+    Uuid:
+      type: string
+      format: uuid
+      maxLength: 36
+    Ticker:
+      type: string
+      pattern: ^[A-Z]{3,6}$
+      minLength: 3
+      maxLength: 6
+      example: MUSH
+    EvmAddress:
+      type: string
+      pattern: ^0x[0-9a-fA-F]{40}$
+      minLength: 42
+      maxLength: 42
+    TxHash:
+      type: string
+      pattern: ^0x[0-9a-f]{64}$
+      minLength: 66
+      maxLength: 66
+    Money:
+      type: string
+      description: USDC amount as a decimal string, at most 6 decimals.
+      pattern: ^(0|[1-9][0-9]{0,11})(\.[0-9]{1,6})?$
+      minLength: 1
+      maxLength: 20
+      example: '5000.00'
+    TokenAmount:
+      type: string
+      description: Token amount as a decimal string, at most 18 decimals.
+      pattern: ^(0|[1-9][0-9]{0,19})(\.[0-9]{1,18})?$
+      minLength: 1
+      maxLength: 40
+      example: '12.5'
+    DecimalString:
+      type: string
+      description: Exact decimal number (money, price or token amount) as text.
+      pattern: ^[0-9]+(\.[0-9]+)?$
+      maxLength: 80
+    CreatorStatus:
+      type: string
+      enum: [DRAFT, LIVE, GRACE, DEFAULTED, COMPLETED]
+    PricePoint:
+      type: object
+      required: [at, price]
+      properties:
+        at:
+          $ref: '#/components/schemas/Timestamp'
+        price:
+          $ref: '#/components/schemas/DecimalString'
+    Tranche:
+      type: object
+      required: [idx, amount, status]
+      properties:
+        idx:
+          type: integer
+          minimum: 0
+          maximum: 11
+        amount:
+          $ref: '#/components/schemas/DecimalString'
+        status:
+          type: string
+          enum: [LOCKED, RELEASED, REFUNDED]
+        releasedAt:
+          $ref: '#/components/schemas/Timestamp'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+    CreatorSummary:
+      type: object
+      description: >-
+        A creator in a list: price, 24h change and a sparkline built from
+        price ticks.
+      required:
+        - id
+        - ticker
+        - displayName
+        - headline
+        - status
+        - price
+        - change24h
+        - volume24h
+        - raised
+        - targetRaise
+        - shareBps
+        - sparkline
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        displayName:
+          type: string
+          maxLength: 80
+        headline:
+          type: string
+          maxLength: 280
+        status:
+          $ref: '#/components/schemas/CreatorStatus'
+        price:
+          $ref: '#/components/schemas/DecimalString'
+        change24h:
+          type: number
+          description: Percent change in price over 24 hours.
+        volume24h:
+          $ref: '#/components/schemas/DecimalString'
+        raised:
+          $ref: '#/components/schemas/DecimalString'
+        targetRaise:
+          $ref: '#/components/schemas/DecimalString'
+        shareBps:
+          type: integer
+          minimum: 1
+          maximum: 5000
+        sparkline:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/PricePoint'
+    Creator:
+      description: A creator's full L-ISA document.
+      allOf:
+        - $ref: '#/components/schemas/CreatorSummary'
+        - type: object
+          required:
+            - ownerWallet
+            - termMonths
+            - stakeAmount
+            - minIncome
+            - createdAt
+            - tranches
+            - escrow
+            - chain
+          properties:
+            ownerWallet:
+              $ref: '#/components/schemas/EvmAddress'
+            termMonths:
+              type: integer
+              minimum: 1
+              maximum: 120
+            stakeAmount:
+              $ref: '#/components/schemas/DecimalString'
+            minIncome:
+              $ref: '#/components/schemas/DecimalString'
+            arkivEntityKey:
+              type: string
+              maxLength: 200
+            termsHash:
+              type: string
+              maxLength: 200
+            contractAddress:
+              $ref: '#/components/schemas/EvmAddress'
+            tokenAddress:
+              $ref: '#/components/schemas/EvmAddress'
+            chainId:
+              type: integer
+              minimum: 1
+            nextProofDueAt:
+              $ref: '#/components/schemas/Timestamp'
+            graceUntil:
+              $ref: '#/components/schemas/Timestamp'
+            ipoAt:
+              $ref: '#/components/schemas/Timestamp'
+            createdAt:
+              $ref: '#/components/schemas/Timestamp'
+            tranches:
+              type: array
+              maxItems: 12
+              items:
+                $ref: '#/components/schemas/Tranche'
+            escrow:
+              type: object
+              required: [locked, released, refunded]
+              properties:
+                locked:
+                  $ref: '#/components/schemas/DecimalString'
+                released:
+                  $ref: '#/components/schemas/DecimalString'
+                refunded:
+                  $ref: '#/components/schemas/DecimalString'
+            chain:
+              type: object
+              description: Onchain status. `pendingJobs` > 0 means "pending" in the UI.
+              required: [pendingJobs]
+              properties:
+                pendingJobs:
+                  type: integer
+                  minimum: 0
+                lastTxHash:
+                  $ref: '#/components/schemas/TxHash'
+    Holding:
+      type: object
+      required: [creatorId, ticker, wallet, balance, value]
+      properties:
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        wallet:
+          $ref: '#/components/schemas/EvmAddress'
+        balance:
+          $ref: '#/components/schemas/DecimalString'
+        sharePct:
+          type: number
+          description: Share of the circulating supply, in percent.
+        value:
+          $ref: '#/components/schemas/DecimalString'
+    Trade:
+      type: object
+      required:
+        - id
+        - creatorId
+        - ticker
+        - wallet
+        - side
+        - usdcAmount
+        - tokenAmount
+        - price
+        - fee
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        wallet:
+          $ref: '#/components/schemas/EvmAddress'
+        side:
+          type: string
+          enum: [BUY, SELL]
+        usdcAmount:
+          $ref: '#/components/schemas/DecimalString'
+        tokenAmount:
+          $ref: '#/components/schemas/DecimalString'
+        price:
+          $ref: '#/components/schemas/DecimalString'
+        fee:
+          $ref: '#/components/schemas/DecimalString'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    Investment:
+      type: object
+      required:
+        - id
+        - creatorId
+        - ticker
+        - wallet
+        - usdcAmount
+        - tokenAmount
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        wallet:
+          $ref: '#/components/schemas/EvmAddress'
+        usdcAmount:
+          $ref: '#/components/schemas/DecimalString'
+        tokenAmount:
+          $ref: '#/components/schemas/DecimalString'
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        holding:
+          $ref: '#/components/schemas/Holding'
+    IncomeProof:
+      type: object
+      required:
+        - id
+        - creatorId
+        - ticker
+        - period
+        - provider
+        - reclaimProofId
+        - verifiedAmount
+        - status
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        period:
+          type: integer
+          minimum: 0
+        provider:
+          type: string
+          maxLength: 200
+        reclaimProofId:
+          type: string
+          maxLength: 500
+        verifiedAmount:
+          $ref: '#/components/schemas/DecimalString'
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        reasoning:
+          type: string
+          maxLength: 1000
+        rejectReason:
+          type: string
+          maxLength: 500
+        model:
+          type: string
+          maxLength: 200
+        auditLogRef:
+          type: string
+          maxLength: 500
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    Dividend:
+      type: object
+      required: [id, creatorId, ticker, proofId, amountDue, status, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        proofId:
+          $ref: '#/components/schemas/Uuid'
+        period:
+          type: integer
+          minimum: 0
+        amountDue:
+          $ref: '#/components/schemas/DecimalString'
+        status:
+          type: string
+          enum: [DUE, PAID]
+        paidTxHash:
+          $ref: '#/components/schemas/TxHash'
+        paidAt:
+          $ref: '#/components/schemas/Timestamp'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    OracleEvent:
+      type: object
+      required: [id, creatorId, ticker, kind, payload, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        kind:
+          type: string
+          enum:
+            - IPO
+            - INVESTED
+            - PROOF_VERIFIED
+            - PROOF_REJECTED
+            - TRANCHE_RELEASED
+            - DIVIDEND_PAID
+            - GRACE_STARTED
+            - DEFAULTED
+            - TRADE
+        payload:
+          type: object
+          description: Kind-specific details; always includes `ticker`.
+          additionalProperties: true
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    ChainJob:
+      type: object
+      required: [id, creatorId, fn, status, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        creatorId:
+          $ref: '#/components/schemas/Uuid'
+        fn:
+          type: string
+          enum:
+            - createISA
+            - initializeIPO
+            - invest
+            - unlockNextTranche
+            - distributeDividend
+            - executeLiquidation
+        status:
+          type: string
+          enum: [QUEUED, SENT, CONFIRMED, FAILED, SIMULATED]
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+        error:
+          type: string
+          maxLength: 2000
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    Exchange:
+      type: object
+      required: [trending, events]
+      properties:
+        trending:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/CreatorSummary'
+        events:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/OracleEvent'
+    CreatorPage:
+      type: object
+      required: [creator, chart, holders, trades, events, proofs, dividends, viewer]
+      properties:
+        creator:
+          $ref: '#/components/schemas/Creator'
+        chart:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/PricePoint'
+        holders:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Holding'
+        trades:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Trade'
+        events:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/OracleEvent'
+        proofs:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/IncomeProof'
+        dividends:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/Dividend'
+        viewer:
+          type: object
+          properties:
+            wallet:
+              $ref: '#/components/schemas/EvmAddress'
+            holding:
+              $ref: '#/components/schemas/Holding'
+    CreatorHub:
+      type: object
+      description: >-
+        The viewer's creator dashboard. Every field is absent until the viewer
+        launches an IPO.
+      properties:
+        creator:
+          $ref: '#/components/schemas/Creator'
+        pendingDividend:
+          $ref: '#/components/schemas/Dividend'
+        dividends:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/Dividend'
+        proofs:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/IncomeProof'
+        chainJobs:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/ChainJob'
+        collateral:
+          type: object
+          required: [stakeAmount, atRisk]
+          properties:
+            stakeAmount:
+              $ref: '#/components/schemas/DecimalString'
+            atRisk:
+              type: boolean
+    LaunchState:
+      type: object
+      required: [wallet, hasCreator, defaults, worldId]
+      properties:
+        wallet:
+          $ref: '#/components/schemas/EvmAddress'
+        hasCreator:
+          type: boolean
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        defaults:
+          type: object
+          required: [shareBps, termMonths, trancheBps, minIncome]
+          properties:
+            shareBps:
+              type: integer
+            termMonths:
+              type: integer
+            trancheBps:
+              type: array
+              maxItems: 12
+              items:
+                type: integer
+            minIncome:
+              $ref: '#/components/schemas/Money'
+        worldId:
+          type: object
+          required: [simulated]
+          properties:
+            appId:
+              type: string
+              maxLength: 200
+            rpId:
+              type: string
+              maxLength: 200
+            action:
+              type: string
+              maxLength: 200
+            simulated:
+              type: boolean
+              description: True when no World ID app is configured (demo fallback).
+    ReclaimSession:
+      type: object
+      required: [sessionId, requestUrl, statusUrl]
+      properties:
+        sessionId:
+          type: string
+          maxLength: 500
+        requestUrl:
+          type: string
+          maxLength: 4000
+        statusUrl:
+          type: string
+          maxLength: 2000
+    AuditResult:
+      type: object
+      required: [approved, proof]
+      properties:
+        approved:
+          type: boolean
+        proof:
+          $ref: '#/components/schemas/IncomeProof'
+        dividend:
+          $ref: '#/components/schemas/Dividend'
+    MockBank:
+      type: object
+      required: [account, balance, transactions]
+      properties:
+        account:
+          type: string
+          maxLength: 100
+        balance:
+          $ref: '#/components/schemas/Money'
+        transactions:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [id, date, description, amount, type]
+            properties:
+              id:
+                type: string
+                maxLength: 50
+              date:
+                type: string
+                format: date
+              description:
+                type: string
+                maxLength: 200
+              amount:
+                $ref: '#/components/schemas/Money'
+              type:
+                type: string
+                enum: [DEPOSIT, WITHDRAWAL]
+    LaunchIpoRequest:
+      type: object
+      required: [ticker, displayName, targetRaise, stakeAmount, worldIdProof]
+      properties:
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+        headline:
+          type: string
+          maxLength: 280
+          default: ''
+        shareBps:
+          type: integer
+          minimum: 1
+          maximum: 5000
+          default: 500
+        termMonths:
+          type: integer
+          minimum: 1
+          maximum: 120
+          default: 60
+        targetRaise:
+          $ref: '#/components/schemas/Money'
+        stakeAmount:
+          $ref: '#/components/schemas/Money'
+        worldIdProof:
+          type: object
+          description: Raw IDKit result from the browser; verified server-side.
+          maxProperties: 50
+          additionalProperties: true
+    InvestRequest:
+      type: object
+      required: [usdcAmount]
+      properties:
+        usdcAmount:
+          $ref: '#/components/schemas/Money'
+    TradeRequest:
+      type: object
+      required: [side, amountIn]
+      properties:
+        side:
+          type: string
+          enum: [BUY, SELL]
+        amountIn:
+          $ref: '#/components/schemas/TokenAmount'
+        minOut:
+          allOf:
+            - $ref: '#/components/schemas/TokenAmount'
+          default: '0'
+    TriggerDefaultRequest:
+      type: object
+      required: [ticker]
+      properties:
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+    ProofBody:
+      type: object
+      description: >-
+        A Reclaim proof as posted by the Reclaim SDK or the CRE workflow. The
+        shape belongs to Reclaim; the server verifies it.
+      maxProperties: 100
+      additionalProperties: true
+    Problem:
+      type: object
+      description: >-
+        RFC 9457 Problem Details for HTTP APIs. Returned to JSON callers with
+        `Content-Type: application/problem+json`. HTML callers receive an error
+        page with the same HTTP status instead of this body.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: about:blank
+          description: >-
+            URI reference identifying the problem type. Defaults to
+            `about:blank`, in which case `title` is the standard HTTP reason
+            phrase.
+          maxLength: 2000
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+          maxLength: 200
+        status:
+          type: integer
+          description: HTTP status code generated by the origin server.
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+          description: >-
+            Human-readable explanation specific to this occurrence. Clients
+            machine-read `type`; humans read `detail`.
+          maxLength: 5000
+        instance:
+          type: string
+          format: uri-reference
+          description: >-
+            URI reference identifying this occurrence. SMX sets it to the
+            request id, for cross-referencing with server logs.
+          maxLength: 2000

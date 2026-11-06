@@ -1,0 +1,212 @@
+html {
+	scrollbar-gutter: stable;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	html {
+		scroll-behavior: smooth;
+	}
+}
+
+[hidden] {
+	display: none;
+}
+
+#page-shell[data-console-page='true'] {
+	block-size: 100dvb;
+	display: flex;
+	flex-direction: column;
+}
+
+#page-shell[data-console-page='true'] > .rc-app-shell {
+	block-size: auto;
+	flex: 1 1 auto;
+}
+
+/* The shell never scrolls; its content pane does. The design package gives it
+   `overflow: hidden`, which a browser still scrolls to bring an anchor target
+   or a focused element into view, shoving the top bar and sidebar up. `clip`
+   looks the same but can't be scrolled at all. */
+.rc-app-shell {
+	overflow: clip;
+}
+
+pre,
+code,
+kbd,
+samp {
+	font-family: var(--rc-font-family-mono);
+}
+
+:not(pre) > code {
+	font-size: 0.9em;
+}
+
+/* Pages not yet on `.rc-page` get its padding from the content area. */
+.console-content:not(:has(> .rc-page)) {
+	padding: clamp(20px, 3vw, 40px);
+}
+
+body:has(#console-menu:popover-open) .rc-bottom-tabs button.rc-nav-link {
+	background: var(--rc-color-action-subtle);
+	color: var(--rc-color-action-primary);
+}
+
+/* A pill after the label sits at the row's end, like the count. */
+.rc-nav-link > .rc-pill {
+	margin-inline-start: auto;
+}
+
+.action-menu {
+	display: inline-flex;
+	position: relative;
+}
+
+.action-menu[data-position='corner'] {
+	inset-block-start: var(--rc-space-2);
+	inset-inline-end: var(--rc-space-3);
+	position: absolute;
+}
+
+/* The design package hides a choice row's input with `position: absolute`
+   but leaves the row unpositioned, so the input lands against a far ancestor
+   — often below the visible pane. Focusing it (a click on the row) then
+   scrolls the app shell itself, shoving the whole layout up. Anchor the input
+   to its row. Belongs upstream in @reclaimprotocol/design. */
+.rc-choice-row {
+	position: relative;
+}
+
+.rc-dialog[data-size='xl'] {
+	--_dialog-inline-size: var(--rc-layout-page-width-xl);
+}
+
+.rc-dialog[data-size='full'] {
+	block-size: 100dvb;
+	border-radius: 0;
+	inline-size: 100vw;
+	max-block-size: 100dvb;
+	max-inline-size: 100vw;
+}
+
+@keyframes inProgressLoop {
+	0%,
+	100% {
+		opacity: 0.1;
+	}
+
+	50% {
+		opacity: 0.3;
+	}
+}
+
+.rc-button.htmx-request,
+form.htmx-request {
+	animation: inProgressLoop 1.5s ease-in-out infinite;
+	pointer-events: none;
+}
+
+@media (max-width: 35rem) {
+	.rc-app-bar .rc-breadcrumbs li:first-child:not(:last-child) {
+		display: none;
+	}
+}
+
+/* Column minimums for `.rc-grid`, where the package default is too narrow. */
+.rc-grid[data-min='sm'] {
+	--rc-grid-min: 18rem;
+}
+
+.rc-grid[data-min='md'] {
+	--rc-grid-min: 340px;
+}
+
+.rc-grid[data-min='lg'] {
+	--rc-grid-min: 26rem;
+}
+
+/* An event's offset, with its local time of day under it once expanded. */
+.rc-event-timeline__times {
+	display: flex;
+	flex-direction: column;
+	gap: var(--rc-space-050);
+}
+
+.rc-event-timeline__when {
+	color: var(--rc-color-text-tertiary);
+	font-size: var(--rc-font-size-caption);
+	white-space: nowrap;
+}
+
+.rc-event-timeline details:not([open]) .rc-event-timeline__when {
+	display: none;
+}
+
+/* The Chatwoot launcher pins itself 20–24px off the bottom, over the mobile
+   tab bar. Float it above the bar instead, like a floating action button.
+   Its stylesheet is injected unlayered, which outranks this layer, hence
+   `!important` (a layered important wins over an unlayered normal rule). */
+@media (max-width: 56.25rem) {
+	body:has(.rc-bottom-tabs) .woot-widget-bubble {
+		bottom: calc(
+			var(--rc-layout-mobile-tab-height) + env(safe-area-inset-bottom)
+				+ var(--rc-space-200)
+		) !important;
+	}
+}
+
+/* The design's mobile tab bar has a fixed five columns, so fewer tabs leave a
+   gap. Give every tab (and Menu) an equal share of the width instead. */
+@media (max-width: 56.25rem) {
+	.rc-bottom-tabs {
+		grid-auto-columns: minmax(0, 1fr);
+		grid-auto-flow: column;
+		grid-template-columns: none;
+	}
+}
+
+/* The profile menu sits at the foot of the navigation pane, so it opens
+   upward from there. A taller trigger gives the account a clearer, easier
+   target than the compact app-bar size. */
+.rc-navigation-pane__footer .rc-profile-menu__trigger {
+	min-block-size: var(--rc-size-control-xl);
+}
+
+.rc-navigation-pane__footer .rc-profile-menu__trigger strong {
+	flex: 1;
+	overflow: hidden;
+	text-align: start;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.rc-navigation-pane__footer .rc-profile-menu[popover] {
+	position-area: block-start span-inline-end;
+}
+
+@supports not (position-area: block-start) {
+	.rc-navigation-pane__footer .rc-profile-menu[popover] {
+		inset: auto auto var(--rc-space-300) var(--rc-space-300);
+	}
+}
+
+/* Text wordmark in the app bar. */
+.smx-wordmark {
+	font-family: var(--rc-font-family-mono);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+}
+
+.smx-brand-mark {
+	align-items: center;
+	background: var(--rc-color-action-primary);
+	block-size: 24px;
+	border-radius: var(--rc-radius-control);
+	color: var(--rc-color-text-on-action, #fff);
+	display: inline-flex;
+	font-family: var(--rc-font-family-mono);
+	font-size: 10px;
+	font-weight: 600;
+	inline-size: 24px;
+	justify-content: center;
+}

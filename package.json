@@ -24,6 +24,7 @@
 		"build": "npm run build --workspaces --if-present",
 		"migrate": "npm run -w @stakeme/app migrate",
 		"migrate:plan": "npm run -w @stakeme/app migrate:plan",
+		"seed:demo": "node --env-file-if-exists=.env --env-file-if-exists=.env.local packages/app/scripts/seed-demo.ts",
 		"dev": "node --env-file-if-exists=.env --env-file-if-exists=.env.local packages/app/scripts/dev.ts",
 		"start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local packages/app/scripts/start.ts",
 		"pgtyped:typegen": "sh scripts/pgtyped.sh",

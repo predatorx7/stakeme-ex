@@ -1,0 +1,25 @@
+import type { components } from '@stakeme/client/openapi'
+
+/**
+ * Aliases of the OpenAPI schemas the SQL `<entity>_json` builders produce.
+ * Pages and components take these as props.
+ */
+type Schemas = components['schemas']
+
+export type Creator = Schemas['Creator']
+export type CreatorSummary = Schemas['CreatorSummary']
+export type Tranche = Schemas['Tranche']
+export type Holding = Schemas['Holding']
+export type Trade = Schemas['Trade']
+export type Investment = Schemas['Investment']
+export type PricePoint = Schemas['PricePoint']
+export type IncomeProof = Schemas['IncomeProof']
+export type Dividend = Schemas['Dividend']
+export type OracleEvent = Schemas['OracleEvent']
+export type ChainJob = Schemas['ChainJob']
+export type Exchange = Schemas['Exchange']
+export type CreatorPage = Schemas['CreatorPage']
+export type CreatorHub = Schemas['CreatorHub']
+export type LaunchState = Schemas['LaunchState']
+export type AuditResult = Schemas['AuditResult']
+export type MockBank = Schemas['MockBank']
