@@ -97,6 +97,11 @@ export async function verifyWorldIdProof(
 	{ proof, signal }: WorldIdVerifyInput,
 ): Promise<WorldIdVerifyResult> {
 	const isDemoProof = field(proof, 'demo') === true
+	// With real World ID configured, fixture proofs are never accepted.
+	assert(
+		!(isDemoProof && isWorldIdConfigured()),
+		serverUnavailable('Demo World ID proofs are disabled'),
+	)
 	if(isDemoProof || !isWorldIdConfigured()) {
 		assert(
 			DEMO_MODE,

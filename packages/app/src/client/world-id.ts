@@ -34,6 +34,11 @@ document.addEventListener('click', (event) => {
 		const kind = sim.dataset.worldIdSim === 'sybil' ? 'sybil' : 'success'
 		const trigger = sim.closest('form')
 			?.querySelector<HTMLElement>('[data-world-id]')
+		if(trigger?.dataset.appId) {
+			// Real World ID is configured: simulators never run.
+			return
+		}
+
 		sim.setAttribute('aria-busy', 'true')
 		void deliver(sim, demoProof(kind, trigger?.dataset.action), 'Simulated')
 			.finally(() => sim.removeAttribute('aria-busy'))
@@ -96,9 +101,9 @@ const pendingRequests = new WeakMap<HTMLElement, AbortController>()
 const RETRY = 'Press Verify with World ID to retry.'
 const ERROR_MESSAGES: Record<string, string> = {
 	cancelled: `Verification cancelled. ${RETRY}`,
-	user_rejected: `You declined the request in World App. ${RETRY}`,
+	user_rejected: `You declined in World App. ${RETRY}`,
 	verification_rejected: `World App rejected the verification. ${RETRY}`,
-	timeout: `Timed out waiting for World App (2 minutes). ${RETRY}`,
+	timeout: `Timed out after 2 minutes. ${RETRY}`,
 	credential_unavailable:
 		'This World ID has no proof-of-human credential, so it cannot launch.',
 	max_verifications_reached:
@@ -194,7 +199,7 @@ async function deliver(from: HTMLElement, proof: unknown, label: string) {
 			{ worldIdProof: proof },
 		)
 	} catch(err) {
-		setStatus(from, `Rejected: ${(err as Error).message}`, 'danger')
+		setStatus(from, rejectionMessage(err), 'danger')
 		return
 	}
 
@@ -207,6 +212,21 @@ async function deliver(from: HTMLElement, proof: unknown, label: string) {
 	form.dispatchEvent(
 		new CustomEvent('smx:world-id', { bubbles: true, detail: proof }),
 	)
+}
+
+/** Short, clear text for the server's 409 and 403 refusals. */
+function rejectionMessage(err: unknown) {
+	const raw = err instanceof Error ? err.message : String(err)
+	const text = raw.toLowerCase()
+	if(text.includes('already launched')) {
+		return 'Rejected: this person already launched an IPO. One human, one IPO.'
+	}
+
+	if(text.includes('blacklisted')) {
+		return 'Rejected: this World ID is blacklisted after a default.'
+	}
+
+	return `Rejected: ${raw}`
 }
 
 /** Disables submit and clears any previous proof (so a retry starts clean). */

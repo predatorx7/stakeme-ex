@@ -26,13 +26,19 @@ World ID changes what an investor can trust at exactly this point:
   refused (HTTP 403, or `NullifierBlacklisted` onchain). Without this, default is
   free: the creator walks away from investors and restarts under a new address.
 
-**Why proof of human is the minimum sufficient assurance.** SMX needs uniqueness of a
-person, not identity, age, nationality or document data. Proof of human (the Orb
-credential, requested with the `proofOfHuman` preset) is the weakest credential that
-gives a per-person, action-scoped, unlinkable nullifier. A device or phone credential is
-cheaper to farm, so it would not stop a Sybil relaunch. A document or passport
-credential would collect more than SMX needs and adds no uniqueness SMX lacks. We use
-one credential and no more.
+**Why Proof of Human is the minimum sufficient assurance.** SMX needs uniqueness of a
+person, not identity, age, nationality or document data. Proof of Human (requested with
+the `proofOfHuman` preset) is the credential that gives a per-person, action-scoped,
+unlinkable nullifier, which is exactly "one person, one IPO". We chose it over the
+alternatives on purpose:
+
+- **Passport/NFC** collects document data SMX does not need (nationality, age) and adds
+  no uniqueness we lack.
+- **Selfie Check** returns a Sybil score. A score is a probabilistic signal, and a
+  weaker one than a per-person nullifier for a case with financial liability, where a
+  defaulter relaunching under a new wallet costs investors real money.
+
+We use one credential and no more.
 
 ```mermaid
 sequenceDiagram
@@ -69,6 +75,19 @@ sequenceDiagram
     end
     Note over F: After a default the oracle calls blacklist(nullifierHash)
 ```
+
+## Verification and the extra Sybil layer
+
+Verification is server-side: every proof goes to the Developer Portal v4 verify
+endpoint (`/api/v4/verify/{rp_id}`), and the launch is refused unless it succeeds.
+The onchain nullifier registry (`isaOfNullifier`, `blacklisted` on `LiquidISAFactory`)
+is an extra Sybil layer on top, not the verification itself. When real World ID is
+configured, the demo simulators are not shown and fixture proofs are rejected, so the
+only path is the real IDKit flow.
+
+## Differentiation
+
+TODO: see DIFFERENTIATION.md
 
 ## What we built
 
@@ -124,12 +143,12 @@ uniqueness, so there is one action id for launches.
 | Path | How to reproduce | What the user sees |
 | --- | --- | --- |
 | Success | Simulator, Paste code, approve | "Verified as a unique human.", submit enabled |
-| Decline in World App or Simulator | Paste code, then decline | "You declined the request in World App. Press Verify with World ID to retry.", submit disabled |
+| Decline in World App or Simulator | Paste code, then decline | "You declined in World App. Press Verify with World ID to retry.", submit disabled |
 | Cancel in SMX | Click Verify again while waiting | "Verification cancelled. ...", QR cleared, submit disabled |
-| Timeout | Do nothing for 2 minutes | "Timed out waiting for World App ...", submit disabled |
+| Timeout | Do nothing for 2 minutes | "Timed out after 2 minutes. ...", submit disabled |
 | Credential unavailable | World ID without the credential | "This World ID has no proof-of-human credential ..." |
-| Repeat human (Sybil) | Verify the same Simulator identity for a second creator | "Rejected: ..." from `/api/world-id/check` (409) |
-| Blacklisted human | Verify as a defaulted creator | "Rejected: ..." (403) |
+| Repeat human (Sybil) | Verify the same Simulator identity for a second creator | "Rejected: this person already launched an IPO. One human, one IPO." (409) |
+| Blacklisted human | Verify as a defaulted creator | "Rejected: this World ID is blacklisted after a default." (403) |
 
 Every non-success result clears the hidden proof field, keeps submit disabled and
 leaves the Verify button usable. Error codes come from `IDKitErrorCodes` in

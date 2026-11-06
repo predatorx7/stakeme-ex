@@ -148,7 +148,7 @@ export function LaunchPage({ state }: { state: LaunchState }) {
 									hidden />
 								<p data-world-id-status />
 								{
-									(worldId.simulated || DEMO_MODE) && (
+									!live && (worldId.simulated || DEMO_MODE) && (
 										<div
 											class='smx-actions'
 											data-world-id-demo

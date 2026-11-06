@@ -179,9 +179,9 @@ moment, the full path table and what we do not meet (World ID Agent Pass).
 
 ## Demo fallback
 
-If `WORLD_APP_ID` is unset or `DEMO_MODE=1`, skip IDKit and the Developer
+If World ID is not configured (`WORLD_APP_ID` or the RP keys unset), skip IDKit and the Developer
 Portal call. The server accepts a fixture result and derives a deterministic
-fake nullifier: `keccak256(wallet + ':' + action)`. Show a "Demo mode" badge
+fake nullifier: `keccak256(wallet + ':' + action)`. When real World ID is configured, the simulate buttons are never rendered and fixture proofs are rejected, even with `DEMO_MODE=1`. Show a "Demo mode" badge
 in the UI. To demo the blacklist, use two wallets that map to the same fake
 nullifier by posting the same `demoNullifier` field (accepted only when
 `DEMO_MODE=1`).
