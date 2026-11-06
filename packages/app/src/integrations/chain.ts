@@ -900,7 +900,8 @@ function atsInput(job: ChainJob, holder: string) {
 	return {
 		ticker: String(args.ticker ?? ''),
 		name: String(args.name ?? ''),
-		supply: String(args.totalRaise ?? '0').split('.')[0],
+		// `launch_ipo` sends `targetRaise`; `totalRaise` is the older name.
+		supply: String(args.totalRaise ?? args.targetRaise ?? '0').split('.')[0],
 		decimals: 18,
 		holder,
 	}
