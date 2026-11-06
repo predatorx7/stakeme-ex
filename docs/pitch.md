@@ -1,6 +1,6 @@
 # Pitch and demo playbook
 
-Tagline: *StakeMe Exchange (SMX): the world's first liquid stock market for
+Tagline: *StakeMe Exchange (SMX): a liquid stock market for
 human potential.*
 
 SMX builds on three sponsors: Hedera, World ID, and 0G. Reclaim supplies the

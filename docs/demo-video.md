@@ -40,7 +40,7 @@ voiceover, and the proof that a sponsor integration is real.
 - **Voiceover:** "Day traders bet on dead corporations, and banks won't lend to
   brilliant young people. On StakeMe Exchange you IPO your future income.
   Investors back you today, and you pay them dividends from what you really
-  earn. It's the world's first liquid stock market for human potential."
+  earn. It's a liquid stock market for human potential."
 - **Proves:** Nothing sponsor-specific yet. Establishes that the market is live
   with seeded data.
 
