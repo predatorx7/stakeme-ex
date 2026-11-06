@@ -1,8 +1,13 @@
 import assert from 'node:assert'
 import { describe, it } from 'node:test'
-import { GRAVATAR_STYLES, gravatarUrl } from '../src/utils/gravatar.ts'
+import {
+	GRAVATAR_STYLES,
+	gravatarUrl,
+	holderAvatarSeed,
+} from '../src/utils/gravatar.ts'
 
-const ADDR = '0x00000000000000000000000000000000000000A1'
+const ADDR = '6f1c2f0e-8f0b-4a53-9a43-0c7a1b2d3e4f'
+const WALLET = '0x00000000000000000000000000000000000000A1'
 
 describe('gravatarUrl', () => {
 	it('is stable and case/whitespace-insensitive', () => {
@@ -28,5 +33,17 @@ describe('gravatarUrl', () => {
 		}
 
 		assert.ok(styles.size > 1)
+	})
+
+	it('seeds a holder by account id, else a hash without the wallet', () => {
+		const base = { creatorId: ADDR, wallet: WALLET }
+		assert.strictEqual(holderAvatarSeed({ ...base, userId: 'u1' }), 'u1')
+		const seed = holderAvatarSeed(base)
+		assert.match(seed, /^[\da-f]{64}$/)
+		assert.ok(!seed.toLowerCase().includes(WALLET.toLowerCase().slice(2)))
+		const lower = { ...base, wallet: WALLET.toLowerCase() }
+		assert.strictEqual(seed, holderAvatarSeed(lower))
+		const other = { ...base, creatorId: 'other' }
+		assert.notStrictEqual(seed, holderAvatarSeed(other))
 	})
 })

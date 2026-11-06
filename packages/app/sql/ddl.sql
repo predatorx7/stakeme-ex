@@ -1802,6 +1802,12 @@ AS $$
 		'creatorId', h.creator_id,
 		'ticker', (SELECT c.ticker FROM creators c WHERE c.id = h.creator_id),
 		'wallet', h.wallet::TEXT,
+		'userId', (
+			SELECT w.user_id FROM wallet_addresses w
+			WHERE w.address = h.wallet
+			ORDER BY w.is_primary DESC, w.created_at
+			LIMIT 1
+		),
 		'balance', h.balance::TEXT,
 		'sharePct', (
 			SELECT round(h.balance / nullif(sum(x.balance), 0) * 100, 2)

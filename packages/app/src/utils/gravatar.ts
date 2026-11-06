@@ -10,14 +10,14 @@ export const GRAVATAR_STYLES = [
 ] as const
 
 /**
- * Deterministic generated avatar for a wallet address (or any stable id).
+ * Deterministic generated avatar for a stable id (never a wallet address).
  * The style is picked from the first byte of the hash, so each seed always
  * gets the same image but different seeds look varied. `f=y` forces the
  * generated image, never a real Gravatar photo. `size` is in CSS px; the
  * image is requested at 2x for sharp rendering on dense screens.
  *
  * Privacy: the browser fetches this URL from gravatar.com, which only ever
- * sees the SHA-256 of the seed, never the address itself.
+ * sees the SHA-256 of the seed, never the id itself.
  */
 export function gravatarUrl(seed: string, size = 80) {
 	const hash = createHash('sha256')
@@ -26,4 +26,18 @@ export function gravatarUrl(seed: string, size = 80) {
 	const style = GRAVATAR_STYLES[hash[0] % GRAVATAR_STYLES.length]
 	return `https://gravatar.com/avatar/${hash.toString('hex')}`
 		+ `?d=${style}&f=y&s=${Math.round(size * 2)}&r=g`
+}
+
+/**
+ * Avatar seed for a holder: their account id when the wallet belongs to an
+ * account, else a stable hash of the creator id and the holding's wallet key.
+ * The wallet address itself is never used as a seed.
+ */
+export function holderAvatarSeed(
+	h: { userId?: string, creatorId: string, wallet: string },
+) {
+	return h.userId
+		?? createHash('sha256')
+			.update(`${h.creatorId}:${h.wallet.toLowerCase()}`)
+			.digest('hex')
 }

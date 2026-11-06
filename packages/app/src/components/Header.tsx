@@ -49,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 type Viewer = {
+	id?: string
 	name: string
 	email: string
 	walletAddress?: string | null
@@ -187,7 +188,7 @@ function ProfileMenu({ viewer }: { viewer: Viewer }) {
 				aria-label='Open profile menu'
 				aria-haspopup='menu'>
 				<Avatar
-					seed={address}
+					seed={viewer.id}
 					initials={address ? undefined : 'ME'}
 					size='sm' />
 				<strong
@@ -209,7 +210,7 @@ function ProfileMenu({ viewer }: { viewer: Viewer }) {
 				popover>
 				<div class='rc-profile-menu__identity'>
 					<Avatar
-						seed={address}
+						seed={viewer.id}
 						initials={address ? undefined : 'ME'} />
 					<strong
 						class='smx-mono'

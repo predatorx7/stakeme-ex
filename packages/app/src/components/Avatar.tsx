@@ -5,7 +5,7 @@ type Props = {
 	/** Image URL. Takes precedence over `seed`. */
 	src?: string | null
 	/**
-	 * Wallet address (or other stable id) to derive a generated Gravatar from.
+	 * Stable id (never a wallet address) to derive a generated Gravatar from.
 	 * The browser requests the image from gravatar.com, which only receives the
 	 * SHA-256 of the seed. The initials sit behind it as the fallback.
 	 */

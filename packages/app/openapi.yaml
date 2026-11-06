@@ -1353,6 +1353,9 @@ components:
           $ref: '#/components/schemas/Ticker'
         wallet:
           $ref: '#/components/schemas/EvmAddress'
+        userId:
+          $ref: '#/components/schemas/Uuid'
+          description: Account that owns the wallet. Absent for wallets that never signed in.
         balance:
           $ref: '#/components/schemas/DecimalString'
         sharePct:

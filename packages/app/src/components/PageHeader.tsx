@@ -6,7 +6,7 @@ import { Avatar } from './Avatar.tsx'
 export function PageHeader({ eyebrow, title, avatar, meta, lede, actions }: {
 	eyebrow?: string
 	title: string
-	/** Wallet or id to show a generated avatar beside the title. */
+	/** Id to show a generated avatar beside the title. */
 	avatar?: string
 	/** A kind tag and a line of facts under the title. */
 	meta?: Children

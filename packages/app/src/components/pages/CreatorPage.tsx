@@ -2,6 +2,7 @@
 import type { CreatorPage as CreatorPageData } from '../../types/index.ts'
 import { formatDate } from '../../utils/dates.ts'
 import { escapeText } from '../../utils/escape.ts'
+import { holderAvatarSeed } from '../../utils/gravatar.ts'
 import { formatTokens, formatUsdc, shortHex } from '../../utils/money.ts'
 import { Avatar } from '../Avatar.tsx'
 import { Badge } from '../Badge.tsx'
@@ -307,7 +308,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 													<td>
 														<span class='smx-who'>
 															<Avatar
-																seed={h.wallet}
+																seed={holderAvatarSeed(h)}
 																size='sm' />
 															<span class='smx-mono'>
 																{escapeText(shortHex(h.wallet))}
