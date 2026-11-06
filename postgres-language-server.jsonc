@@ -1,0 +1,9 @@
+{
+	"linter": {
+		"rules": {
+			"safety": {
+				"runningStatementWhileHoldingAccessExclusive": "off"
+			}
+		}
+	}
+}

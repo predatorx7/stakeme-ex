@@ -1,0 +1,21 @@
+{
+	"transforms": [
+		{
+			"mode": "sql",
+			"include": "packages/*/sql/queries.sql",
+			"emitTemplate": "{{dir}}/../src/queries.ts"
+		}
+	],
+	"srcDir": "./",
+	"failOnError": true,
+	"typesOverrides": {
+		"bytea": "Uint8Array",
+		"jsonb": "unknown",
+		"safe_url": "string",
+		"email_address": "string",
+		"money_amount": "string",
+		"token_amount": "string",
+		"evm_address": "string",
+		"tx_hash": "string"
+	}
+}

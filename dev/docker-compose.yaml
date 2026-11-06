@@ -1,0 +1,22 @@
+# Local Postgres 18 with pg_cron (used by pgmb). Host port 5442 avoids clashing
+# with other local stacks. Start it with `npm run db:up`.
+name: stakeme
+
+services:
+  postgres:
+    image: ghcr.io/haathie/postgres:18
+    container_name: stakeme-postgres
+    environment:
+      POSTGRES_PASSWORD: ''
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: postgres
+    ports:
+      - '5442:5432'
+    command: -c config_file=/etc/postgresql.conf
+    volumes:
+      - ./pg.conf:/etc/postgresql.conf:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10

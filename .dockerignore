@@ -1,0 +1,54 @@
+# Everything the build context must NOT carry into the image.
+#
+# The first entry is the important one: host node_modules holds native binaries
+# Linux install produces an image that fails at runtime with an unhelpful
+# "invalid ELF header". The Dockerfile installs its own.
+node_modules
+**/node_modules
+
+# Build output — the image builds its own, so a stale local copy can't ship.
+lib
+**/lib
+packages/app/public/dist
+
+# Secrets. These must reach the container through the runtime environment
+# (ECS task definition secrets / SSM), never baked into a layer.
+.env
+.env.*
+*.env
+!.development.env
+creds.csv
+secret.*.sql
+
+# Local databases and scratch state
+pg_dev_data
+dev/pg_data
+packages/app/scripts/data
+
+# fixtures make the context needlessly large.
+**/tests
+**/*.test.ts
+packages/app/.test.env
+
+# Tooling that has no bearing on the runtime
+.git
+.github
+.vscode
+.idea
+docs
+*.md
+!packages/*/README.md
+.eslintcache
+*.tsbuildinfo
+coverage
+# Needs the glob: a bare `.DS_Store` only matches the context root, and macOS
+# leaves one in every directory it has been browsed in.
+**/.DS_Store
+
+# Local provider-authoring debug artifacts (may contain PII / secrets)
+gh.txt
+attestor-last-response*.html
+_diag*.mjs
+reclaim-prove*.json
+logs.txt
+batch-attempted.txt

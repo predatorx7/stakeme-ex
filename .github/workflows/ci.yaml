@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Checkout is all the job needs from the token.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Version comes from .nvmrc, which is also what the Dockerfile tracks — CI
+      # has to test the Node major that production runs on.
+      #
+      # `cache: npm` caches the npm DOWNLOAD cache (~/.npm), not node_modules.
+      # That is the right thing for a workspaces repo: node_modules is spread
+      # across the root and each package, so caching the root alone restores a
+      # half-installed tree. It also saves as well as restores, which a bare
+      # `actions/cache/restore` does not.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      # `npm ci`, not `npm i`: it installs exactly what package-lock.json pins
+      # and never rewrites it, so CI tests the same dependency set the
+      # Dockerfile installs. `npm i` may resolve newer versions inside the
+      # declared ranges, which lets CI pass on a tree production never sees.
+      - name: Install Dependencies
+        run: npm ci
+
+      # Catches drift between openapi.yaml and the generated client
+      # files it feeds — a stale checked-in generated file would otherwise
+      # look current until something broke at runtime.
+      - name: Check generated files
+        run: npm run gen:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test

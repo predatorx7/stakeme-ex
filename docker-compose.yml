@@ -1,0 +1,86 @@
+# Development stack: the app against a real Postgres, in containers.
+#
+#   docker compose up --build
+#
+# The fastest inner loop is still `npm run dev` on the host — that uses an
+# embedded PGlite and needs no containers. Reach for this stack when you want
+# the real database: checking the schema bootstrap, pgmb with pg_cron, or
+# anything where PGlite's differences from Postgres would hide a bug.
+#
+# NODE_ENV stays unset (so, development), which means the server runs Vite in
+# middleware mode and serves client assets from source — no bundle rebuild
+# between edits.
+
+name: stakeme-stack
+
+services:
+  postgres:
+    # Carries pg_cron and pg_parquet, which stock postgres images don't.
+    # pgmb uses pg_cron to dispatch events on a timer; without it pgmb falls
+    # back to polling, which works but isn't what production looks like.
+    image: ghcr.io/haathie/postgres:18
+    environment:
+      POSTGRES_PASSWORD: ''
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: postgres
+    command: -c config_file=/etc/postgresql.conf
+    volumes:
+      - ./dev/pg.conf:/etc/postgresql.conf:ro
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      # Host port 5442 so it does not clash with other local Postgres instances.
+      - '5442:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot migration job. Applies only pending migrations, so `up` stays fast
+  # when the schema is already current.
+  migrate:
+    build:
+      context: .
+      target: runtime
+    command: node packages/app/scripts/migrate.ts
+    environment:
+      DB_URI: postgres://postgres@postgres:5432/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  app:
+    build:
+      context: .
+      # The `build` stage, not `runtime`: development needs the dev
+      # dependencies, because the server starts Vite rather than serving a
+      # prebuilt bundle.
+      target: build
+    command: node --watch packages/app/scripts/start.ts
+    env_file:
+      - .development.env
+    environment:
+      # Override what .development.env points at the host.
+      DB_URI: postgres://postgres@postgres:5432/postgres
+      CANONICAL_ORIGIN: http://localhost:4020
+      PORT: '4020'
+    ports:
+      - '4020:4020'
+    volumes:
+      # Live source, so --watch picks up edits without a rebuild.
+      - .:/app
+      # Anonymous volumes shadow the bind mount at these paths, keeping the
+      # image's Linux-built copies. Without them the host's node_modules
+      # (macOS-native binaries) and stale lib output would win and the app
+      # would fail to start.
+      - /app/node_modules
+            - /app/packages/client/lib
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
