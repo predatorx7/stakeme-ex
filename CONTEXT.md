@@ -240,6 +240,18 @@ Env: `WALLETCONNECT_PROJECT_ID` (public; from https://dashboard.walletconnect.co
 - npm: root `overrides` force `@hiero-ledger/sdk` ^2.90.1 (the wallet package pins 2.79.0 as an exact peer), `ethers` ^6.13.1 under the wallet package (peer ^6.13.5; the 0G SDK pins 6.13.1) and a single `@types/node` (`$@types/node`; this also stops the stale `@types/node@18` nesting under `packages/app`).
 - Known issues: the two SDKs use different WalletConnect storage prefixes (`smx-evm` and the default) because the Hedera `DAppConnector` throws on a stored session without a `hedera` namespace. `UniversalConnector.connect()` never settles when the modal closes, so `walletconnect-evm.ts` watches the modal state through a private field (`appKit`, cast) and aborts the pairing. Not verified live: a full pairing and signature (needs a phone wallet), HashPack accepting a transaction whose fee payer is the SMX operator, mobile deep-link return after the SIWE request, the Hedera signer dialog (needs a live `HEDERA_OPERATOR_*` rail; the dev server is simulated). Verified in Chrome with the real project id: the QR modal opens, the explorer lookup found 1inch Wallet, close-without-connect stores nothing, generate, import, export, sign-out.
 
+## Live testnet status (2026-11-06)
+
+Secrets live only in `.env` (gitignored). Public ids below are safe to share.
+
+- Testnet account `0x96B380895ea976cbEc267b959A1D116C457705aF`: one testnet-only key for the Hedera deployer, oracle, and operator and for 0G (`ORACLE_PRIVATE_KEY`, `HEDERA_*_KEY`, `ZG_PRIVATE_KEY`, `OG_PRIVATE_KEY`).
+- Hedera testnet (chain 296):
+  - `MockUSDC` `0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f` (Ignition), `LiquidISAFactory` `0x844a1eecad6f8d5a66a29d68597a4e36019b5ddc` (deployed with viem, `gas: 6_000_000`; Ignition's automatic gas limit got HTTP 400 from Hashio, so the Ignition journal lists only MockUSDC).
+  - Hedera bills at least 80% of the gas limit at about 1,240 gwei: the two deploys cost about 4.3 HBAR, and each IPO (`createISA` deploys an ISA and a token) costs about 4 to 5 HBAR. `CHAIN_RPC_URL` stays commented in `.env` until the account holds at least 30 HBAR. The faucet without sign-in gives 10 HBAR per day; a portal account gives 100.
+- World ID: app `app_0b5a20d804cb26e5008896d976fc4193`, RP `rp_6a0a12bcfbc0fbf0` (signer `0x78AE71F65dF192Fd52E97Ea45bf07538113F0ffA`, key generated locally, never left this machine), staging action `smx-launch-ipo`, `WORLD_ENV=staging`. Verified end to end with the World ID Simulator (paste the IDKit link into Paste code): RP signature, proof, and `POST /api/world-id/check` returned 200 through the v4 verify API.
+- 0G Galileo: same account, balance 0. The faucet blocks automated browsers; the team requested credits in 0G's Telegram. Compute and Storage stay on the fallback until funded.
+- Reclaim: provider live (see workstream 8). WalletConnect: project id in `.env`, QR pairing verified.
+
 ## Remaining
 
 - UI follow-ups for workstream 7: `GetExchange` has no totals, so the "Dividends paid" KPI sums `DIVIDEND_PAID` events in the latest 20 (shows $0.00 when none are in the window) and "Total raised" sums trending creators; add `totals` to `exchange_json`. `GetCreatorHub` returns no events, so the Hub feed starts empty and fills from SSE. The demo button "Simulate $5,000 deposit" works again (fixed 2026-11-06: `runIncomeAudit` lifts a nested `proof` demo fixture); verified by curl, approved with a $250 DUE dividend, but the pending-dividend card was not re-checked in a browser. `data-hedera-pay` button markup is unrun against `hedera-pay.ts`.
