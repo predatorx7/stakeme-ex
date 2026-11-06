@@ -66,3 +66,41 @@
 .smx-chart-slot {
 	min-inline-size: 0;
 }
+
+/* Section pane: a third, sticky column on wide screens only. */
+.smx-section-nav {
+	display: none;
+}
+
+.smx-layout [id] {
+	scroll-margin-block-start: calc(var(--rc-app-bar-height, 4rem) + var(--rc-space-3));
+}
+
+@media (min-width: 75rem) {
+	.smx-layout[data-nav] {
+		grid-template-columns: 9.5rem minmax(0, 1fr) 22rem;
+	}
+
+	.smx-section-nav {
+		align-self: start;
+		display: grid;
+		gap: 0.125rem;
+		inset-block-start: calc(var(--rc-app-bar-height, 4rem) + var(--rc-space-3));
+		position: sticky;
+	}
+
+	.smx-section-nav a {
+		border-inline-start: 2px solid var(--rc-color-border-default, currentcolor);
+		color: var(--rc-color-text-tertiary, inherit);
+		font-size: 0.8125rem;
+		padding: 0.25rem 0.75rem;
+		text-decoration: none;
+		transition: color 0.1s, border-color 0.1s;
+	}
+
+	.smx-section-nav a:hover,
+	.smx-section-nav a[aria-current='true'] {
+		border-color: var(--smx-dw-marigold, currentcolor);
+		color: var(--rc-color-text-primary, inherit);
+	}
+}

@@ -50,5 +50,6 @@ export function timeAxis(times: number[], interval?: string) {
 		? CLOCK
 		: interval === '1D' ? DAY_CLOCK : DAY
 	const picks = [times[0], times[Math.floor(times.length / 2)], times.at(-1)]
-	return [...new Set(picks.filter((t) => t !== undefined).map((t) => fmt.format(t)))]
+	const shown = picks.filter((t) => t !== undefined)
+	return [...new Set(shown.map((t) => fmt.format(t)))]
 }

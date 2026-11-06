@@ -40,6 +40,21 @@ const TRANCHE_TONE = {
 	REFUNDED: 'info',
 } as const
 
+/** Left pane links, in page order; each `id` exists on the page. */
+const SECTIONS = [
+	['creator-top', 'Overview'],
+	['smx-chart', 'Price chart'],
+	['trade', 'Trade'],
+	['market-depth', 'Market depth'],
+	['terms', 'Terms'],
+	['escrow', 'Escrow'],
+	['holders', 'Holders'],
+	['proofs', 'Income proofs'],
+	['dividends', 'Dividends'],
+	['creator-updates', 'Updates'],
+	['events', 'Events'],
+] as const
+
 const PROOF_TONE = {
 	PENDING: 'warn',
 	APPROVED: 'success',
@@ -64,7 +79,20 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 	const refresh = 'smx:traded from:body, smx:invested from:body, '
 		+ 'smx:dividend-paid from:body, smx:oracle-event from:body delay:1s'
 	return (
-		<div class='smx-layout'>
+		<div
+			class='smx-layout'
+			data-nav>
+			<nav
+				class='smx-section-nav'
+				aria-label='On this page'>
+				{
+					SECTIONS.map(([id, label]) => (
+						<a href={`#${id}`}>
+							{label}
+						</a>
+					))
+				}
+			</nav>
 			<div class='smx-creator-main'>
 				<div
 					id='creator-top'
@@ -153,6 +181,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 							note={`of ${formatUsdc(c.targetRaise)} target`} />
 					</div>
 					<SectionCard
+						id='terms'
 						title='L-ISA terms'
 						context='Liquid income share agreement'>
 						<dl class='rc-metadata-list smx-terms'>
@@ -250,6 +279,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 						</dl>
 					</SectionCard>
 					<SectionCard
+						id='escrow'
 						title='Escrow'>
 						<EscrowMeter
 							ticker={c.ticker}
@@ -290,6 +320,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 						</ol>
 					</SectionCard>
 					<SectionCard
+						id='holders'
 						title='Holders'
 						meta={
 							page.more?.holders && (
@@ -357,6 +388,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 						}
 					</SectionCard>
 					<SectionCard
+						id='proofs'
 						title='Income proofs'
 						meta={
 							page.more?.proofs && (
@@ -413,6 +445,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 						}
 					</SectionCard>
 					<SectionCard
+						id='dividends'
 						title='Dividends'
 						meta={
 							page.more?.dividends && (
@@ -470,6 +503,7 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 					</SectionCard>
 				</div>
 				<SectionCard
+					id='events'
 					title='Events'
 					meta={
 						<>
