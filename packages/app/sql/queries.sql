@@ -189,16 +189,26 @@ SELECT c.id FROM smx.creators c WHERE c.ticker = :ticker!;
 
 
 /* @name ListQueuedChainJobs */
--- Oldest queued onchain calls with the contract they target. Worker.
-SELECT
-	j.id,
-	j.fn,
-	j.args,
-	c.contract_address::TEXT AS contract_address
-FROM smx.chain_jobs j
-JOIN smx.creators c ON c.id = j.creator_id
-WHERE j.status = 'QUEUED'
-ORDER BY j.seq
+-- The next onchain call per creator, oldest first. A creator's jobs run
+-- strictly in order: only its earliest unsettled job is listed, and none while
+-- an earlier one is SENT or FAILED, so a failed initializeIPO can't let its
+-- invest calls revert. The worker re-lists after each pass. Worker.
+SELECT n.id, n.fn, n.args, n.contract_address
+FROM (
+	SELECT DISTINCT ON (j.creator_id)
+		j.id,
+		j.seq,
+		j.fn,
+		j.args,
+		j.status,
+		c.contract_address::TEXT AS contract_address
+	FROM smx.chain_jobs j
+	JOIN smx.creators c ON c.id = j.creator_id
+	WHERE j.status IN ('QUEUED', 'SENT', 'FAILED')
+	ORDER BY j.creator_id, j.seq
+) n
+WHERE n.status = 'QUEUED'
+ORDER BY n.seq
 LIMIT :batch!::INTEGER;
 
 
@@ -276,3 +286,25 @@ RETURNING id;
 -- Fails fast (403 banned, 409 used) before the route spends a 0G Storage write.
 -- Route: LaunchIpo.
 SELECT smx.assert_nullifier_available(:nullifier!) AS ok;
+
+
+/* @name RequeueFailedChainJobs */
+-- Puts FAILED onchain calls back in the queue (optionally one creator's).
+-- With :transient_only, only relay errors (HTTP failures, timeouts, 5xx) that
+-- never reached the chain; reverts stay FAILED. A FAILED job blocks later
+-- jobs of its creator until requeued. Worker sweep.
+UPDATE smx.chain_jobs j
+SET status = 'QUEUED', error = NULL, updated_at = now()
+FROM smx.creators c
+WHERE j.status = 'FAILED'
+	AND c.id = j.creator_id
+	AND (:ticker::TEXT IS NULL OR c.ticker = :ticker::TEXT)
+	AND (
+		NOT :transient_only!::BOOLEAN
+		OR (
+			j.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed)'
+			-- Back off so a struggling relay isn't hammered every poll.
+			AND j.updated_at < now() - interval '30 seconds'
+		)
+	)
+RETURNING j.id, j.fn, c.ticker;

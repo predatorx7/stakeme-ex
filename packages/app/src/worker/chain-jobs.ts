@@ -6,6 +6,7 @@ import {
 	claimChainJob,
 	completeChainJob,
 	listQueuedChainJobs,
+	requeueFailedChainJobs,
 } from '../queries.ts'
 import type { IPgClientLike } from '../types/index.ts'
 
@@ -15,9 +16,10 @@ let running: Promise<number> | undefined
  * Sends every QUEUED chain job, oldest first. Mutations already committed the
  * final DB state (optimistic UI); this settles the onchain side and the
  * `complete_chain_job` update fires the SSE `chain-job` event. A job that
- * throws is marked FAILED with the error, never retried silently, so a
- * half-sent transaction can't be sent twice. Calls overlap-safe: a second call
- * while one is draining joins it. Returns the number of jobs settled.
+ * throws is marked FAILED with the error. Transient relay failures are
+ * requeued on a later pass (see `RequeueFailedChainJobs`); reverts are not.
+ * Calls overlap-safe: a second call while one is draining joins it. Returns
+ * the number of jobs settled.
  */
 export function processChainJobs(pg: IPgClientLike): Promise<number> {
 	running ||= drain(pg).finally(() => {
@@ -28,6 +30,16 @@ export function processChainJobs(pg: IPgClientLike): Promise<number> {
 
 async function drain(pg: IPgClientLike) {
 	let settled = 0
+	// Relay hiccups (Hashio 502s, timeouts) never reached the chain: retry
+	// them. Reverts stay FAILED and keep blocking that creator's later jobs.
+	const retried = await requeueFailedChainJobs.run(
+		{ ticker: null, transient_only: true },
+		pg,
+	)
+	if(retried.length) {
+		LOGGER.info({ jobs: retried.map((r) => r.fn) }, 'retrying chain jobs')
+	}
+
 	for(;;) {
 		const jobs = await listQueuedChainJobs.run({ batch: CHAIN_JOB_BATCH }, pg)
 		if(!jobs.length) {

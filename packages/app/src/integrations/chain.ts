@@ -83,7 +83,14 @@ export function simulateChainJob(job: ChainJob): ChainJobResult {
 async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 	assert(ORACLE_PRIVATE_KEY, new Error('ORACLE_PRIVATE_KEY is not set'))
 	const account = privateKeyToAccount(ORACLE_PRIVATE_KEY as Hex)
-	const transport = http(CHAIN_RPC_URL)
+	// Hashio (Hedera's public relay) answers 502s and times out under load.
+	// Retrying is safe even for eth_sendRawTransaction: the same signed tx
+	// has one nonce, so a duplicate is rejected rather than executed twice.
+	const transport = http(CHAIN_RPC_URL, {
+		retryCount: 6,
+		retryDelay: 1500,
+		timeout: 60_000,
+	})
 	const chainId = CHAIN_ID
 		|| await createPublicClient({ transport }).getChainId()
 	const chain = defineChain({
@@ -130,11 +137,19 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 				address: to,
 				abi: liquidISAFactoryAbi,
 				functionName: 'createISA',
+				// `launch_ipo` (SQL) sends ticker, targetRaise and stakeAmount; the
+				// older names stay accepted for direct callers and tests.
 				args: [
-					str(args.name, 'name'),
+					str(
+						args.name ?? `${str(args.ticker, 'ticker')} Creator Share`,
+						'name',
+					),
 					str(args.ticker, 'ticker'),
-					usdc(args.totalRaise, 'totalRaise'),
-					usdc(args.creatorStake ?? '0', 'creatorStake'),
+					usdc(args.totalRaise ?? args.targetRaise, 'totalRaise'),
+					usdc(
+						args.creatorStake ?? args.stakeAmount ?? '0',
+						'creatorStake',
+					),
 					Number(args.shareBps),
 					Number(args.termMonths),
 					trancheBps,

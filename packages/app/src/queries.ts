@@ -732,21 +732,31 @@ export interface IListQueuedChainJobsQuery {
   result: IListQueuedChainJobsResult;
 }
 
-const listQueuedChainJobsIR: any = {"usedParamSet":{"batch":true},"params":[{"name":"batch","required":true,"transform":{"type":"scalar"},"locs":[{"a":258,"b":264}]}],"statement":"-- Oldest queued onchain calls with the contract they target. Worker.\nSELECT\n\tj.id,\n\tj.fn,\n\tj.args,\n\tc.contract_address::TEXT AS contract_address\nFROM smx.chain_jobs j\nJOIN smx.creators c ON c.id = j.creator_id\nWHERE j.status = 'QUEUED'\nORDER BY j.seq\nLIMIT :batch!::INTEGER"};
+const listQueuedChainJobsIR: any = {"usedParamSet":{"batch":true},"params":[{"name":"batch","required":true,"transform":{"type":"scalar"},"locs":[{"a":677,"b":683}]}],"statement":"-- The next onchain call per creator, oldest first. A creator's jobs run\n-- strictly in order: only its earliest unsettled job is listed, and none while\n-- an earlier one is SENT or FAILED, so a failed initializeIPO can't let its\n-- invest calls revert. The worker re-lists after each pass. Worker.\nSELECT n.id, n.fn, n.args, n.contract_address\nFROM (\n\tSELECT DISTINCT ON (j.creator_id)\n\t\tj.id,\n\t\tj.seq,\n\t\tj.fn,\n\t\tj.args,\n\t\tj.status,\n\t\tc.contract_address::TEXT AS contract_address\n\tFROM smx.chain_jobs j\n\tJOIN smx.creators c ON c.id = j.creator_id\n\tWHERE j.status IN ('QUEUED', 'SENT', 'FAILED')\n\tORDER BY j.creator_id, j.seq\n) n\nWHERE n.status = 'QUEUED'\nORDER BY n.seq\nLIMIT :batch!::INTEGER"};
 
 /**
  * Query generated from SQL:
  * ```
- * -- Oldest queued onchain calls with the contract they target. Worker.
- * SELECT
- * 	j.id,
- * 	j.fn,
- * 	j.args,
- * 	c.contract_address::TEXT AS contract_address
- * FROM smx.chain_jobs j
- * JOIN smx.creators c ON c.id = j.creator_id
- * WHERE j.status = 'QUEUED'
- * ORDER BY j.seq
+ * -- The next onchain call per creator, oldest first. A creator's jobs run
+ * -- strictly in order: only its earliest unsettled job is listed, and none while
+ * -- an earlier one is SENT or FAILED, so a failed initializeIPO can't let its
+ * -- invest calls revert. The worker re-lists after each pass. Worker.
+ * SELECT n.id, n.fn, n.args, n.contract_address
+ * FROM (
+ * 	SELECT DISTINCT ON (j.creator_id)
+ * 		j.id,
+ * 		j.seq,
+ * 		j.fn,
+ * 		j.args,
+ * 		j.status,
+ * 		c.contract_address::TEXT AS contract_address
+ * 	FROM smx.chain_jobs j
+ * 	JOIN smx.creators c ON c.id = j.creator_id
+ * 	WHERE j.status IN ('QUEUED', 'SENT', 'FAILED')
+ * 	ORDER BY j.creator_id, j.seq
+ * ) n
+ * WHERE n.status = 'QUEUED'
+ * ORDER BY n.seq
  * LIMIT :batch!::INTEGER
  * ```
  */
@@ -1048,5 +1058,53 @@ const checkLaunchableIR: any = {"usedParamSet":{"nullifier":true},"params":[{"na
  * ```
  */
 export const checkLaunchable = new PreparedQuery<ICheckLaunchableParams,ICheckLaunchableResult>(checkLaunchableIR);
+
+
+/** 'RequeueFailedChainJobs' parameters type */
+export interface IRequeueFailedChainJobsParams {
+  ticker?: string | null | void;
+  transient_only: boolean;
+}
+
+/** 'RequeueFailedChainJobs' return type */
+export interface IRequeueFailedChainJobsResult {
+  fn: string;
+  id: string;
+  ticker: string;
+}
+
+/** 'RequeueFailedChainJobs' query type */
+export interface IRequeueFailedChainJobsQuery {
+  params: IRequeueFailedChainJobsParams;
+  result: IRequeueFailedChainJobsResult;
+}
+
+const requeueFailedChainJobsIR: any = {"usedParamSet":{"ticker":true,"transient_only":true},"params":[{"name":"ticker","required":false,"transform":{"type":"scalar"},"locs":[{"a":439,"b":445},{"a":475,"b":481}]},{"name":"transient_only","required":true,"transform":{"type":"scalar"},"locs":[{"a":503,"b":518}]}],"statement":"-- Puts FAILED onchain calls back in the queue (optionally one creator's).\n-- With :transient_only, only relay errors (HTTP failures, timeouts, 5xx) that\n-- never reached the chain; reverts stay FAILED. A FAILED job blocks later\n-- jobs of its creator until requeued. Worker sweep.\nUPDATE smx.chain_jobs j\nSET status = 'QUEUED', error = NULL, updated_at = now()\nFROM smx.creators c\nWHERE j.status = 'FAILED'\n\tAND c.id = j.creator_id\n\tAND (:ticker::TEXT IS NULL OR c.ticker = :ticker::TEXT)\n\tAND (\n\t\tNOT :transient_only!::BOOLEAN\n\t\tOR (\n\t\t\tj.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed)'\n\t\t\t-- Back off so a struggling relay isn't hammered every poll.\n\t\t\tAND j.updated_at < now() - interval '30 seconds'\n\t\t)\n\t)\nRETURNING j.id, j.fn, c.ticker"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Puts FAILED onchain calls back in the queue (optionally one creator's).
+ * -- With :transient_only, only relay errors (HTTP failures, timeouts, 5xx) that
+ * -- never reached the chain; reverts stay FAILED. A FAILED job blocks later
+ * -- jobs of its creator until requeued. Worker sweep.
+ * UPDATE smx.chain_jobs j
+ * SET status = 'QUEUED', error = NULL, updated_at = now()
+ * FROM smx.creators c
+ * WHERE j.status = 'FAILED'
+ * 	AND c.id = j.creator_id
+ * 	AND (:ticker::TEXT IS NULL OR c.ticker = :ticker::TEXT)
+ * 	AND (
+ * 		NOT :transient_only!::BOOLEAN
+ * 		OR (
+ * 			j.error ~* '(HTTP request failed|took too long|timed? ?out|Status: 5[0-9][0-9]|ECONNRESET|fetch failed)'
+ * 			-- Back off so a struggling relay isn't hammered every poll.
+ * 			AND j.updated_at < now() - interval '30 seconds'
+ * 		)
+ * 	)
+ * RETURNING j.id, j.fn, c.ticker
+ * ```
+ */
+export const requeueFailedChainJobs = new PreparedQuery<IRequeueFailedChainJobsParams,IRequeueFailedChainJobsResult>(requeueFailedChainJobsIR);
 
 
