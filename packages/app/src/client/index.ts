@@ -30,6 +30,7 @@ import './activity-pulse.ts'
 import './card-tilt.ts'
 import './coin-trail.ts'
 import './proof-moment.ts'
+import './demo.ts'
 
 /**
  * Browser entry point. Bundled by Vite into a single ESM and loaded

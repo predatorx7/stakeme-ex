@@ -5,12 +5,14 @@ import {
 	assetUrl,
 	BASE_PATH,
 	canonicalOrigin,
+	DEMO_MODE,
 	IS_DEV,
 	WALLETCONNECT_PROJECT_ID,
 } from '../consts.ts'
 import { clientAssets } from '../utils/client-assets.ts'
 import { jsonForScript } from '../utils/escape.ts'
 import { tickerItems } from '../utils/ticker-feed.ts'
+import { DemoBar, isDemoPresenter } from './DemoBar.tsx'
 import { Header, type NavKey } from './Header.tsx'
 import { PAGE_SHELL_ID } from './nav-swap.ts'
 import { PublicShell } from './PublicShell.tsx'
@@ -263,6 +265,12 @@ export function Layout(props: LayoutProps) {
 							}
 						</PublicShell>
 					</div>
+					{
+						// Outside the swapped shell so it survives navigation.
+						DEMO_MODE && (
+							<DemoBar presenter={isDemoPresenter(viewer?.walletAddress)} />
+						)
+					}
 					{
 						IS_DEV && (
 							<script
