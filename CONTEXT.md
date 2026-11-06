@@ -64,11 +64,11 @@ Secrets live only in `.env` (gitignored). Public IDs below are safe to share.
 | Area | Status |
 | --- | --- |
 | Public site | https://stakeme.magnificlabs.org (Cloudflare DNS only). The URL is also recorded in `/Users/syed/Projects/external/stakeme-presentation/DEPLOYED_URL`. |
-| Hosting | GCP project `stakeme-ex-261106`, VM `smx-prod` (asia-south1-a, e2-medium, 20 GB), Docker Compose: Caddy with Let's Encrypt TLS, the app, Postgres 18. Files `deploy/gcp.sh`, `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`; guide `docs/deployment.md`. The `deploy/` folder and `docs/deployment.md` were uncommitted when this was written and another agent was finishing them. |
+| Hosting | GCP project `stakeme-ex-261106`, VM `smx-prod` (asia-south1-a, e2-medium, 20 GB), Docker Compose: Caddy with Let's Encrypt TLS, the app, Postgres 18. Files `deploy/gcp.sh`, `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`; guide `docs/deployment.md`. The `deploy/` folder, `Dockerfile` and `docs/deployment.md` are committed (cf42922). `/`, `/creators` and `/creators/MUSH` return 200 (MUSH shows "Audited by 0G Private Computer"); `/creators/MUSH/audit-report` returns 402 unpaid. |
 | Cost guard | Budget `smx-cap` 2000 INR (alerts at 50/90/100%; alerts only, no cap on spend). Schedule `smx-stop-nov9` stops the VM Monday 2026-11-09 01:00 IST. `deploy/gcp.sh destroy` removes everything after judging. |
 | Hedera testnet (chain 296) | Deployer, oracle and operator account `0x96B380895ea976cbEc267b959A1D116C457705aF` (testnet-only key, also used for 0G). Deployed 2026-11-06 18:53 UTC (about 3.7 HBAR): `MockUSDC` `0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`, `LiquidISA` implementation `0xb2a511d967202950e3b259c7420de1a7729a2f15`, `CreatorShareToken` implementation `0x8e483e26b05ee86f414a4f502457ee8fa3f05071`, `LiquidISAFactory` `0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`. Source of truth: `packages/contracts/deployments/hedera-testnet.json`. All four are verified on Sourcify (exact match), which HashScan reads; links in `docs/contracts.md`. Clones show no source of their own and delegate to the verified implementations. An IPO costs about 0.76 HBAR. |
 | World ID | Staging app `app_0b5a20d804cb26e5008896d976fc4193`, RP `rp_6a0a12bcfbc0fbf0`, action `smx-launch-ipo`, `WORLD_ENV=staging`. Verified end to end with the World ID Simulator. The debrief and trust moment are in `docs/world-id-debrief.md`. |
-| 0G Private Computer | Live through the 0G Router (`ZG_ROUTER_API_KEY`, model per `ZG_ROUTER_MODEL`, trust mode `private`). Credits were requested from the 0G team and arrived; the Hub shows the balance. Example request ID: `3a1c2f3b-6177-4ab8-aa52-c1b5ff80dc8c`. The proof row shows model, request ID and provider; "TEE verified" shows only when the Router returns `tee_verified: true`. |
+| 0G Private Computer | Live through the 0G Router (`ZG_ROUTER_API_KEY`, model per `ZG_ROUTER_MODEL`, trust mode `private`). Router credits: $11; the Hub shows the balance. Example request ID: `3a1c2f3b-6177-4ab8-aa52-c1b5ff80dc8c`. The proof row shows model, request ID and provider; "TEE verified" shows only when the Router returns `tee_verified: true`. |
 | 0G Storage | Live on Galileo with the same account (about 0.0012 0G per upload, faucet refills about 0.5 0G every 25 h). A worker uploads terms and audit logs in the background. |
 | Reclaim | Provider `3fefebae-05cb-4d6b-b319-f3f639a31201` ("SMX Mock Bank Deposit", private) at v0.1.2, pointing at the production mock bank (`https://stakeme.magnificlabs.org/mock-bank`). Proof verified through the Reclaim MCP `run_proof` (`amount`, `deposit_date`). A full in-app session is not yet confirmed. |
 | x402 payments | The audit report (`GET /creators/{ticker}/audit-report`, 0.1 HBAR) is paywalled and bought by `packages/app/scripts/x402-research-agent.ts` with spend controls. Settled testnet transactions (run against a local second instance on 2026-11-07, because the public site did not serve the route then): [CHEF](https://hashscan.io/testnet/transaction/0.0.9185802@1793992761.545261642), [LOFI](https://hashscan.io/testnet/transaction/0.0.9185802@1793992766.013363358), [MUSH](https://hashscan.io/testnet/transaction/0.0.9185802@1793992768.127890663); earlier single-payer run [0.0.9185802@1793985016.835902874](https://hashscan.io/testnet/transaction/0.0.9185802@1793985016.835902874). Details and the over-cap refusal: `docs/x402-agent.md`. |
@@ -119,9 +119,11 @@ Deadline: submission by Saturday 2026-11-07 09:00 IST. Today is that day.
 
 ## Known issues
 
-- Public site: `GET /creators` and `/creators/MUSH/audit-report` returned 404 in
-  a 30-minute window on 2026-11-07 (00:18 to 00:48 IST). Re-check after the
-  next deploy.
+- Public site: `GET /creators` returned 404 in a 30-minute window on 2026-11-07
+  (00:18 to 00:48 IST); it now returns 200, and the audit-report route returns
+  402 unpaid.
+- Production onchain `createISA` jobs are being fixed with a per-environment
+  World ID nullifier salt.
 - Image build on the VM is slow (about 10 minutes first time; hardhat compile
   downloads solc) and needs the e2-medium memory. The `up` command builds
   inside a `systemd` unit so SSH drops don't kill it.

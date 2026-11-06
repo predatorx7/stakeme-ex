@@ -24,11 +24,11 @@ as one prize. SMX uses exactly three sponsors, so it fits.
 
 | Sponsor | Best-fit track | Prize | Fit today | Biggest blocker |
 | --- | --- | --- | --- | --- |
-| Hedera | Tokenize Anything with Hedera Studios | $5,000 | Partly | ATS equity token is simulated and never ran live |
-| Hedera | AI Agents That Pay: x402 on Hedera | $6,500 | Not met | No x402-protected endpoint or paying agent |
-| World | Best Use of IDKit | $2,500 (2 x $1,250) | Partly | No debrief, no trust-moment write-up |
+| Hedera | Tokenize Anything with Hedera Studios | $5,000 | Partly | ATS equity token is simulated and never ran live; contracts verified; video pending |
+| Hedera | AI Agents That Pay: x402 on Hedera | $6,500 | Partly | Paid endpoint and agent met with tx links; recorded run was on a local instance, public-site rerun pending; video pending |
+| World | Best Use of IDKit | $2,500 (2 x $1,250) | Met | Debrief written (`docs/world-id-debrief.md`, about 8 minutes to first success); video pending |
 | World | World ID Agent Pass | $5,000 | Not met | SMX uses IDKit proof of human, not Agent Pass |
-| 0G | Build with 0G Private Computer | $5,000 | Partly | Router audit is the approval gate and shows request IDs; hosted demo link and video still missing |
+| 0G | Build with 0G Private Computer | $5,000 | Partly | Router audit and request IDs met, hosted link live; demo video pending, iAI bonus not claimed |
 
 Tracks that SMX cannot or should not enter: Hedera "No Solidity Allowed" (SMX
 uses Solidity contracts), all Continuity Track prizes (SMX is a classic-track
@@ -42,17 +42,17 @@ and the 0G submission list.
 
 | Requirement | Quote or rule | Status | Evidence and action |
 | --- | --- | --- | --- |
-| Deadline | "Submit by Saturday, November 7, 2026, at 9:00 am IST. Late submissions won't be accepted." | At risk | The event is under way. Plan the submission first. |
-| Title, description, repo link | Hacker Dashboard form: title, description, "a link to your repository" | Partly | `README.md` has a description. Remote is `origin` `git@github.com:predatorx7/stakeme-ex.git`; confirm it is public (0G and Hedera require a public repo). |
-| Version-control history | "large single commits or missing histories may be disqualified" | Partly | 17 commits, all dated 2026-11-06. Commit in small steps from now on. |
+| Deadline | "Submit by Saturday, November 7, 2026, at 9:00 am IST. Late submissions won't be accepted." | At risk | Submission is due today, 09:00 IST. Remaining: demo video, public-site x402 rerun. |
+| Title, description, repo link | Hacker Dashboard form: title, description, "a link to your repository" | Partly | `README.md` has a description. Remote is `origin` `git@github.com:predatorx7/stakeme-ex.git`; confirm it is public before submitting (0G and Hedera require a public repo). |
+| Version-control history | "large single commits or missing histories may be disqualified" | Met | 47 commits (`git rev-list --count HEAD`): 30 dated 2026-11-06, 17 dated 2026-11-07. Two early commits are large (the 64-file bootstrap, 23,298 insertions; the 151-file backend commit, 15,843 insertions); later work is in small steps. |
 | Work started after the hackathon began (classic track) | "all work on your project must begin after the hackathon officially starts" | Met | Hacking started on 5 November 2026 (developer's statement). The first commit is 2026-11-06 16:38 IST, inside the event window. |
-| Demo video | "Must be between 2 and 4 minutes", at least 720p, not sped up, not phone-recorded, no AI voiceover, at most 4 bullets per slide | Not met | No video exists. 0G asks for "under 3 mins"; record one 2:30 to 3:00 video that also satisfies the 5-minute Hedera limit. |
-| Live demo link | 0G: "Demo video (under 3 mins) and a live demo link" | Not met | App runs on `localhost:4020`. The Reclaim mock bank uses a temporary cloudflared tunnel (see `CONTEXT.md`, Workstream 8). Deploy the app and the mock bank to a stable host. |
-| Contract addresses | 0G: "Contract deployment addresses" | Met | `packages/contracts/deployments/hedera-testnet.json`: `LiquidISAFactory` `0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`, `MockUSDC` `0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`, `LiquidISA` implementation `0xb2a511d967202950e3b259c7420de1a7729a2f15`, `CreatorShareToken` implementation `0x8e483e26b05ee86f414a4f502457ee8fa3f05071`. Add HashScan links to the README. |
+| Demo video | "Must be between 2 and 4 minutes", at least 720p, not sped up, not phone-recorded, no AI voiceover, at most 4 bullets per slide | Not met | Video pending (plan in `docs/demo-video.md`). 0G asks for "under 3 mins"; record one 2:30 to 3:00 video that also satisfies the 5-minute Hedera limit. |
+| Live demo link | 0G: "Demo video (under 3 mins) and a live demo link" | Met | https://stakeme.magnificlabs.org/ , `/creators` and `/creators/MUSH` return 200 (MUSH shows "Audited by 0G Private Computer"); `/creators/MUSH/audit-report` returns 402 unpaid. Deploy files are committed (cf42922, `docs/deployment.md`); the mock bank is served at `/mock-bank`. |
+| Contract addresses | 0G: "Contract deployment addresses" | Met | `packages/contracts/deployments/hedera-testnet.json`: `LiquidISAFactory` `0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`, `MockUSDC` `0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`, `LiquidISA` implementation `0xb2a511d967202950e3b259c7420de1a7729a2f15`, `CreatorShareToken` implementation `0x8e483e26b05ee86f414a4f502457ee8fa3f05071`. Verified on Sourcify (exact runtime match). |
 | Team names and contact | 0G: "Team member names and contact info (Telegram and X)" | Met | Solo builder Mushaheed Syed; X [@_predatorx7](https://x.com/_predatorx7), Telegram [@mushaheedx](https://t.me/mushaheedx), both listed in the README. |
 | Open-source license | Public repo with a license (0G and Hedera require a public repo) | Met | MIT `LICENSE` at the repo root, `"license": "MIT"` in every `package.json`, and a License line in the README. |
 | Partner prize selection | "Select up to 3 Partner Prizes" | Met | Choose Hedera, World, 0G. |
-| AI-use disclosure | "Document where and how AI tools were used"; "include all spec files, prompts, and planning artifacts in your submission repository" | Not met | `docs/product-spec.md` and `AGENTS.md` exist, but there is no disclosure section. Add an "AI use" section to `README.md` and commit the planning artifacts. |
+| AI-use disclosure | "Document where and how AI tools were used"; "include all spec files, prompts, and planning artifacts in your submission repository" | Met | `docs/ai-usage.md` discloses AI use; verbatim prompts are in `docs/prompts/session-user-prompts.md`; spec and planning files are committed. A reuse disclosure is in `docs/reuse.md` (Met). |
 | Judging mode | Finalist (4 min demo, 3 min Q&A) or partner-only | Open | Decide. Finalist needs a rehearsed 4-minute live demo. |
 
 ## Hedera
@@ -65,10 +65,10 @@ freeze, liquidation).
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| "Use Asset Tokenization Studio or Stablecoin Studio to issue or manage a tokenized asset or stablecoin." | Partly | `packages/app/src/integrations/hedera-ats.ts` calls ATS `Factory.deployEquity` and `Equity.mint` with viem. README: "Hedera ATS equity token: Simulated. The code is written but never ran against a live ATS deployment." The ATS token only mirrors the cap table; `CreatorShareToken` is the source of truth (`CONTEXT.md`, Scope update 2). |
+| "Use Asset Tokenization Studio or Stablecoin Studio to issue or manage a tokenized asset or stablecoin." | Partly | ATS is simulated (honest label kept). `packages/app/src/integrations/hedera-ats.ts` calls ATS `Factory.deployEquity` and `Equity.mint` with viem. README: "Hedera ATS equity token: Simulated. The code is written but never ran against a live ATS deployment." The ATS token only mirrors the cap table; `CreatorShareToken` is the source of truth (`CONTEXT.md`, Scope update 2). |
 | "Deploy and demo on Hedera testnet" | Partly | Own contracts are live on chain 296 (addresses above). The ATS factory and resolver are not deployed (`ATS_ENABLED`, `ATS_FACTORY_ADDRESS`, `ATS_RESOLVER_ADDRESS` unset; `CONTEXT.md`, Remaining). |
-| "with contracts verified on HashScan where applicable" | Not met | No verification step is recorded in `docs/contracts.md` or `CONTEXT.md`. |
-| Public repo and demo video of 5 minutes or less "covering issuance, configuration, and at least one lifecycle operation" | Partly | Lifecycle (tranche unlock, freeze, liquidation) ran against a local Hardhat node and the Hedera clone deploy. Video not recorded. |
+| "with contracts verified on HashScan where applicable" | Met | All four contracts are verified on Sourcify (exact runtime match), which HashScan displays; factory `0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`. |
+| Public repo and demo video of 5 minutes or less "covering issuance, configuration, and at least one lifecycle operation" | Partly | Lifecycle (tranche unlock, freeze, liquidation) ran against a local Hardhat node and the Hedera clone deploy. Video pending. |
 
 Extra points listed on the page that SMX already has: compliance freezes
 (`freezeEscrow`/`unfreezeEscrow`), and dividend distributions.
@@ -91,16 +91,13 @@ requirements but is the payer, not a paid service.
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| "Deploy at least one x402-protected endpoint that settles on Hedera testnet or mainnet, via a listed facilitator or your own." | Not met | `docs/integrations/hedera.md`: "The dividend loop doesn't call the facilitator." `HederaPaymentRail.createPaymentRequest` returns requirements, but no endpoint answers HTTP 402. |
-| "Have an agent or client find the endpoint and complete at least one paid request with no human approving." | Not met | The creator signs the dividend transfer in the browser (a human approval). |
-| Public repo README "covers setup, architecture, and the payment flow, including a Hedera transaction ID" | Partly | README covers the flow; no settled live transaction ID. The x402 payout is "Simulated unless you set the Hedera operator keys." |
-| Demo video of 5 minutes or less "showing a settled payment linked on HashScan" | Not met | No live settlement has been run. |
+| "Deploy at least one x402-protected endpoint that settles on Hedera testnet or mainnet, via a listed facilitator or your own." | Met | `GET /creators/{ticker}/audit-report` (0.1 HBAR) answers 402 unpaid on the public site and settles via the `x402.org` facilitator. See `docs/x402-agent.md`. |
+| "Have an agent or client find the endpoint and complete at least one paid request with no human approving." | Met | `packages/app/scripts/x402-research-agent.ts` paid three audit reports (CHEF, LOFI, MUSH) with spend controls and no human approval; links in `docs/x402-agent.md`. The run used a local instance; a public-site rerun is pending. |
+| Public repo README "covers setup, architecture, and the payment flow, including a Hedera transaction ID" | Met | Settled Hedera testnet transaction IDs are in `docs/x402-agent.md` and `CONTEXT.md`. Public-site rerun pending. |
+| Demo video of 5 minutes or less "showing a settled payment linked on HashScan" | Partly | Settled payments are linked on HashScan in `docs/x402-agent.md`; video pending. |
 
-Actions: only pursue this track if time remains after the three items above.
-The cheapest qualifying addition is a small x402-gated endpoint (for example,
-the 0G audit report) that the 0G agent pays through Blocky402 or a self-hosted
-facilitator on `hedera:testnet`, then a settled HashScan transaction in the
-README. Do not claim this track on the current dividend flow alone.
+Actions: rerun the research agent against the public site and record the
+transactions; show a settled HashScan payment in the video.
 
 ### Other Hedera tracks
 
@@ -117,10 +114,10 @@ Up to 2 teams receive $1,250 each. This is the World track SMX can qualify for.
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | "Integrate IDKit in a working app, mini app, or onchain flow." | Met | `@worldcoin/idkit-core` 4.6.0 in the browser (`packages/app/src/client/world-id.ts`); the Launch flow requests a proof of human. App `app_0b5a20d804cb26e5008896d976fc4193`, RP `rp_6a0a12bcfbc0fbf0` (staging). |
-| "Use at least one supported World ID credential, verified on the server or onchain." | Met | `POST /api/rp-signature` signs on the server; `POST /api/world-id/check` verifies with `POST https://developer.world.org/api/v4/verify/{rp_id}`. Verified end to end with the World ID Simulator (`CONTEXT.md`, Live testnet status). Nullifier also stored on the factory (`isaOfNullifier`). |
-| "Explain the trust moment and why that credential is the minimum sufficient assurance." | Partly | `docs/integrations/world-id.md` explains the nullifier and double-IPO block. No write-up in judge-facing form (README or submission). |
+| "Use at least one supported World ID credential, verified on the server or onchain." | Met | `POST /api/rp-signature` signs on the server; `POST /api/world-id/check` verifies with `POST https://developer.world.org/api/v4/verify/{rp_id}`. Verified end to end with the World ID Simulator (`CONTEXT.md`, Live status). Nullifier also stored on the factory (`isaOfNullifier`). |
+| "Explain the trust moment and why that credential is the minimum sufficient assurance." | Met | `docs/world-id-debrief.md` and `docs/integrations/world-id.md` explain the trust moment, the nullifier and the double-IPO block. |
 | "Demonstrate a successful verification and one alternative path (e.g., cancellation or rejection)." | Partly | The "Simulate Sybil" path repeats a nullifier and is rejected, but it runs only under `DEMO_MODE=1` with fixtures. No recorded cancel path through real IDKit. |
-| "Submit the same integration debrief" (time to first success, friction, missing docs, top improvement) | Not met | No feedback document in the repo. |
+| "Submit the same integration debrief" (time to first success, friction, missing docs, top improvement) | Met | `docs/world-id-debrief.md`: measured time to first success about 8 minutes, friction, missing docs, top improvement. |
 | Server-side validation only | Met | The server verifies; the browser never signs. |
 
 Actions, by impact:
@@ -160,10 +157,10 @@ Prizes: 1st $2,500, 2nd $1,500, 3rd $1,000. Bonus: iAI sign-in.
 | --- | --- | --- |
 | "Build a consumer app where AI on 0G is the core product." | Partly | The 0G auditor agent decides every tranche release and dividend. SMX is a finance app with an AI audit step; judges may see it as secondary. |
 | "Show inference on 0G Private Computer in the main user flow, with request IDs." | Met | Every income proof audit calls the 0G Router (`0GM-1.0-35B-A3B`, falling back to `glm-5.3`, trust mode `private`, `verify_tee: true`). The proof row shows "Audited by 0G Private Computer", the model, the short request ID with copy, and the 0G Storage log link; the same fields are in the audit log on 0G Storage. The Router returned no `tee_verified` field in our live calls, so "TEE verified" is shown only when it is `true`, and the UI otherwise says "Private routing (TEE provider)". See `docs/integrations/zero-g.md`. |
-| "Provide a working app a judge can try, with a clear reason to return tomorrow." | Partly | App runs locally; no hosted link. |
+| "Provide a working app a judge can try, with a clear reason to return tomorrow." | Met | Hosted at https://stakeme.magnificlabs.org/ . |
 | "Explain in one sentence what breaks if 0G is removed." | Met | "Without 0G Private Computer, no AI auditor signs off on the income proof, so no tranche is released and no dividend is created." If the Router call fails the proof stays PENDING with "0G audit unavailable, retry"; the rules engine only runs behind `ZG_ALLOW_RULES_FALLBACK=1` and is labelled "Fallback: rules engine (0G unavailable)". |
 | 0G Storage use (not required, strengthens the case) | Met | Live on Galileo: uploads of L-ISA terms and audit logs work (about 0.0012 0G each); outbox worker in `packages/app/src/worker/storage-uploads.ts`; root hash shown as `termsStorage` / `auditLogStorage`. |
-| Bonus: iAI sign-in | Not met | Not implemented. |
+| Bonus: iAI sign-in | Not met | iAI sign-in bonus not claimed. |
 
 Actions, by impact:
 
@@ -171,10 +168,10 @@ Actions, by impact:
    stored in the audit log next to the storage root hash.
 2. Done: the request ID, model, TEE status and storage log link show on every
    audited proof. Show them in the demo video and keep the credit readout on
-   the Hub in frame so the balance visibly goes down.
+   the Hub in frame (Router credits: $11).
 3. Done: the rules-engine fallback is off by default and labelled in the UI when
    enabled.
-4. Add the live demo link.
+4. Live demo link: done (https://stakeme.magnificlabs.org/).
 
 ### Track: Physical AI ($5,000)
 
@@ -195,6 +192,10 @@ spend cap, but this is out of reach before the deadline.
 Not eligible. It is for Continuity Track projects.
 
 ## Top actions across all sponsors
+
+Done since this list was written: hosted app, 0G request IDs, HashScan/Sourcify
+verification, World debrief, AI disclosure. Remaining: demo video and the
+public-site x402 rerun.
 
 Ordered by impact on qualification.
 

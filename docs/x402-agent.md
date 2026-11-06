@@ -50,13 +50,12 @@ Every refusal is logged with its reason.
 
 ## Live run
 
-The public site did not serve the route in the window (polled every 60 s for 30
-minutes, 00:18 to 00:48 IST on 2026-11-07;
-`https://stakeme.magnificlabs.org/creators/MUSH/audit-report` returned 404 and
-`GET /creators` returned 404 too). So the run below targets a **local second
-instance** (port 4031, its own PGlite data dir, `CHAIN_RPC_URL` unset, three
+The public site did not serve the route during an earlier 30-minute window
+(00:18 to 00:48 IST on 2026-11-07). It now returns 402 unpaid at
+`https://stakeme.magnificlabs.org/creators/MUSH/audit-report`, but the recorded
+run below targets a **local second instance** (port 4031, its own PGlite data dir, `CHAIN_RPC_URL` unset, three
 seeded creators `MUSH`, `LOFI`, `CHEF`). The payments are real Hedera testnet
-transfers settled by the `x402.org` facilitator.
+transfers settled by the `x402.org` facilitator. A public-site rerun is pending.
 
 Payer `0.0.11344435`, payee `0.0.11340822`, budget 0.3 HBAR, cap 0.1 HBAR:
 

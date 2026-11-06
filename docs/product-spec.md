@@ -23,8 +23,7 @@ and what is simulated.
 ### Sponsor integrations
 
 SMX uses exactly three sponsors: Hedera, World ID, and 0G. Reclaim Protocol is
-the zkTLS proof source, not a sponsor target. Chainlink CRE, Arkiv, and Arc
-were dropped; see [deprecated/](deprecated/README.md).
+the zkTLS proof source, not a sponsor target. Other sponsors were dropped; see [deprecated/](deprecated/README.md).
 
 | Sponsor | Role in SMX | Demo fallback |
 | --- | --- | --- |
