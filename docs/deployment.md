@@ -1,0 +1,73 @@
+# Deploy SMX to Google Compute Engine
+
+This guide describes how to run StakeMe Exchange (SMX) on one Compute Engine VM
+with Docker Compose. Caddy terminates TLS, the app serves HTTP on port 4020, and
+Postgres 18 runs in a container on the same host.
+
+Production URL: https://stakeme.magnificlabs.org
+
+## Before you begin
+
+- Install and sign in to the `gcloud` CLI. Use project `stakeme-ex-261106`.
+- Point the `A` record of your domain at the VM's static IP (Cloudflare: DNS only).
+- Put your app secrets in the repo-root `.env`. The file is copied with `scp`
+  and never committed or printed.
+
+## Resources
+
+| Resource | Value |
+| --- | --- |
+| VM | `smx-prod`, `asia-south1-a`, e2-medium (4 GB RAM), 20 GB disk |
+| Firewall | `smx-allow-http-https` (tcp:80, tcp:443; tags `http-server`, `https-server`) |
+| Budget | `smx-cap`, 2000 INR, alerts at 50%, 90% and 100% |
+| Auto-stop | `smx-stop-nov9`, stops the VM Monday 9 Nov 2026 at 01:00 IST |
+
+## Deploy
+
+All commands are idempotent. `SMX_DOMAIN` defaults to `stakeme.magnificlabs.org`.
+
+```sh
+deploy/gcp.sh push   # upload `git archive HEAD`, .env, and a generated .env.prod
+deploy/gcp.sh up     # add swap, build the image, start the stack, wait for /healthz
+```
+
+`push` generates `.env.prod` with `NODE_ENV=production`, `CANONICAL_ORIGIN`,
+`SMX_DOMAIN`, `DEMO_MODE` (copied from `.env`), and a `DB_URI` that points at the
+Compose Postgres. The database password is created once and kept on the VM.
+
+`up` builds the image in a `systemd` unit (`smx-build`) so the build survives the
+SSH session. The first build takes about 10 minutes on an e2-medium; later builds
+reuse cached layers. A one-shot `migrate` service applies pending migrations
+before the app starts. Caddy requests a Let's Encrypt certificate on first start.
+
+## Verify
+
+```sh
+curl -s https://stakeme.magnificlabs.org/healthz   # prints: ok
+deploy/gcp.sh status
+deploy/gcp.sh logs app
+```
+
+## Seed demo data
+
+The seed sends real Hedera testnet transactions with the oracle key. Run only one
+seed at a time per key to avoid nonce collisions.
+
+```sh
+deploy/gcp.sh ssh 'cd /opt/smx/src && sudo docker compose -f deploy/docker-compose.prod.yml --env-file .env.prod run --rm -v /opt/smx/users.json:/users.json:ro -e SMX_DEMO_USERS=/users.json app npm run seed:demo -- --pg'
+```
+
+## Other commands
+
+`logs [service]`, `ssh [command]`, `stop`, `start`, `budget`, and `destroy`.
+Set `SMX_IAP=1` to tunnel SSH through IAP.
+
+## Troubleshooting
+
+- **Build fails in `vite build` or `hardhat compile`**: read `/opt/smx/build.log`
+  on the VM. macOS metadata files (`._*`) in the archive break Hardhat; `push`
+  removes them and `.dockerignore` excludes them.
+- **Build stops with no error**: it was started from a session that ended. Use
+  `deploy/gcp.sh up`, which runs it as a systemd unit.
+- **Certificate not issued**: confirm the `A` record resolves to the VM IP and
+  ports 80 and 443 are open, then read `deploy/gcp.sh logs caddy`.

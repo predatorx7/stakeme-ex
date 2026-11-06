@@ -1,0 +1,9 @@
+# Automatic HTTPS (Let's Encrypt) for the hostname in SMX_DOMAIN.
+{$SMX_DOMAIN} {
+	encode zstd gzip
+
+	# Server-Sent Events (/events) must not be buffered.
+	reverse_proxy app:4020 {
+		flush_interval -1
+	}
+}

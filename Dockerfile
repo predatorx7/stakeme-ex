@@ -17,6 +17,18 @@ ARG NODE_IMAGE=node:24-bookworm-slim
 FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
 
+# Some transitive deps (utf-8-validate, bufferutil) have no prebuilt binary for
+# every platform and fall back to node-gyp, which needs a toolchain. It stays
+# in this stage; the runtime image copies only the compiled node_modules.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends python3 make g++ \
+	&& rm -rf /var/lib/apt/lists/*
+
+# A slow registry link otherwise kills `npm ci` with EIDLETIMEOUT.
+ENV NPM_CONFIG_FETCH_RETRIES=5 \
+	NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=10000 \
+	NPM_CONFIG_FETCH_TIMEOUT=300000
+
 # Manifests only, so this layer survives any source edit. Every workspace has to
 # be listed — `npm ci` refuses to run against a lockfile whose workspaces it
 # cannot see,.
