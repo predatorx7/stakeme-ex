@@ -5,7 +5,7 @@ human potential.*
 
 SMX builds on three sponsors: Hedera, World ID, and 0G. Reclaim supplies the
 zkTLS bank proof that the 0G agent audits. Other sponsors were
-dropped; see [deprecated/](deprecated/README.md).
+dropped.
 
 ## Elevator pitch
 

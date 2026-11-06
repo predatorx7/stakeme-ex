@@ -3,7 +3,7 @@
 The MVP uses three sponsors (Hedera, World ID, 0G) plus Reclaim as the zkTLS
 proof source. Each guide covers package versions (checked on 2026-11-06),
 environment variables, snippets, testnet setup, the demo fallback, and
-gotchas. Sponsors dropped from scope are in [`../deprecated/`](../deprecated/).
+gotchas. Sponsors dropped from scope have no guides here.
 
 | Sponsor | Guide | Package (version) | Env vars | Demo fallback | Status |
 | --- | --- | --- | --- | --- | --- |

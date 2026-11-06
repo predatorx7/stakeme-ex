@@ -37,12 +37,6 @@ Express and htmx, not Next.js.
 | [integrations/zero-g.md](integrations/zero-g.md) | 0G Compute auditor agent and 0G Storage logs for terms and audit decisions. |
 | [integrations/reclaim.md](integrations/reclaim.md) | Reclaim zkTLS bank proof, mock bank, and provider setup. |
 | [integrations/README.md](integrations/README.md) | Summary of every integration, env vars, and demo fallbacks. |
-
-## Deprecated
-
-[deprecated/](deprecated/README.md) keeps the removed Chainlink CRE, Arkiv, and
-Arc guides for reference. Nothing in the app uses them.
-
 ## Writing style
 
 Docs follow the Google developer documentation style guide: second person,

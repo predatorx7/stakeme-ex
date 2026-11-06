@@ -18,7 +18,7 @@ Reference clones (read-only, may be deleted; re-clone with `gh repo clone`):
 
 - **Three sponsors: Hedera, World ID, 0G.** Chainlink CRE, Arkiv, Arc and
   Whitechain are deprecated: no code, env vars or adapter seams named after
-  them. Their notes live in `docs/deprecated/`.
+  them. Their notes were moved out of the repo.
 - **Reclaim is the proof source, not a prize target.** Reclaim zkTLS proves a
   bank deposit; the 0G agent audits that proof. Client: `@reclaimprotocol/client`
   (`sessions.create`, `results.receive`). Org

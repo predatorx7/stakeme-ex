@@ -131,8 +131,8 @@ Most integrations have a demo fallback, so the app runs end to end with no keys:
 chain calls end as `SIMULATED`, and `DEMO_MODE=1` accepts fixture proofs. Dividend
 settlement has no simulated fallback in production.
 
-Chainlink CRE, Arkiv, and Arc were dropped from scope. Their notes are in
-[docs/deprecated](docs/deprecated/README.md).
+Chainlink CRE, Arkiv, and Arc were dropped from scope. Their notes are no
+longer in this repo.
 
 
 ### Live evidence
