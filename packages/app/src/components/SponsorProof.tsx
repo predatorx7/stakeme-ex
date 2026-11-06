@@ -17,7 +17,8 @@ export function SponsorProof({ creator, proofs }: {
 	// Newest first; the first audit with a Router request id.
 	const audit = (proofs ?? []).find((p) => p.requestId)
 	const storageProof = (proofs ?? []).find((p) => p.auditLogRef)
-	const scan = (kind: string, addr: string) => `https://hashscan.io/${HEDERA_NETWORK}/${kind}/${addr}`
+	const scan = (kind: string, addr: string) =>
+		`https://hashscan.io/${HEDERA_NETWORK}/${kind}/${addr}`
 	const contracts = [
 		['Escrow ISA', c.contractAddress],
 		['Share token', c.tokenAddress],
