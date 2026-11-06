@@ -125,7 +125,7 @@ written earlier in the same statement.
 | `CreateDividendPaymentRequest` | `POST /dividends/{dividendId}/payment-request` | session, owner | x402 payment requirements from `PaymentService`. Splits come from SQL. |
 | `PayDividend` | `POST /dividends/{dividendId}/payment` | session, owner | Optional `paymentPayload` is settled first, then `pay_dividend`. |
 | `StreamEvents` | `GET /events` | public | SSE with `Last-Event-ID` replay. |
-| `GetMockBankLogin`, `MockBankLogin` | `GET`, `POST /mock-bank/login` | public | Fake bank login; sets the `smx_bank_session` cookie. |
+| `GetMockBankLogin`, `MockBankLogin` | `GET`, `POST /mock-bank/login` | public | Fake bank login with an income scenario picker; sets the `smx_bank_session` cookie. |
 | `GetMockBank` | `GET /mock-bank` | cookie | Statement page; redirects to login without the cookie. |
 | `GetMockBankTransactions` | `GET /mock-bank/api/transactions` | cookie | The auth-bound request Reclaim proves (`401` without the cookie). |
 

@@ -110,7 +110,7 @@ voiceover, and the proof that a sponsor integration is real.
      appear in the card.
   2. Open the link (or scan it) in the second window. Reclaim opens the HDFC
      Bank NetBanking demo at `/mock-bank/login`. Enter any Customer ID and
-     password, click **Login**. The statement shows a $5,000 deposit.
+     password, keep **Salary on time** selected, click **Login**. The statement shows a $5,000 deposit.
   3. Reclaim generates the zkTLS proof. Return to the Hub. The page updates
      over SSE (`PROOF_VERIFIED`).
   4. Scroll to **Income proofs**: the proof row shows the 0G Storage log ref.

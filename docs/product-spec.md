@@ -30,7 +30,7 @@ the zkTLS proof source, not a sponsor target. Other sponsors were dropped; see [
 | World ID | v4 proof of unique human at IPO. The server signs the RP request (`POST /api/rp-signature`) and verifies the proof; `POST /api/world-id/check` rejects a used or blacklisted nullifier before submit. The nullifier is stored in Postgres and on the factory contract. | World ID Simulator (staging app); `DEMO_MODE=1` fixture proofs. |
 | Hedera | EVM testnet (chain 296) for the `LiquidISA` clone factory, escrow and share tokens. Creator equity token is ATS-ready (Asset Tokenization Studio integration built; minting runs in simulated mode on testnet). x402-style dividend payouts: the creator signs one Hedera multi-transfer in their wallet and the server settles it. Safe-stop escrow freeze. | Simulated chain mode (`CHAIN_RPC_URL` unset); simulated receipts. |
 | 0G | Auditor agent that approves or denies milestones and computes dividends. 0G Compute is opt-in; otherwise a rules engine runs. L-ISA terms and every audit log go to 0G Storage through a background outbox. Triggers the safe-stop freeze. | Rules engine; `local:<sha256>` refs. |
-| Reclaim Protocol | zkTLS proof of a Web2 bank deposit that the 0G agent verifies. The mock bank (`/mock-bank`) stands in for a real bank and shows a hardcoded $5,000 deposit. | `DEMO_MODE=1` fixture proof. |
+| Reclaim Protocol | zkTLS proof of a Web2 bank deposit that the 0G agent verifies. The mock bank (`/mock-bank`) stands in for a real bank and shows the deposits of the income scenario picked at login (default $5,000). | `DEMO_MODE=1` fixture proof. |
 
 Wallets: sign-in uses SIWE. Users connect with WalletConnect (1inch Wallet
 featured), generate a local key, or import a key. The Hedera payment signer
@@ -209,8 +209,8 @@ Pages render HTML; the same handler returns JSON by content negotiation.
 | `POST /dividends/{dividendId}/payment-request` | `CreateDividendPaymentRequest` | Returns x402 payment requirements, one per holder, built from SQL. |
 | `POST /dividends/{dividendId}/payment` | `PayDividend` | Creator pays the dividend. An optional `paymentPayload` (the creator-signed transfer) is settled first. |
 | `GET /events` | `StreamEvents` | SSE stream of `oracle_events` via pgmb. |
-| `GET`, `POST /mock-bank/login` | `GetMockBankLogin`, `MockBankLogin` | Fake bank login (any non-empty credentials). |
-| `GET /mock-bank` | `GetMockBank` | Fake bank statement page with a $5,000 deposit. Needs the login cookie. |
+| `GET`, `POST /mock-bank/login` | `GetMockBankLogin`, `MockBankLogin` | Fake bank login (any non-empty credentials) with an income scenario picker. |
+| `GET /mock-bank` | `GetMockBank` | Fake bank statement page for the chosen scenario. Needs the login cookie. |
 | `GET /mock-bank/api/transactions` | `GetMockBankTransactions` | The auth-bound request the Reclaim provider proves. |
 | `GET /healthz` | (built in) | |
 
@@ -298,7 +298,7 @@ SMX is a hackathon build. This table is the honest state as of 2026-11-06. See
 | World ID v4 | Live on a staging app; verified end to end with the Simulator. |
 | 0G Storage | Live on Galileo. Uploads run in the background; refs start as `local:<sha256>`. |
 | 0G Compute | Opt-in (`ZG_COMPUTE_ENABLED`); needs a 3 0G ledger deposit. The audit falls back to the rules engine. 0G Router (`pc.0g.ai`) credits are pending. |
-| Reclaim | Provider live. The mock bank runs behind a temporary tunnel; the end-to-end callback test is pending. |
+| Reclaim | Provider live on the production mock bank; the end-to-end callback test is pending. |
 | Wallets | WalletConnect QR pairing verified. A full phone-wallet signature is not. |
 | Hedera ATS equity token | ATS-ready (integration built; minting runs in simulated mode on testnet). It would mirror the cap table; `CreatorShareToken` stays the source of truth. Never run against a live ATS deployment. |
 | x402 dividend payout | Built and tested against the requirement validator. Live settlement is unrun without operator keys. |

@@ -74,9 +74,9 @@ flowchart LR
 
 ## Demo setup with no spend
 
-1. Reclaim: the `/mock-bank` page with a hardcoded $5,000 deposit; a provider
-   on the Reclaim developer free plan. The provider URL is a tunnel, so
-   publish a new provider version if the tunnel restarts.
+1. Reclaim: the `/mock-bank` page with a selectable income scenario ($5,000 by
+   default); a provider on the Reclaim developer free plan. The provider
+   points at the production host.
 2. World ID: the Simulator in the Developer Portal (staging app).
 3. Hedera: testnet faucet (10 HBAR per day without sign-in). Each IPO costs
    about 0.76 HBAR with the clone factory.
@@ -98,7 +98,7 @@ Say this out loud if a judge asks.
 | 0G Storage | Real uploads on Galileo, in the background. Until one finishes, the ref is `local:<sha256>`. |
 | 0G audit | Runs on 0G Private Computer through the 0G Router, with a request ID shown per proof. 0G is required for approval: if the Router fails, the proof stays pending. The rules engine runs only behind `ZG_ALLOW_RULES_FALLBACK=1` and is labelled in the UI. The Router returned no TEE attestation field in live calls, so the UI shows "Private routing (TEE provider)", not "TEE verified". |
 | Bank | The mock bank stands in for a real bank. |
-| Reclaim end-to-end callback | Pending a stable host for the mock bank. |
+| Reclaim end-to-end callback | Pending a full end-to-end run. |
 | Dividend payout | The creator signs the transfer, but live settlement needs Hedera operator keys; otherwise it is simulated. |
 | Hedera ATS equity token | ATS-ready (integration built; minting runs in simulated mode on testnet). Never run against a live ATS deployment. |
 | Trading | A simulated AMM with virtual liquidity. |

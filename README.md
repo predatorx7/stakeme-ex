@@ -62,7 +62,8 @@ Earlier projects that touched income sharing used social scores, self-reported n
 | 0G | Auditor agent on 0G Private Computer (Router): every income proof is audited there, with the request ID, model, provider and TEE status logged and shown. Without 0G Private Computer, no AI auditor signs off on the income proof, so no tranche is released and no dividend is created. The rules engine runs only behind `ZG_ALLOW_RULES_FALLBACK=1` (offline dev). L-ISA terms and every approve or deny log on 0G Storage, uploaded in the background by an outbox worker. Triggers the safe-stop freeze. | [zero-g.md](docs/integrations/zero-g.md) |
 
 Reclaim Protocol supplies the zkTLS bank proof that the 0G agent audits. The
-demo proves a $5,000 deposit on a mock bank (`/mock-bank`) with a provider
+demo proves a deposit on a mock bank (`/mock-bank`, six income scenarios from
+$0 to $25,000) with a provider
 built in the Reclaim developer tools. See [reclaim.md](docs/integrations/reclaim.md).
 
 Every integration has a demo fallback, so the app runs end to end with no keys:
@@ -83,7 +84,7 @@ Every link below was checked on 2026-11-07.
 | World ID | App `app_0b5a20d804cb26e5008896d976fc4193` (staging, verified with the World ID Simulator). The server verifies each proof with the v4 route `POST https://developer.world.org/api/v4/verify/{rp_id}`. Walkthrough: [world-id-debrief.md](docs/world-id-debrief.md). |
 | 0G | Private Computer request ID `3a1c2f3b-6177-4ab8-aa52-c1b5ff80dc8c`, model `0gm-1.0-35b-a3b`. 0G Storage root [`0xaf42ce4081e282b15c052880ad6ab351a3a2d4d2b8bc63d15dff91929b9bb394`](https://indexer-storage-testnet-turbo.0g.ai/file/info/0xaf42ce4081e282b15c052880ad6ab351a3a2d4d2b8bc63d15dff91929b9bb394) (finalized). Without 0G Private Computer, no AI auditor signs off on the income proof, so no tranche is released and no dividend is created. |
 | Reclaim | Provider ID `3fefebae-05cb-4d6b-b319-f3f639a31201`, v0.1.2, run against the production mock bank. |
-| Simulated | ATS equity token minting is simulated. Trading runs on a simulated pool with virtual liquidity. The bank is a mock showing a fixed $5,000 deposit. World ID runs on staging. |
+| Simulated | ATS equity token minting is simulated. Trading runs on a simulated pool with virtual liquidity. The bank is a mock; you pick an income scenario at login. World ID runs on staging. |
 
 ## What is live and what is simulated
 
@@ -93,11 +94,11 @@ Every link below was checked on 2026-11-07.
 | World ID v4 | Live on a staging app. Verified end to end with the World ID Simulator. |
 | 0G Storage | Live on the Galileo testnet. Uploads take about 30 seconds, so a worker runs them in the background. The ref starts as `local:<sha256>` and becomes the 0G root hash. |
 | 0G Private Computer | Live through the 0G Router (`ZG_ROUTER_API_KEY`, prepaid credit). If the call fails the proof stays PENDING with "0G audit unavailable, retry". 0G Compute via the SDK broker stays off by default (`ZG_COMPUTE_ENABLED`; needs a 3 0G ledger deposit). |
-| Reclaim | The provider is live, but the mock bank runs behind a temporary tunnel and an end-to-end callback test is pending. |
+| Reclaim | The provider is live and points at the production mock bank. The end-to-end callback test is pending. |
 | Wallets | WalletConnect QR pairing is verified in Chrome. A full signature from a phone wallet is not. |
 | Hedera ATS equity token | ATS-ready: integration built; minting runs in simulated mode on testnet. The code is written but never ran against a live ATS deployment. |
 | x402 dividend payout | Simulated unless you set the Hedera operator keys. The live settlement is unrun. |
-| Mock bank | A stand-in for a real bank. It shows a hardcoded $5,000 deposit. |
+| Mock bank | A stand-in for a real bank. You pick an income scenario at login (default: a $5,000 deposit). |
 | Trading | The AMM is simulated in SQL. Its liquidity is virtual and not backed by investor funds. |
 
 ## Architecture
