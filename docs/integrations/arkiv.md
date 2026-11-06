@@ -3,6 +3,8 @@
 Verified against the `@arkiv-network/sdk` 1.0.1 package (README and types) on
 2026-11-06. Arkiv is the successor to Golem DB.
 
+**Status:** implemented (see [Implementation notes](README.md#implementation-notes)).
+
 SMX stores each creator's L-ISA terms as an Arkiv entity with queryable
 attributes. `creators.arkiv_entity_key` holds the entity key and
 `creators.terms_hash` holds the hash of the terms payload. The 0G audit agent
@@ -162,7 +164,7 @@ from the creator page.
 
 Without `ARKIV_PRIVATE_KEY`, store the canonical JSON in
 `creators.terms_json` (add the column, or keep it in `chain_jobs.args`) and set
-`terms_hash = keccak256(canonicalJson)`. Set `arkiv_entity_key` to
+`terms_hash = sha256(canonicalJson)`. Set `arkiv_entity_key` to
 `local:<hash>`. Show an "Arkiv (local record)" badge.
 
 ## Gotchas

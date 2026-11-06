@@ -133,4 +133,18 @@ definitions. We haven't yet sent a transaction.
 
 Team: append entries below as you hit them. Newest last.
 
-<!-- Add entries here. Keep the template above. -->
+### 2026-11-06: README examples pass `bigint` to `u64` columns, which fails typechecking
+
+- **Severity:** papercut
+- **Area:** docs / types
+- **What we tried:** `createEntity` with `share_bps: 500n` (the style our own docs sketch).
+- **What happened:** In 1.0.1 a `u64` column needs a tagged value (`u64(500n)`), so a bare `bigint` is a `TS2322` error (`Type 'bigint' is not assignable to type 'U64Value'`). `str` values are accepted bare, which makes the rule inconsistent.
+- **Suggested fix:** Accept bare `bigint` for `u64`, or show `u64(...)` in every example.
+
+### 2026-11-06: No way to try writes without a funded key
+
+- **Severity:** papercut
+- **Area:** onboarding
+- **What we tried:** Run `createEntity` in CI and demo mode.
+- **What happened:** Every write needs a tGLM-funded key and an access key, so we keep a `local:<hash>` fallback and have not exercised the live path in this repo yet.
+- **Suggested fix:** A local dev chain or an in-memory client for tests.

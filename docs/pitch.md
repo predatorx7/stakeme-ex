@@ -18,6 +18,17 @@ An L-ISA pledges a percentage of income (for example, 5%) for a fixed term
 
 Example: $10,000 raise, $500 creator stake, 5% income share for 5 years.
 
+```mermaid
+flowchart LR
+	ipo["IPO: World ID, $500 stake, Arkiv terms"] --> raise["Raise $10,000, tranche 1 paid"]
+	raise --> proof{"Reclaim proof by deadline?"}
+	proof -->|"Yes: Ravi"| audit["0G audit approves, $250 dividend"]
+	audit --> unlock["Tranche 2 unlocked, x402 payout"]
+	unlock --> pump["Traders buy $RAVI"]
+	proof -->|"No: Rahul"| grace["14-day grace period"]
+	grace --> liquidate["Refund escrow, slash stake, blacklist World ID"]
+```
+
 ### Happy path: Ravi, the honest developer
 
 1. IPO: Ravi verifies with World ID, stakes $500 USDC, and signs the L-ISA

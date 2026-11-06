@@ -2,6 +2,8 @@
 
 Verified against docs.hedera.com and npm on 2026-11-06.
 
+**Status:** implemented (see [Implementation notes](README.md#implementation-notes)).
+
 SMX deploys `LiquidISA`, `CreatorShareToken`, and `MockUSDC` to Hedera testnet
 through the JSON-RPC relay, using `viem`. For "gasless dividend streaming" SMX
 uses the x402 payment protocol, with a limit you must know: Hedera's x402

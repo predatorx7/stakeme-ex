@@ -22,27 +22,30 @@ The whole demo runs on a laptop with no keys (simulated chain mode).
 
 ## Architecture
 
-```
- Browser (htmx + TS modules, viem)
-   |  World ID (IDKit), Reclaim (js-sdk), wallet (SIWE)
-   v
- Express 5 app  --  server-rendered TSX, OpenAPI routes, SSE /events
-   |                       |
-   | SQL functions         | pgmb (queue / pub-sub)
-   v                       v
- Postgres (schema smx)   Worker  ----------------------------+
-   ^   business logic       |                                 |
-   |   (launch_ipo,         | steps mirror the CRE workflow   |
-   |    audit_income_proof, v                                 v
-   |    amm_swap, ...)   Verify Reclaim -> 0G audit -> chain_jobs
-   |                        |        |            |
-   |                        v        v            v
-   |                   Reclaim   0G Compute   Hedera (LiquidISA, tokens)
-   |                   verify    0G Storage   Arc (optional USDC rail)
-   |                   World ID  (audit log)  Arkiv (L-ISA terms)
-   +--- oracle_events ------------------------------> live UI feed
+```mermaid
+flowchart TD
+	browser["Browser: htmx, TS modules, viem"]
+	app["Express 5 app: TSX pages, OpenAPI routes, SSE /events"]
+	db[("Postgres schema smx: business logic in SQL")]
+	worker["Worker: pgmb consumers, mirrors the CRE workflow"]
+	worldid["World ID"]
+	reclaim["Reclaim zkTLS"]
+	zerog["0G Compute and Storage"]
+	arkiv["Arkiv: L-ISA terms"]
+	chain["Hedera EVM: LiquidISA and tokens"]
+	cre["Chainlink CRE workflow (optional, simulated)"]
 
- Optional: cre/ (Chainlink CRE workflow, simulated with `cre workflow simulate`)
+	browser -->|"IDKit proof, SIWE, forms"| app
+	app -->|"verify proof"| worldid
+	app -->|"store terms"| arkiv
+	app -->|"SQL functions"| db
+	app -->|"verify income proof"| reclaim
+	app -->|"AI audit, audit log"| zerog
+	db -->|"chain_jobs, oracle_events via pgmb"| worker
+	worker -->|"tranches, dividends, liquidation, x402 payouts"| chain
+	cre -.->|"same proof, audit, write steps"| app
+	db -->|"oracle_events"| app
+	app -->|"live feed over SSE"| browser
 ```
 
 Every mutation writes final state to Postgres and returns immediately. The
@@ -89,7 +92,7 @@ npm run migrate   # apply database migrations
 
 ## Repo layout
 
-```
+```text
 packages/
   app/         @stakeme/app        Backend and server-rendered UI (openapi.yaml, sql/, migrations/)
   client/      @stakeme/client     Typed SDK generated from the OpenAPI spec

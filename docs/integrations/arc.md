@@ -2,6 +2,8 @@
 
 Verified against docs.arc.io on 2026-11-06.
 
+**Status:** documented only. Arc is just another `CHAIN_RPC_URL` target; the EIP-3009 relayer is not built.
+
 The product spec says Arc provides a "paymaster RPC for gasless investor
 transactions". That wording is not accurate. Arc is Circle's L1 where **USDC is
 the native gas token**. Arc has no built-in paymaster RPC. Gasless flows come

@@ -2,6 +2,8 @@
 
 Verified against npm and docs.world.org on 2026-11-06.
 
+**Status:** implemented (see [Implementation notes](README.md#implementation-notes)).
+
 SMX uses World ID to prove that a creator is a unique human before they launch
 an L-ISA. The proof yields an action-scoped nullifier. SMX stores the
 nullifier on the creator row (`creators.world_id_nullifier`, unique) and in

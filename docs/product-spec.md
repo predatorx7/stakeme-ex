@@ -79,6 +79,30 @@ Money is `money_amount NUMERIC(18,6)` (USDC has 6 decimals). Token amounts are
 
 `creator_status`: `'DRAFT','LIVE','GRACE','DEFAULTED','COMPLETED'`.
 
+```mermaid
+stateDiagram-v2
+	[*] --> DRAFT
+	DRAFT --> LIVE: launch_ipo (World ID verified, stake deposited)
+	LIVE --> LIVE: audit_income_proof approved
+	LIVE --> GRACE: sweep_deadlines (proof overdue)
+	GRACE --> LIVE: audit_income_proof approved
+	GRACE --> DEFAULTED: sweep_deadlines (grace expired)
+	LIVE --> COMPLETED: term ends
+	DEFAULTED --> [*]
+	COMPLETED --> [*]
+```
+
+Tranche lifecycle:
+
+```mermaid
+stateDiagram-v2
+	[*] --> LOCKED
+	LOCKED --> RELEASED: IPO (tranche 0) or approved proof
+	LOCKED --> REFUNDED: liquidate_creator
+	RELEASED --> [*]
+	REFUNDED --> [*]
+```
+
 ### Business logic in SQL
 
 Write these as SQL functions in `ddl.sql`, called from `queries.sql`:
@@ -152,6 +176,51 @@ Pages render HTML; the same handler returns JSON by content negotiation.
 | `GET /events` | `StreamEvents` | SSE stream of `oracle_events` via pgmb. |
 | `GET /mock-bank` | `GetMockBank` | Fake bank page with a $5,000 deposit for the Reclaim provider. |
 | `GET /healthz` | (built in) | |
+
+## Income proof flow
+
+```mermaid
+sequenceDiagram
+	autonumber
+	actor Creator
+	participant UI as SMX UI
+	participant App as SMX app
+	participant Reclaim
+	participant ZeroG as 0G agent
+	participant DB as Postgres
+	participant Worker
+	participant Chain as LiquidISA
+
+	Creator->>UI: Submit Web2 bank proof
+	UI->>App: POST /creators/{ticker}/reclaim-sessions
+	App->>Reclaim: Create proof request
+	App-->>UI: Request URL
+	Creator->>Reclaim: Log in to bank, generate zkTLS proof
+	Reclaim->>App: POST /reclaim/callback (proof)
+	App->>App: Verify proof signatures
+	App->>ZeroG: Audit income against Arkiv terms
+	ZeroG-->>App: Approved, verified amount, log ref
+	App->>DB: audit_income_proof()
+	DB-->>App: Dividend due, tranche released, chain jobs queued
+	App-->>UI: PROOF_VERIFIED over SSE (optimistic)
+	Worker->>Chain: unlockNextTranche()
+	Chain-->>Worker: Receipt
+	Worker->>DB: Job CONFIRMED with tx hash
+	DB-->>UI: TRANCHE_RELEASED over SSE
+```
+
+## Liquidation flow
+
+```mermaid
+flowchart TD
+	due["Proof deadline passes"] --> grace["Creator enters GRACE for 14 days"]
+	grace -->|"Approved proof"| live["Back to LIVE"]
+	grace -->|"No proof"| liquidate["liquidate_creator()"]
+	liquidate --> refund["Refund locked tranches to investors"]
+	liquidate --> slash["Slash stake pro rata to holders"]
+	liquidate --> ban["Blacklist World ID nullifier"]
+	liquidate --> job["Queue executeLiquidation onchain"]
+```
 
 ## Optimistic UI
 

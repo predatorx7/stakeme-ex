@@ -32,7 +32,7 @@ Indexed attributes are filterable in queries. Money is in USDC micro units
 | `stake_amount` | `u64` | Yes | Creator stake in USDC micro units. `500000000` = 500 USDC. |
 | `tranche_schedule` | `str` | No | JSON array of percentages summing to 100. Default `[20,40,40]`. |
 | `world_id_nullifier_hash` | `str` | Yes | `keccak256` of the World ID nullifier (decimal string). Never the raw nullifier. |
-| `terms_hash` | `str` | Yes | `keccak256` of the canonical `terms` payload (see below). |
+| `terms_hash` | `str` | Yes | `sha256` (hex) of the canonical `terms` payload (see below). |
 | `status` | `str` | Yes | `DRAFT`, `LIVE`, `GRACE`, `DEFAULTED`, `COMPLETED`. Mirrors `creator_status`. |
 | `terms` | `bytes` | No | Canonical JSON payload (UTF-8). Up to 128 KiB. |
 | `mimeType` | `str` | No | `application/json` (default). |
@@ -51,7 +51,7 @@ Postgres (`creators.world_id_nullifier`, `blacklisted_nullifiers`).
 
 `application/json`. The `terms` bytes hold canonical JSON: keys sorted, no
 whitespace, numbers as integers (micro units), strings in UTF-8. `terms_hash`
-is `keccak256(utf8(terms))`.
+is `sha256(utf8(terms))` as lowercase hex.
 
 ## Expiry (BTL) policy
 
@@ -102,7 +102,7 @@ await walletClient.createEntity(
     stake_amount: 500_000_000n,
     tranche_schedule: '[20,40,40]',
     world_id_nullifier_hash: '0x9f2c...11aa',
-    terms_hash: keccak256(stringToBytes(canonicalJson)),
+    terms_hash: sha256Hex(canonicalJson),
     status: 'DRAFT',
     terms: stringToBytes(canonicalJson),
   },
@@ -155,7 +155,7 @@ await publicClient.select({ $key: true, status: true }).from(LisaTerms)
 
 // Read by key and verify the hash
 const row = await publicClient.getEntity(entityKey, LisaTerms);
-const ok = keccak256(row.terms.value) === row.terms_hash.value;
+const ok = sha256Hex(new TextDecoder().decode(row.terms.value)) === row.terms_hash.value;
 ```
 
 Always filter with `.ownedBy(SMX_WRITER_ADDRESS)` (or check `$owner`) before

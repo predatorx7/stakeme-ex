@@ -3,6 +3,8 @@
 Verified against npm, the package README, and the Reclaim Builder docs on
 2026-11-06.
 
+**Status:** implemented (see [Implementation notes](README.md#implementation-notes)).
+
 SMX uses Reclaim zkTLS to prove that a creator received a bank deposit. The
 `/mock-bank` page shows a hardcoded $5,000 deposit. The creator proves it,
 the server verifies the proof, and the audit step turns it into an

@@ -2,6 +2,8 @@
 
 Verified against docs.chain.link and npm on 2026-11-06.
 
+**Status:** documented only. No code in `packages/app`; Arc and Chainlink CRE are not wired.
+
 SMX models the proof, audit, and onchain call pipeline as a Chainlink Runtime
 Environment (CRE) workflow. The pgmb worker runs the same steps in Node, so
 the demo works without CRE. An optional real workflow lives in `cre/`.

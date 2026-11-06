@@ -2,6 +2,8 @@
 
 Verified against npm and docs.0g.ai on 2026-11-06.
 
+**Status:** implemented (see [Implementation notes](README.md#implementation-notes)).
+
 SMX uses 0G for two things:
 
 - **0G Compute**: run the LLM audit prompt that checks a Reclaim proof against
