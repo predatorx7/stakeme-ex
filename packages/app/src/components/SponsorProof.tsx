@@ -20,6 +20,7 @@ export function SponsorProof({ creator, proofs }: {
 	const scan = (kind: string, addr: string) => {
 		return `https://hashscan.io/${HEDERA_NETWORK}/${kind}/${addr}`
 	}
+
 	const contracts = [
 		['Escrow ISA', c.contractAddress],
 		['Share token', c.tokenAddress],
