@@ -79,6 +79,40 @@ const getExchangeIR: any = {"usedParamSet":{"limit":true},"params":[{"name":"lim
 export const getExchange = new PreparedQuery<IGetExchangeParams,IGetExchangeResult>(getExchangeIR);
 
 
+/** 'GetOracleEventsSince' parameters type */
+export interface IGetOracleEventsSinceParams {
+  creatorId?: string | null | void;
+  limit: number;
+  since: NumberOrString;
+}
+
+/** 'GetOracleEventsSince' return type */
+export interface IGetOracleEventsSinceResult {
+  j: unknown | null;
+}
+
+/** 'GetOracleEventsSince' query type */
+export interface IGetOracleEventsSinceQuery {
+  params: IGetOracleEventsSinceParams;
+  result: IGetOracleEventsSinceResult;
+}
+
+const getOracleEventsSinceIR: any = {"usedParamSet":{"since":true,"creatorId":true,"limit":true},"params":[{"name":"since","required":true,"transform":{"type":"scalar"},"locs":[{"a":192,"b":198}]},{"name":"creatorId","required":false,"transform":{"type":"scalar"},"locs":[{"a":209,"b":218}]},{"name":"limit","required":true,"transform":{"type":"scalar"},"locs":[{"a":227,"b":233}]}],"statement":"-- SSE replay: events after cursor `since`, oldest first, at most `limit`.\n-- `creatorId` is optional. Route: StreamEvents.\nSELECT smx.oracle_event_json(e) AS j\nFROM smx.oracle_events_since(\n\t:since!::BIGINT, :creatorId::UUID, :limit!::INTEGER\n) e"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- SSE replay: events after cursor `since`, oldest first, at most `limit`.
+ * -- `creatorId` is optional. Route: StreamEvents.
+ * SELECT smx.oracle_event_json(e) AS j
+ * FROM smx.oracle_events_since(
+ * 	:since!::BIGINT, :creatorId::UUID, :limit!::INTEGER
+ * ) e
+ * ```
+ */
+export const getOracleEventsSince = new PreparedQuery<IGetOracleEventsSinceParams,IGetOracleEventsSinceResult>(getOracleEventsSinceIR);
+
+
 /** 'GetCreatorPage' parameters type */
 export interface IGetCreatorPageParams {
   ticker: string;

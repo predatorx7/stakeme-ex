@@ -97,7 +97,8 @@ stateDiagram-v2
 | `complete_chain_job(...)` | Settles a job and copies the result onto the creator, tranche, dividend, or investment. |
 | `emit_oracle_event(...)` | Inserts the event and one price tick. Every event and tick pair comes from here. |
 | `pro_rata_split(...)` | Splits an amount so the parts sum exactly. The rounding remainder goes to the largest position. |
-| `*_json(...)`, `exchange_json`, `creator_page_json`, `creator_hub_json` | Build the API documents. They match the `openapi.yaml` schemas. |
+| `oracle_events_since(since, creator, limit)` | SSE replay: the newest `limit` events after the `seq` cursor, oldest first. |
+| `*_json(...)`, `exchange_json`, `creator_page_json`, `creator_hub_json` | Build the API documents. They match the `openapi.yaml` schemas. `exchange_json` also returns `totals` (`totalRaised`, `activeCreators`, `dividendsPaid`, `holders`), computed across all creators. |
 
 Errors use `assert_that` with an HTTP status in the SQLSTATE (`H0409`). The
 JSON builders are `VOLATILE` on purpose: a `STABLE` function would not see rows
@@ -107,7 +108,7 @@ written earlier in the same statement.
 
 | Operation | Method and path | Auth | Notes |
 | --- | --- | --- | --- |
-| `GetExchange` | `GET /` | public | Trending creators and events. |
+| `GetExchange` | `GET /` | public | `totals`, trending creators, and events. |
 | `GetCreator` | `GET /creators/{ticker}` | public | Token page document. |
 | `GetCreatorHub` | `GET /hub` | session | The viewer's dashboard. |
 | `GetLaunch` | `GET /launch` | session | Form state and World ID config. |
@@ -123,7 +124,7 @@ written earlier in the same statement.
 | `TriggerDefault` | `POST /api/trigger-default` | public, `DEMO_MODE=1` | `403` otherwise. |
 | `CreateDividendPaymentRequest` | `POST /dividends/{dividendId}/payment-request` | session, owner | x402 payment requirements from `PaymentService`. Splits come from SQL. |
 | `PayDividend` | `POST /dividends/{dividendId}/payment` | session, owner | Optional `paymentPayload` is settled first, then `pay_dividend`. |
-| `StreamEvents` | `GET /events` | public | SSE. |
+| `StreamEvents` | `GET /events` | public | SSE with `Last-Event-ID` replay. |
 | `GetMockBankLogin`, `MockBankLogin` | `GET`, `POST /mock-bank/login` | public | Fake bank login; sets the `smx_bank_session` cookie. |
 | `GetMockBank` | `GET /mock-bank` | cookie | Statement page; redirects to login without the cookie. |
 | `GetMockBankTransactions` | `GET /mock-bank/api/transactions` | cookie | The auth-bound request Reclaim proves (`401` without the cookie). |
@@ -151,8 +152,18 @@ sequenceDiagram
 `GET /events` sends three SSE event names. `oracle-event` carries the HTML
 fragment rendered by `components/events/OracleEventItem.tsx` (for htmx
 `sse-swap`), `oracle-event-json` carries the JSON, and `chain-job` announces a
-settled onchain call. Pass `?ticker=` to filter. Replay through `Last-Event-ID`
-is not supported; reload the page document instead.
+settled onchain call. Pass `?ticker=` to filter.
+
+Both oracle messages carry `id:` set to the event's `seq`, a
+`BIGINT GENERATED ALWAYS AS IDENTITY` column on `oracle_events`. `chain-job`
+messages carry no `id`, so they never move the browser's cursor. On connect,
+the `Last-Event-ID` header (or `?since=`, which wins) replays missed oracle
+events before live ones. The SQL function `oracle_events_since(since, creator,
+limit)` returns the newest 50 after the cursor, oldest first; if more were
+missed, the oldest are dropped, so reload the page for a full refresh. The
+route registers the live subscription first and skips live events at or below
+the last replayed `seq`, so nothing is sent twice. A `Last-Event-ID` that isn't
+a number is ignored.
 
 ## Worker
 

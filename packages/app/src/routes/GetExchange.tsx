@@ -7,7 +7,7 @@ import type { ITypedExpressRequest } from '../types/openapi.ts'
 import { typed } from '../utils/json.ts'
 import { shouldSendJson } from '../utils/negotiation.ts'
 
-/** `GET /` — trending creators and the latest oracle events. */
+/** `GET /` — totals, trending creators and the latest oracle events. */
 export default async function GetExchange(
 	req: ITypedExpressRequest<'GetExchange'>,
 ) {

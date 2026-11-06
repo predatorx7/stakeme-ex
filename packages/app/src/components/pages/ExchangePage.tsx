@@ -12,11 +12,6 @@ import { PageHeader } from '../PageHeader.tsx'
 import { PriceChange } from '../PriceChange.tsx'
 import { SectionCard } from '../SectionCard.tsx'
 
-/** Sum of decimal strings. Display only; the server holds the exact values. */
-function total(values: string[]) {
-	return values.reduce((sum, v) => sum + Number(v), 0)
-}
-
 /**
  * Exchange home: headline numbers, trending humans, the top creator's price
  * chart and the live oracle feed. The market region reloads on oracle events
@@ -24,21 +19,13 @@ function total(values: string[]) {
  * it so its SSE connection survives the reload.
  */
 export function ExchangePage({ exchange }: { exchange: Exchange }) {
-	const { trending, events } = exchange
+	const { trending, events, totals } = exchange
 	const top = trending[0]
-	const active = trending.filter(
-		(c) => c.status === 'LIVE' || c.status === 'GRACE',
-	).length
-	const dividends = total(
-		events
-			.filter((e) => e.kind === 'DIVIDEND_PAID')
-			.map((e) => String(e.payload.amount ?? '0')),
-	)
 	return (
 		<>
 			<div
 				id='exchange-live'
-				class='smx-page'
+				class='smx-page smx-xc'
 				hx-get='/'
 				hx-trigger='smx:oracle-event from:body delay:1s'
 				hx-select='#exchange-live'
@@ -46,19 +33,19 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 				<PageHeader
 					eyebrow='Exchange'
 					title='StakeMe Exchange (SMX)' />
-				<div class='rc-kpi-grid'>
+				<div class='rc-kpi-grid smx-xc-kpis'>
 					<Kpi
 						label='Total raised'
-						value={formatUsdc(total(trending.map((c) => c.raised)))}
-						note={`across ${trending.length} IPOs`} />
+						value={formatUsdc(totals.totalRaised)}
+						note={`holders: ${totals.holders}`} />
 					<Kpi
 						label='Active creators'
-						value={String(active)}
+						value={String(totals.activeCreators)}
 						note='live or in grace period' />
 					<Kpi
 						label='Dividends paid'
-						value={formatUsdc(dividends)}
-						note='in the latest events' />
+						value={formatUsdc(totals.dividendsPaid)}
+						note='to holders, all time' />
 				</div>
 				<SectionCard
 					title='Trending humans'
@@ -91,8 +78,10 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 										]
 									}>
 									{
-										trending.map((c) => (
-											<tr class='smx-trending'>
+										trending.map((c, i) => (
+											<tr
+												class='smx-trending'
+												data-rank={i === 0 ? '1' : undefined}>
 												<td>
 													<a
 														class='smx-who'
@@ -141,6 +130,7 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 																			class='rc-button'
 																			data-size='sm'
 																			data-variant='primary'
+																			data-dw-sparkle
 																			href={`/creators/${c.ticker}#trade`}
 																			aria-label={`Buy ${c.ticker}`}>
 																			Buy
@@ -173,7 +163,7 @@ export function ExchangePage({ exchange }: { exchange: Exchange }) {
 					)
 				}
 			</div>
-			<div class='smx-page'>
+			<div class='smx-page smx-xc-feed'>
 				<SectionCard
 					title='Live oracle events'
 					context='Updates as the 0G agent audits proofs and creators trade.'>

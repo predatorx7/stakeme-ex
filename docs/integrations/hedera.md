@@ -3,8 +3,8 @@
 Verified against npm, the Asset Tokenization Studio (ATS) packages, and
 docs.hedera.com on 2026-11-06.
 
-**Status:** implemented with SIMULATED fallbacks. The live ATS mint and the live
-x402 settlement are typechecked and unit-tested for their pure logic, but not
+**Status:** implemented with SIMULATED fallbacks. The x402 paywall settled live
+on testnet (see below). The live ATS mint and the dividend x402 settlement are typechecked and unit-tested for their pure logic, but not
 run against Hedera testnet in this repository (no operator key in CI).
 
 SMX uses three Hedera features, all with native Hedera transactions:
@@ -190,9 +190,9 @@ SMX keeps the x402 requirement format but:
 - Verifies and submits it on the server with `@hiero-ledger/sdk`, using the
   operator as fee payer. That's the same gasless model the facilitator gives.
 
-`@x402/core` and `@x402/hedera` are installed for the single-payee flows
-(`x402.org/facilitator`, `hedera:testnet`) if you add a paywalled endpoint
-later. The dividend loop doesn't call the facilitator.
+`@x402/core` and `@x402/hedera` serve the single-payee paywall below
+(`x402.org/facilitator`, `hedera:testnet`). The dividend loop doesn't call the
+facilitator.
 
 ### Flow
 
@@ -231,6 +231,35 @@ sequenceDiagram
 
 Holders are addressed by EVM alias (`0.0.<40 hex>`), which creates the account
 on first receipt for HBAR.
+
+## x402 paywall: premium audit report
+
+`GET /creators/{ticker}/audit-report` is an x402-gated endpoint (operation
+`GetCreatorAuditReport`). An investor or AI agent pays 0.1 HBAR on Hedera
+testnet to read a creator's latest 0G audit log and verified-income history.
+
+| Step | What happens |
+| --- | --- |
+| 1 | `GET` without payment returns `402`, a `PAYMENT-REQUIRED` header and the same body: x402 v2, `exact`, `hedera:testnet`, asset `0.0.0` (HBAR), amount `10000000` tinybars, `payTo` = `X402_PAY_TO` or the operator, `extra.feePayer` from the facilitator. |
+| 2 | The client signs one partially signed `TransferTransaction` (`@x402/hedera`) and retries with `X-PAYMENT` (or `PAYMENT-SIGNATURE`): base64 JSON payload. |
+| 3 | The server rebuilds the requirements, checks the payload matches, then calls the facilitator `verify` and `settle`. |
+| 4 | `200` with the report and `X-PAYMENT-RESPONSE` (base64 JSON, `transaction` = Hedera transaction id). |
+
+Facilitator: the official `https://x402.org/facilitator`, which lists
+`exact` on `hedera:testnet` (checked 2026-11-06) and pays the network fee, so the
+payer needs no operator help. Override with `X402_FACILITATOR_URL`. Code:
+`services/payment/x402-paywall.ts` (pure logic, tested in
+`tests/x402-paywall.test.ts` with a mocked facilitator) and
+`routes/GetCreatorAuditReport.ts`.
+
+### Live run
+
+`node --env-file=.env packages/app/scripts/x402-agent.ts` boots a short-lived
+instance on an in-memory PGlite, creates a throwaway payer funded with 0.15 HBAR,
+and acts as the agent: it discovers the 402, applies a spend control (HBAR only,
+at most 0.2 HBAR a payment, `spendControls.allowedAssets`), pays and reads the
+report. Settled payment (2026-11-06):
+[0.0.9185802@1793985016.835902874](https://hashscan.io/testnet/transaction/0.0.9185802@1793985016.835902874).
 
 ## WalletConnect
 

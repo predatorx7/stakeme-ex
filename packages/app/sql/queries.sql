@@ -15,6 +15,15 @@ WHERE u.id = :id!;
 SELECT smx.exchange_json(:limit!::INTEGER) AS j;
 
 
+/* @name GetOracleEventsSince */
+-- SSE replay: events after cursor `since`, oldest first, at most `limit`.
+-- `creatorId` is optional. Route: StreamEvents.
+SELECT smx.oracle_event_json(e) AS j
+FROM smx.oracle_events_since(
+	:since!::BIGINT, :creatorId::UUID, :limit!::INTEGER
+) e;
+
+
 /* @name GetCreatorPage */
 -- Token page document; no row when the ticker is unknown. `wallet` is the
 -- viewer's wallet (optional). Route: GetCreator.

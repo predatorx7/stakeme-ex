@@ -108,6 +108,51 @@ paths:
           $ref: '#/components/responses/ProblemResponse'
         default:
           $ref: '#/components/responses/ProblemResponse'
+  /creators/{ticker}/audit-report:
+    get:
+      summary: Premium audit report (x402)
+      operationId: GetCreatorAuditReport
+      tags:
+        - Creators
+      description: >-
+        Returns a creator's latest 0G audit log and verified-income history.
+        Gated by x402 on Hedera testnet: without payment it answers `402` with
+        the payment requirements (`PAYMENT-REQUIRED` header and body, 0.1 HBAR
+        `exact`, asset `0.0.0`). Send the signed payment in `X-PAYMENT` (or
+        `PAYMENT-SIGNATURE`) as base64 JSON; the x402 facilitator verifies and
+        settles it, and the `200` carries `X-PAYMENT-RESPONSE` with the Hedera
+        transaction id.
+      security:
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+      responses:
+        '200':
+          description: The audit report.
+          headers:
+            X-PAYMENT-RESPONSE:
+              description: Base64 JSON settlement response (transaction id).
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditReport'
+        '402':
+          description: Payment required (x402 v2 requirements).
+          headers:
+            PAYMENT-REQUIRED:
+              description: Base64 JSON of the same requirements as the body.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/X402PaymentRequired'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /hub:
     get:
       summary: Creator hub
@@ -579,8 +624,10 @@ paths:
         Server-Sent Events of new oracle events, optionally for one ticker.
         Each event is sent twice: `oracle-event` carries an HTML list item (for
         htmx `sse-swap`) and `oracle-event-json` carries the JSON. `chain-job`
-        events announce onchain call status changes. Reconnect with
-        `Last-Event-ID` to resume.
+        events announce onchain call status changes and carry no `id`.
+        Every oracle event message carries `id:` = the event's `seq`. Reconnect
+        with `Last-Event-ID` (or `since`) to replay up to 50 missed oracle
+        events, oldest first, before live ones.
       security:
         - {}
         - BearerAuth: []
@@ -591,6 +638,23 @@ paths:
           description: Only events for this ticker.
           schema:
             $ref: '#/components/schemas/Ticker'
+        - name: since
+          in: query
+          required: false
+          description: Replay oracle events with a `seq` greater than this.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: >-
+            Set by `EventSource` on reconnect. Parsed leniently: a value that
+            isn't a number is ignored. `since` wins when both are sent.
+          schema:
+            type: string
+            maxLength: 64
       responses:
         '200':
           description: An event stream.
@@ -789,6 +853,40 @@ components:
       type: string
       format: uuid
       maxLength: 36
+    X402PaymentRequired:
+      type: object
+      description: x402 v2 payment required document.
+      required: [x402Version, resource, accepts]
+      properties:
+        x402Version:
+          type: integer
+          example: 2
+        error:
+          type: string
+        resource:
+          type: object
+          additionalProperties: true
+        accepts:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    AuditReport:
+      type: object
+      description: Premium audit data for one creator.
+      required: [ticker, latestAudit, verifiedIncome]
+      properties:
+        ticker:
+          $ref: '#/components/schemas/Ticker'
+        latestAudit:
+          type: object
+          nullable: true
+          additionalProperties: true
+        verifiedIncome:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
     Ticker:
       type: string
       pattern: ^[A-Z]{3,6}$
@@ -1148,10 +1246,15 @@ components:
           $ref: '#/components/schemas/Timestamp'
     OracleEvent:
       type: object
-      required: [id, creatorId, ticker, kind, payload, createdAt]
+      required: [id, seq, creatorId, ticker, kind, payload, createdAt]
       properties:
         id:
           $ref: '#/components/schemas/Uuid'
+        seq:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Monotonic cursor; the SSE `id:` of this event.
         creatorId:
           $ref: '#/components/schemas/Uuid'
         ticker:
@@ -1208,8 +1311,25 @@ components:
           $ref: '#/components/schemas/Timestamp'
     Exchange:
       type: object
-      required: [trending, events]
+      required: [totals, trending, events]
       properties:
+        totals:
+          type: object
+          description: Exchange-wide figures across all creators.
+          required: [totalRaised, activeCreators, dividendsPaid, holders]
+          properties:
+            totalRaised:
+              $ref: '#/components/schemas/Money'
+            activeCreators:
+              type: integer
+              minimum: 0
+              description: Creators that are live or in the grace period.
+            dividendsPaid:
+              $ref: '#/components/schemas/Money'
+            holders:
+              type: integer
+              minimum: 0
+              description: Distinct wallets holding any creator token.
         trending:
           type: array
           maxItems: 50

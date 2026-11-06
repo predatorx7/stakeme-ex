@@ -455,11 +455,15 @@ CREATE INDEX payouts_wallet_idx ON payouts(wallet);
 -- render a row without a join.
 CREATE TABLE oracle_events(
 	id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	-- Monotonic cursor for SSE replay (`Last-Event-ID`). Assigned at insert, so
+	-- it can skip a value on rollback but never goes backwards.
+	seq        BIGINT GENERATED ALWAYS AS IDENTITY,
 	creator_id UUID NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
 	kind       oracle_event_kind NOT NULL,
 	payload    JSONB NOT NULL DEFAULT '{}',
 	created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
 );
+CREATE UNIQUE INDEX oracle_events_seq_idx ON oracle_events(seq);
 CREATE INDEX oracle_events_created_idx ON oracle_events(created_at DESC, id);
 CREATE INDEX oracle_events_creator_idx
 	ON oracle_events(creator_id, created_at DESC);
@@ -1680,6 +1684,7 @@ SET search_path = smx, public
 AS $$
 	SELECT jsonb_build_object(
 		'id', e.id,
+		'seq', e.seq,
 		'creatorId', e.creator_id,
 		'ticker', e.payload ->> 'ticker',
 		'kind', e.kind,
@@ -1953,14 +1958,52 @@ $$;
 
 -- ─── page documents ───────────────────────────────────────────
 
--- GET / : trending creators (live ones first, then by 24h volume) and the
--- latest oracle events.
+-- GET /events replay: the newest `p_limit` events after cursor `p_since`
+-- (optionally one creator's), oldest first so the stream replays in order. If
+-- more than `p_limit` were missed, the oldest are dropped.
+CREATE OR REPLACE FUNCTION oracle_events_since(
+	p_since   BIGINT,
+	p_creator UUID,
+	p_limit   INTEGER
+)
+RETURNS SETOF oracle_events
+LANGUAGE sql
+STABLE
+SET search_path = smx, public
+AS $$
+	SELECT r.* FROM (
+		SELECT e.* FROM oracle_events e
+		WHERE e.seq > p_since AND (p_creator IS NULL OR e.creator_id = p_creator)
+		ORDER BY e.seq DESC
+		LIMIT least(greatest(p_limit, 0), 200)
+	) r
+	ORDER BY r.seq
+$$;
+
+-- GET / : exchange-wide totals (all creators), trending creators (live ones
+-- first, then by 24h volume) and the latest oracle events.
 CREATE OR REPLACE FUNCTION exchange_json(p_limit INTEGER)
 RETURNS JSONB
 LANGUAGE sql
 SET search_path = smx, public
 AS $$
 	SELECT jsonb_build_object(
+		'totals', jsonb_build_object(
+			'totalRaised', (
+				SELECT coalesce(sum(c.raised_amount), 0)::TEXT
+				FROM creators c WHERE c.status <> 'DRAFT'
+			),
+			'activeCreators', (
+				SELECT count(*) FROM creators c WHERE c.status IN ('LIVE', 'GRACE')
+			),
+			'dividendsPaid', (
+				SELECT coalesce(sum(d.amount_due), 0)::TEXT
+				FROM dividends d WHERE d.status = 'PAID'
+			),
+			'holders', (
+				SELECT count(DISTINCT h.wallet) FROM holdings h WHERE h.balance > 0
+			)
+		),
 		'trending', (
 			SELECT coalesce(jsonb_agg(creator_summary_json(t.c) ORDER BY t.rank), '[]')
 			FROM (
