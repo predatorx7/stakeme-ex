@@ -47,7 +47,6 @@ import type { IPgClientLike } from '../src/types/index.ts'
 import { runIncomeAudit } from '../src/utils/income-audit.ts'
 import { processChainJobs } from '../src/worker/chain-jobs.ts'
 import { processStorageUploads } from '../src/worker/storage-uploads.ts'
-import { applyPgliteMigrations, createPglite } from '../tests/pglite.ts'
 
 const useDocker = process.argv.includes('--pg')
 /** `--onchain=A,B`: tickers that send real chain jobs; undefined = all. */
@@ -501,6 +500,10 @@ async function connect(): Promise<IPgClientLike> {
 		)
 	}
 
+	// Dynamic: the production image ships no tests/ folder (`--pg` only).
+	const { applyPgliteMigrations, createPglite } = await import(
+		'../tests/pglite.ts'
+	)
 	const pglite = createPglite({ dataDir: './pg_dev_data' })
 	await applyPgliteMigrations(pglite, { logger: LOGGER })
 	await pglite.exec('SET search_path TO smx, public')
