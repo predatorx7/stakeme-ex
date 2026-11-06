@@ -48,13 +48,23 @@ export function nullifierHash(nullifier: string): `0x${string}` {
  * `salt` (CHAIN_NULLIFIER_SALT) scopes the onchain hash to a deployment:
  * keccak256(salt ‖ nullifier). Offchain Sybil checks in Postgres are
  * unaffected.
- * Without a salt this is the plain {@link nullifierHash}.
+ * In demo mode a reset bumps `demoEpoch`, which joins the scope so the
+ * same human can launch again. Without a salt or epoch this is the plain
+ * {@link nullifierHash}.
  */
 export function onchainNullifierHash(
 	nullifier: string,
 	salt = '',
+	demoEpoch = 0,
 ): `0x${string}` {
-	return salt ? keccakUtf8(salt + nullifier) : nullifierHash(nullifier)
+	const scope = demoEpoch > 0 ? `${salt}demo${demoEpoch}:` : salt
+	return scope ? keccakUtf8(scope + nullifier) : nullifierHash(nullifier)
+}
+
+/** The demo epoch counts only in demo mode; otherwise 0 (plain hash). */
+export function effectiveDemoEpoch(raw: unknown, demoMode: boolean) {
+	const n = Number(raw)
+	return demoMode && Number.isInteger(n) && n > 0 ? n : 0
 }
 
 /** Reads a plain-object field without casts. */

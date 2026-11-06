@@ -37,6 +37,8 @@ tags:
     description: Public exchange pages and the JSON that backs them.
   - name: Creators
     description: Launching an L-ISA IPO and investing in or trading a creator.
+  - name: Demo
+    description: Presenter helpers, only with DEMO_MODE=1.
   - name: Income
     description: Reclaim income proofs, audits, dividends and defaults.
   - name: Events
@@ -1069,6 +1071,90 @@ paths:
                 $ref: '#/components/schemas/ZeroGBalance'
         default:
           $ref: '#/components/responses/ProblemResponse'
+  /demo/reset:
+    post:
+      summary: Reset the demo creator (demo)
+      operationId: DemoReset
+      tags:
+        - Demo
+      description: >-
+        Demo only. Deletes the reserved creator and every dependent row, frees
+        its World ID nullifier and bumps the demo epoch so the next onchain IPO
+        registers a fresh nullifier hash. `403` unless `DEMO_MODE=1` and the
+        signed-in wallet is in `DEMO_PRESENTER_WALLETS` (or `X-Admin-Key`
+        matches).
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AdminKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DemoResetRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/DemoResult'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /demo/creators/{ticker}/fill-raise:
+    post:
+      summary: Fill the open raise (demo)
+      operationId: DemoFillRaise
+      tags:
+        - Demo
+      description: >-
+        Demo only, presenter gate as `DemoReset`. Invests the remaining raise
+        from the oracle wallet. The `invest` chain job (mint, approve, invest)
+        runs on the worker, so the oracle key never signs from two processes.
+        Closing the raise releases tranche 0 and seeds the pool.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - $ref: '#/components/parameters/AdminKey'
+      responses:
+        '201':
+          $ref: '#/components/responses/DemoResult'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
+  /demo/creators/{ticker}/advance-deadline:
+    post:
+      summary: Move the proof deadline into the past (demo)
+      operationId: DemoAdvanceDeadline
+      tags:
+        - Demo
+      description: >-
+        Demo only, presenter gate as `DemoReset`. Sets the next proof due date
+        to the past so the freeze path can be shown.
+      security:
+        - {}
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Ticker'
+        - $ref: '#/components/parameters/AdminKey'
+      responses:
+        '201':
+          $ref: '#/components/responses/DemoResult'
+        '403':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        default:
+          $ref: '#/components/responses/ProblemResponse'
   /api/trigger-default:
     post:
       summary: Trigger a default (demo)
@@ -1488,6 +1574,12 @@ components:
         text/html:
           schema:
             $ref: '#/components/schemas/HtmlContent'
+    DemoResult:
+      description: Demo helper result.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DemoResult'
     ProblemResponse:
       description: >-
         Error response. JSON callers receive an RFC 9457 problem document; HTML
@@ -1501,6 +1593,14 @@ components:
           schema:
             $ref: '#/components/schemas/HtmlContent'
   parameters:
+    AdminKey:
+      name: X-Admin-Key
+      in: header
+      required: false
+      description: Admin key (`SMX_ADMIN_KEY`); an alternative to the presenter wallet.
+      schema:
+        type: string
+        maxLength: 200
     Ticker:
       name: ticker
       in: path
@@ -1726,6 +1826,12 @@ components:
               $ref: '#/components/schemas/EvmAddress'
             atsTokenAddress:
               $ref: '#/components/schemas/EvmAddress'
+            poolAddress:
+              $ref: '#/components/schemas/EvmAddress'
+            worldIdNullifier:
+              type: string
+              description: World ID nullifier that verified the creator as a unique human.
+              maxLength: 80
             chainId:
               type: integer
               minimum: 1
@@ -3060,6 +3166,38 @@ components:
           allOf:
             - $ref: '#/components/schemas/TokenAmount'
           default: '0'
+    DemoResetRequest:
+      type: object
+      required: [ticker]
+      properties:
+        ticker:
+          type: string
+          enum: [MUSH]
+    DemoResult:
+      type: object
+      required: [ok, message]
+      properties:
+        ok:
+          type: boolean
+        message:
+          type: string
+          maxLength: 500
+        next:
+          type: string
+          maxLength: 500
+        links:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            required: [label, url]
+            properties:
+              label:
+                type: string
+                maxLength: 100
+              url:
+                type: string
+                maxLength: 500
     TriggerDefaultRequest:
       type: object
       required: [ticker]

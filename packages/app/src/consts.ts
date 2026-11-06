@@ -20,6 +20,17 @@ export const IS_DEV = process.env.NODE_ENV === 'development'
 /** Demo mode: simulated chain, fixture proofs, demo-only routes. */
 export const DEMO_MODE = process.env.DEMO_MODE === '1'
 
+/**
+ * Wallets (comma-separated EVM addresses) allowed to use the demo helper
+ * routes. Read per call. Lowercased.
+ */
+export const demoPresenterWallets = () => (
+	process.env.DEMO_PRESENTER_WALLETS || ''
+)
+	.split(',')
+	.map((a) => a.trim().toLowerCase())
+	.filter(Boolean)
+
 export const DB_URI = process.env.DB_URI
 export const MAX_DB_CONNS = +(process.env.MAX_DB_CONNS || 10)
 export const PG_APP_NAME = process.env.PG_APP_NAME || 'smx_app'

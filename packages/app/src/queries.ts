@@ -2085,3 +2085,118 @@ const listClaimableCreatorsIR: any = {"usedParamSet":{"wallet":true},"params":[{
 export const listClaimableCreators = new PreparedQuery<IListClaimableCreatorsParams,IListClaimableCreatorsResult>(listClaimableCreatorsIR);
 
 
+/** 'GetDemoEpoch' parameters type */
+export type IGetDemoEpochParams = void;
+
+/** 'GetDemoEpoch' return type */
+export interface IGetDemoEpochResult {
+  epoch: number;
+}
+
+/** 'GetDemoEpoch' query type */
+export interface IGetDemoEpochQuery {
+  params: IGetDemoEpochParams;
+  result: IGetDemoEpochResult;
+}
+
+const getDemoEpochIR: any = {"usedParamSet":{},"params":[],"statement":"SELECT smx.demo_epoch() AS \"epoch!\""};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * SELECT smx.demo_epoch() AS "epoch!"
+ * ```
+ */
+export const getDemoEpoch = new PreparedQuery<IGetDemoEpochParams,IGetDemoEpochResult>(getDemoEpochIR);
+
+
+/** 'DemoResetCreator' parameters type */
+export interface IDemoResetCreatorParams {
+  ticker: string;
+}
+
+/** 'DemoResetCreator' return type */
+export interface IDemoResetCreatorResult {
+  epoch: number;
+}
+
+/** 'DemoResetCreator' query type */
+export interface IDemoResetCreatorQuery {
+  params: IDemoResetCreatorParams;
+  result: IDemoResetCreatorResult;
+}
+
+const demoResetCreatorIR: any = {"usedParamSet":{"ticker":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":62,"b":69}]}],"statement":"-- Demo only. Route: DemoReset.\nSELECT smx.demo_reset_creator(:ticker!) AS \"epoch!\""};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Demo only. Route: DemoReset.
+ * SELECT smx.demo_reset_creator(:ticker!) AS "epoch!"
+ * ```
+ */
+export const demoResetCreator = new PreparedQuery<IDemoResetCreatorParams,IDemoResetCreatorResult>(demoResetCreatorIR);
+
+
+/** 'DemoFillRaise' parameters type */
+export interface IDemoFillRaiseParams {
+  ticker: string;
+  wallet: string;
+}
+
+/** 'DemoFillRaise' return type */
+export interface IDemoFillRaiseResult {
+  closed: boolean;
+  contract_address: string | null;
+  id: string;
+  raised: string;
+}
+
+/** 'DemoFillRaise' query type */
+export interface IDemoFillRaiseQuery {
+  params: IDemoFillRaiseParams;
+  result: IDemoFillRaiseResult;
+}
+
+const demoFillRaiseIR: any = {"usedParamSet":{"ticker":true,"wallet":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":185,"b":192}]},{"name":"wallet","required":true,"transform":{"type":"scalar"},"locs":[{"a":195,"b":202}]}],"statement":"-- Demo only. Route: DemoFillRaise.\nSELECT c.id AS \"id!\", c.contract_address, c.raised_amount::TEXT AS \"raised!\",\n\t(c.raise_closed_at IS NOT NULL) AS \"closed!\"\nFROM smx.demo_fill_raise(:ticker!, :wallet!::smx.evm_address) AS c"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Demo only. Route: DemoFillRaise.
+ * SELECT c.id AS "id!", c.contract_address, c.raised_amount::TEXT AS "raised!",
+ * 	(c.raise_closed_at IS NOT NULL) AS "closed!"
+ * FROM smx.demo_fill_raise(:ticker!, :wallet!::smx.evm_address) AS c
+ * ```
+ */
+export const demoFillRaise = new PreparedQuery<IDemoFillRaiseParams,IDemoFillRaiseResult>(demoFillRaiseIR);
+
+
+/** 'DemoAdvanceDeadline' parameters type */
+export interface IDemoAdvanceDeadlineParams {
+  ticker: string;
+}
+
+/** 'DemoAdvanceDeadline' return type */
+export interface IDemoAdvanceDeadlineResult {
+  id: string;
+}
+
+/** 'DemoAdvanceDeadline' query type */
+export interface IDemoAdvanceDeadlineQuery {
+  params: IDemoAdvanceDeadlineParams;
+  result: IDemoAdvanceDeadlineResult;
+}
+
+const demoAdvanceDeadlineIR: any = {"usedParamSet":{"ticker":true},"params":[{"name":"ticker","required":true,"transform":{"type":"scalar"},"locs":[{"a":94,"b":101}]}],"statement":"-- Demo only. Route: DemoAdvanceDeadline.\nSELECT c.id AS \"id!\" FROM smx.demo_advance_deadline(:ticker!) AS c"};
+
+/**
+ * Query generated from SQL:
+ * ```
+ * -- Demo only. Route: DemoAdvanceDeadline.
+ * SELECT c.id AS "id!" FROM smx.demo_advance_deadline(:ticker!) AS c
+ * ```
+ */
+export const demoAdvanceDeadline = new PreparedQuery<IDemoAdvanceDeadlineParams,IDemoAdvanceDeadlineResult>(demoAdvanceDeadlineIR);
+
+

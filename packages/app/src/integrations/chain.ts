@@ -31,6 +31,7 @@ import {
 	CHAIN_ID,
 	CHAIN_NULLIFIER_SALT,
 	CHAIN_RPC_URL,
+	DEMO_MODE,
 	FACTORY_ADDRESS,
 	ORACLE_PRIVATE_KEY,
 	USDC_ADDRESS,
@@ -38,7 +39,7 @@ import {
 import { LOGGER } from '../logger.ts'
 import { mintCreatorEquityToken, simulateEquityToken } from './hedera-ats.ts'
 import type { ChainJob, ChainJobResult } from './types.ts'
-import { keccakUtf8, onchainNullifierHash } from './util.ts'
+import { effectiveDemoEpoch, keccakUtf8, onchainNullifierHash } from './util.ts'
 
 const USDC_DECIMALS = 6
 const DEFAULT_TRANCHES = [2000, 4000, 4000]
@@ -745,6 +746,7 @@ async function sendReal(job: ChainJob): Promise<ChainJobResult> {
 				: onchainNullifierHash(
 					str(args.worldIdNullifier, 'worldIdNullifier'),
 					CHAIN_NULLIFIER_SALT,
+					effectiveDemoEpoch(args.demoEpoch, DEMO_MODE),
 				)
 			const given = Array.isArray(args.trancheBps) ? args.trancheBps : []
 			const trancheBps = given.length ? given.map(Number) : DEFAULT_TRANCHES

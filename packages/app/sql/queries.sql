@@ -543,3 +543,24 @@ JOIN smx.creators c ON c.id = h.creator_id
 WHERE h.wallet = :wallet!::smx.evm_address AND c.contract_address IS NOT NULL
 ORDER BY c.ticker
 LIMIT 50;
+
+
+/* @name GetDemoEpoch */
+SELECT smx.demo_epoch() AS "epoch!";
+
+
+/* @name DemoResetCreator */
+-- Demo only. Route: DemoReset.
+SELECT smx.demo_reset_creator(:ticker!) AS "epoch!";
+
+
+/* @name DemoFillRaise */
+-- Demo only. Route: DemoFillRaise.
+SELECT c.id AS "id!", c.contract_address, c.raised_amount::TEXT AS "raised!",
+	(c.raise_closed_at IS NOT NULL) AS "closed!"
+FROM smx.demo_fill_raise(:ticker!, :wallet!::smx.evm_address) AS c;
+
+
+/* @name DemoAdvanceDeadline */
+-- Demo only. Route: DemoAdvanceDeadline.
+SELECT c.id AS "id!" FROM smx.demo_advance_deadline(:ticker!) AS c;

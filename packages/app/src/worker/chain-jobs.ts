@@ -1,10 +1,11 @@
-import { CHAIN_JOB_BATCH } from '../consts.ts'
+import { CHAIN_JOB_BATCH, DEMO_MODE } from '../consts.ts'
 import type { ChainFn } from '../integrations/index.ts'
 import { sendChainJob } from '../integrations/index.ts'
 import { LOGGER } from '../logger.ts'
 import {
 	claimChainJob,
 	completeChainJob,
+	getDemoEpoch,
 	listQueuedChainJobs,
 	requeueFailedChainJobs,
 	setChainJobPool,
@@ -70,12 +71,19 @@ async function settle(
 	},
 ) {
 	try {
+		// The demo epoch scopes the onchain nullifier hash (demo mode only).
+		const demoEpoch = DEMO_MODE && job.fn === 'createISA'
+			? await currentDemoEpoch(pg)
+			: undefined
 		const result = await sendChainJob({
 			id: job.id,
 			// Cast: `fn` is constrained by a CHECK in chain_jobs to ChainFn values.
 			fn: job.fn as ChainFn,
 			// Cast: `args` is built by SQL as a JSON object.
-			args: job.args as Record<string, unknown>,
+			args: {
+				...job.args as Record<string, unknown>,
+				...demoEpoch === undefined ? {} : { demoEpoch },
+			},
 			contractAddress: job.contract_address,
 		})
 		await completeChainJob.run(
@@ -111,4 +119,9 @@ async function settle(
 			pg,
 		)
 	}
+}
+
+async function currentDemoEpoch(pg: IPgClientLike) {
+	const [row] = await getDemoEpoch.run(undefined, pg)
+	return row.epoch
 }
