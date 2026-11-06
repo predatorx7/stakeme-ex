@@ -71,6 +71,20 @@ chain calls end as `SIMULATED`, and `DEMO_MODE=1` accepts fixture proofs.
 Chainlink CRE, Arkiv, and Arc were dropped from scope. Their notes are in
 [docs/deprecated](docs/deprecated/README.md).
 
+## Live evidence
+
+Every link below was checked on 2026-11-07.
+
+| Area | Evidence |
+| --- | --- |
+| App and code | Live app: [stakeme.magnificlabs.org](https://stakeme.magnificlabs.org). Repo: [predatorx7/stakeme-ex](https://github.com/predatorx7/stakeme-ex). |
+| Hedera contracts | Four contracts verified on Sourcify (exact match, read by HashScan): MockUSDC [`0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`](https://hashscan.io/testnet/contract/0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f), LiquidISA implementation [`0xb2a511d967202950e3b259c7420de1a7729a2f15`](https://hashscan.io/testnet/contract/0xb2a511d967202950e3b259c7420de1a7729a2f15), CreatorShareToken implementation [`0x8e483e26b05ee86f414a4f502457ee8fa3f05071`](https://hashscan.io/testnet/contract/0x8e483e26b05ee86f414a4f502457ee8fa3f05071), LiquidISAFactory [`0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`](https://hashscan.io/testnet/contract/0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e). Details in [contracts.md](docs/contracts.md#verification). |
+| Hedera x402 | `GET /creators/{ticker}/audit-report` answers 402 until paid in HBAR. Settled testnet payments: [`0.0.9185802@1793985016.835902874`](https://hashscan.io/testnet/transaction/0.0.9185802@1793985016.835902874) (first), [`0.0.9185802@1793992761.545261642`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992761.545261642), [`0.0.9185802@1793992766.013363358`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992766.013363358), [`0.0.9185802@1793992768.127890663`](https://hashscan.io/testnet/transaction/0.0.9185802@1793992768.127890663). Run log in [x402-agent.md](docs/x402-agent.md). |
+| World ID | App `app_0b5a20d804cb26e5008896d976fc4193` (staging, verified with the World ID Simulator). The server verifies each proof with the v4 route `POST https://developer.world.org/api/v4/verify/{rp_id}`. Walkthrough: [world-id-debrief.md](docs/world-id-debrief.md). |
+| 0G | Private Computer request ID `3a1c2f3b-6177-4ab8-aa52-c1b5ff80dc8c`, model `0gm-1.0-35b-a3b`. 0G Storage root [`0xaf42ce4081e282b15c052880ad6ab351a3a2d4d2b8bc63d15dff91929b9bb394`](https://indexer-storage-testnet-turbo.0g.ai/file/info/0xaf42ce4081e282b15c052880ad6ab351a3a2d4d2b8bc63d15dff91929b9bb394) (finalized). Without 0G Private Computer, no AI auditor signs off on the income proof, so no tranche is released and no dividend is created. |
+| Reclaim | Provider ID `3fefebae-05cb-4d6b-b319-f3f639a31201`, v0.1.2, run against the production mock bank. |
+| Simulated | ATS equity token minting is simulated. Trading runs on a simulated pool with virtual liquidity. The bank is a mock showing a fixed $5,000 deposit. World ID runs on staging. |
+
 ## What is live and what is simulated
 
 | Area | Status |
