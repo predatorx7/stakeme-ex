@@ -1,15 +1,16 @@
 # Documentation
 
 Start with [`../CONTEXT.md`](../CONTEXT.md) for current status, decisions, and
-what's left. SMX targets three sponsors: Hedera, World ID, and 0G. Reclaim
-supplies the bank proof that the 0G agent audits.
+what's left. SMX targets exactly three sponsors: Hedera, World ID, and 0G.
+Reclaim supplies the zkTLS bank proof that the 0G agent audits. The app is
+Express and htmx, not Next.js.
 
 ## Product
 
 | Document | What it covers |
 | --- | --- |
 | [product-spec.md](product-spec.md) | What SMX does: domain model, state machines, SQL business logic, routes, proof and liquidation flows. |
-| [pitch.md](pitch.md) | Pitch, user journeys, three-minute stage script, demo setup, booth questions. |
+| [pitch.md](pitch.md) | Pitch, user journeys, three-minute stage script, demo setup, what is simulated, booth questions. |
 
 ## Engineering
 
@@ -19,6 +20,9 @@ supplies the bank proof that the 0G agent audits.
 | [backend.md](backend.md) | Data model, SQL functions, routes, worker, and demo seed. |
 | [contracts.md](contracts.md) | `LiquidISA`, factory, share token, dividend math, freeze, liquidation, and deploys. |
 | [frontend-hooks.md](frontend-hooks.md) | Data-attribute contract for the wallet, World ID, Reclaim, and Hedera payment browser modules. |
+| [architecture-adapters.md](architecture-adapters.md) | The `IStorageProvider`, `IOracle`, and `IPaymentRail` adapters and their fallbacks. |
+| [deployment.md](deployment.md) | Deploy SMX to a Compute Engine VM with Docker Compose. |
+| [diwali-theme.md](diwali-theme.md) | The festive theme layer over the Reclaim design system. |
 
 ## Integrations
 

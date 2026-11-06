@@ -11,8 +11,10 @@ income, and can trade the tokens on creator news.
 
 ## How it works
 
-1. **Prove you're one human.** The creator verifies with World ID v4. SMX
-   stores the nullifier, so one person can't IPO twice, and a defaulter is
+1. **Connect a wallet and prove you're one human.** You connect with
+   WalletConnect (1inch Wallet featured), or generate or import a key. The
+   creator then verifies with World ID v4: the server signs the request and
+   checks the proof (`/api/world-id/check`). SMX stores the nullifier, so one person can't IPO twice, and a defaulter is
    banned for good.
 2. **IPO on Hedera.** The creator stakes $500 USDC as collateral. SMX deploys a
    `LiquidISA` escrow on Hedera and mints the creator's equity token on the
@@ -22,9 +24,11 @@ income, and can trade the tokens on creator news.
    (20%); the rest stays locked in escrow.
 4. **Prove income.** The creator proves a bank deposit with a Reclaim zkTLS
    proof, without sharing bank credentials.
-5. **AI audit on 0G.** The auditor agent runs on 0G Compute. It checks the proof
-   against the terms, approves or denies it, and logs the decision to 0G
-   Storage. Approval releases the next tranche and creates a 5% dividend.
+5. **AI audit on 0G.** The auditor agent checks the proof against the terms and
+   approves or denies it. It runs on 0G Compute when you enable it (opt-in) and
+   otherwise falls back to a rules engine. Each decision is logged to 0G Storage
+   in the background. Approval releases the next tranche and creates a 5%
+   dividend.
 6. **Pay holders with x402.** SMX returns x402 payment requirements, one per
    holder. The creator signs one Hedera multi-transfer that pays every holder
    their share, and the server settles it on Hedera.
@@ -50,7 +54,7 @@ flowchart LR
 | --- | --- | --- |
 | Hedera | `LiquidISA` escrow and factory on Hedera EVM testnet (chain 296). Creator equity token on the Asset Tokenization Studio (ATS) contracts. x402 dividend payouts with native Hedera transfers. Safe-stop escrow freeze. | [hedera.md](docs/integrations/hedera.md), [contracts.md](docs/contracts.md) |
 | World ID | v4 proof of human at IPO. The server signs the RP request (`POST /api/rp-signature`) and verifies with the v4 verify API. Nullifier stored in Postgres and on the factory contract. | [world-id.md](docs/integrations/world-id.md) |
-| 0G | Auditor agent on 0G Compute. L-ISA terms and every approve or deny log on the 0G Storage Log Layer. Triggers the safe-stop freeze. | [zero-g.md](docs/integrations/zero-g.md) |
+| 0G | Auditor agent on 0G Compute (opt-in; rules-engine fallback). L-ISA terms and every approve or deny log on 0G Storage, uploaded in the background by an outbox worker. Triggers the safe-stop freeze. | [zero-g.md](docs/integrations/zero-g.md) |
 
 Reclaim Protocol supplies the zkTLS bank proof that the 0G agent audits. The
 demo proves a $5,000 deposit on a mock bank (`/mock-bank`) with a provider
@@ -58,6 +62,24 @@ built in the Reclaim developer tools. See [reclaim.md](docs/integrations/reclaim
 
 Every integration has a demo fallback, so the app runs end to end with no keys:
 chain calls end as `SIMULATED`, and `DEMO_MODE=1` accepts fixture proofs.
+
+Chainlink CRE, Arkiv, and Arc were dropped from scope. Their notes are in
+[docs/deprecated](docs/deprecated/README.md).
+
+## What is live and what is simulated
+
+| Area | Status |
+| --- | --- |
+| Hedera testnet (chain 296) | Live. `LiquidISAFactory` (EIP-1167 clones) and `MockUSDC` are deployed; addresses are in `packages/contracts/deployments/hedera-testnet.json`. A redeploy replaces the factory address, so read it from that file. |
+| World ID v4 | Live on a staging app. Verified end to end with the World ID Simulator. |
+| 0G Storage | Live on the Galileo testnet. Uploads take about 30 seconds, so a worker runs them in the background. The ref starts as `local:<sha256>` and becomes the 0G root hash. |
+| 0G Compute | Off by default (`ZG_COMPUTE_ENABLED`). It needs a 3 0G ledger deposit, which the faucet does not cover. The audit uses the rules engine instead. 0G Router (`pc.0g.ai`) credits are pending. |
+| Reclaim | The provider is live, but the mock bank runs behind a temporary tunnel and an end-to-end callback test is pending. |
+| Wallets | WalletConnect QR pairing is verified in Chrome. A full signature from a phone wallet is not. |
+| Hedera ATS equity token | Simulated. The code is written but never ran against a live ATS deployment. |
+| x402 dividend payout | Simulated unless you set the Hedera operator keys. The live settlement is unrun. |
+| Mock bank | A stand-in for a real bank. It shows a hardcoded $5,000 deposit. |
+| Trading | The AMM is simulated in SQL. Its liquidity is virtual and not backed by investor funds. |
 
 ## Architecture
 
@@ -137,13 +159,15 @@ demo mode.
 | Hedera | `CHAIN_RPC_URL` (Hashio), `ORACLE_PRIVATE_KEY`, `FACTORY_ADDRESS`, `USDC_ADDRESS`, `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`, `HEDERA_DIVIDEND_TOKEN_ID` (optional HTS token; HBAR otherwise) |
 | Hedera ATS | `ATS_ENABLED=1`, `ATS_FACTORY_ADDRESS`, `ATS_RESOLVER_ADDRESS` (you deploy the ATS factory and resolver yourself) |
 | World ID | `WORLD_APP_ID`, `WORLD_RP_ID`, `WORLD_RP_SIGNING_KEY`, `WORLD_ACTION`, `WORLD_ENV` (`staging` for the Simulator) |
-| 0G | `ZG_PRIVATE_KEY`, `ZG_RPC_URL`, `ZG_INDEXER_URL`, `ZG_PROVIDER_ADDRESS`, `ZG_LEDGER_DEPOSIT` |
+| 0G | `ZG_PRIVATE_KEY`, `ZG_RPC_URL`, `ZG_INDEXER_URL`, `STORAGE_PROVIDER` (`0g` or `local`), `ZG_STORAGE_MIN_BALANCE`; for Compute (opt-in) also `ZG_COMPUTE_ENABLED`, `ZG_PROVIDER_ADDRESS`, `ZG_LEDGER_DEPOSIT` |
 | Reclaim | `RECLAIM_ORG_SECRET`, `RECLAIM_PROVIDER_ID` |
 | WalletConnect | `WALLETCONNECT_PROJECT_ID` (public; from [dashboard.walletconnect.com](https://dashboard.walletconnect.com), allow your origin) |
 
 The guides in [docs/integrations](docs/integrations/README.md) list every
 variable and how to get it. Deploy the contracts with
-`npm run deploy:hedera -w packages/contracts`.
+`npm run deploy:hedera -w packages/contracts`. It deploys the implementations
+and the clone factory, and writes the addresses to
+`packages/contracts/deployments/hedera-testnet.json`.
 
 ## Commands
 

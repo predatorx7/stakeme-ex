@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch/PR supersedes the run in flight.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -20,8 +25,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       # Version comes from .nvmrc, which is also what the Dockerfile tracks — CI
       # has to test the Node major that production runs on.
