@@ -34,10 +34,6 @@
 	color: var(--rc-color-status-danger);
 }
 
-.instrument-quote > span:last-child {
-	margin-inline-start: auto;
-}
-
 .instrument-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));

@@ -156,3 +156,10 @@
 		animation: none;
 	}
 }
+
+/* Inside a card: the header row above the table, no own border. */
+.rc-card > .smx-pp {
+	border: 0;
+	border-block-end: 1px solid var(--rc-color-border-subtle, rgb(128 128 128 / 0.25));
+	border-radius: 0;
+}

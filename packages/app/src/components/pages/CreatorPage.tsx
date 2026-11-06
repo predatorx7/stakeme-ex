@@ -356,10 +356,6 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 								)
 						}
 					</SectionCard>
-					<ProofPipeline
-						ticker={c.ticker}
-						latestProof={page.proofs[0]}
-						nextTranche={pickTranche(c.tranches, page.proofs[0])} />
 					<SectionCard
 						title='Income proofs'
 						meta={
@@ -371,6 +367,10 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 						}
 						context='Bank income verified with zkTLS.'
 						count={page.proofs.length}>
+						<ProofPipeline
+							ticker={c.ticker}
+							latestProof={page.proofs[0]}
+							nextTranche={pickTranche(c.tranches, page.proofs[0])} />
 						{
 							page.proofs.length === 0
 								? (

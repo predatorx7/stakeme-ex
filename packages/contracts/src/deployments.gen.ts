@@ -2,9 +2,10 @@
 
 export const deployments: Record<string, Record<string, string>> = {
 	"296": {
-		"MockUSDC": "0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f",
-		"LiquidISA": "0xb2a511d967202950e3b259c7420de1a7729a2f15",
-		"CreatorShareToken": "0x8e483e26b05ee86f414a4f502457ee8fa3f05071",
-		"LiquidISAFactory": "0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e"
+		"MockUSDC": "0x40027d9375311fa44b95ef881a92374b1dbf8ec4",
+		"LiquidISA": "0x3f61050ad9fb221992742f10b34237b06a97e361",
+		"CreatorShareToken": "0x81521abe9ddc7dc792b4c6f4262a48bc744426ff",
+		"CreatorPool": "0xe310d76b357be72439e78fff84a82fe486fba84b",
+		"LiquidISAFactory": "0xc6b7af9392538bc596caed4a5758b9d92f650e59"
 	}
 };

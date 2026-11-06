@@ -2,17 +2,14 @@ import type { PricePoint } from '../../types/index.ts'
 import { formatUsdc } from '../../utils/money.ts'
 import { ChartFrame } from './ChartFrame.tsx'
 import { ChartPlot } from './ChartPlot.tsx'
-
-const SHORT = new Intl.DateTimeFormat('en-US', {
-	month: 'short',
-	day: 'numeric',
-	timeZone: 'UTC',
-})
+import { timeAxis } from './labels.ts'
 
 /** A price history as an area chart framed in a card, with price ticks. */
-export function PriceChart({ title, name, points }: {
+export function PriceChart({ title, name, points, interval }: {
 	title: string
 	name: string
+	/** Visible range, which sets the time label format. */
+	interval?: string
 	points: PricePoint[]
 }) {
 	const values = points.map((p) => Number(p.price))
@@ -32,10 +29,7 @@ export function PriceChart({ title, name, points }: {
 		(f) => formatUsdc(floor + span * f, 3),
 	)
 	const times = points.map((p) => Date.parse(p.at))
-	const labels = points.length > 1
-		? [times[0], times[Math.floor(times.length / 2)], times[times.length - 1]]
-			.map((t) => SHORT.format(t))
-		: []
+	const labels = timeAxis(times, interval)
 
 	return (
 		<ChartFrame

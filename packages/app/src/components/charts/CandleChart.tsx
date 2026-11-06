@@ -2,6 +2,7 @@ import { escapeText } from '../../utils/escape.ts'
 import { formatUsdc } from '../../utils/money.ts'
 import { ChartFrame } from './ChartFrame.tsx'
 import { ChartPlot } from './ChartPlot.tsx'
+import { timeAxis } from './labels.ts'
 import { PriceChart } from './PriceChart.tsx'
 
 export type Candle = {
@@ -31,13 +32,18 @@ const MODES: Array<{ id: ChartMode, label: string }> = [
 const DATE = new Intl.DateTimeFormat('en-US', {
 	month: 'short',
 	day: 'numeric',
+	hour: '2-digit',
+	minute: '2-digit',
+	hourCycle: 'h23',
 	timeZone: 'UTC',
 })
 
 const BODY_RATIO = 0.64
+/** Widest candle body, in plot percent, so a short history stays readable. */
+const MAX_BODY = 3
 
 /** Interval tabs and a Line/Candles toggle. Each is a link that swaps the
- *  `#smx-chart` region and pushes the URL, so it also works without script. */
+ *  `#smx-chart` region; the hrefs are the fallback. */
 export function ChartToolbar({ ticker, interval, mode }: {
 	ticker: string
 	interval: ChartInterval
@@ -67,7 +73,6 @@ export function ChartToolbar({ ticker, interval, mode }: {
 								hx-get={fragment(i.id, mode)}
 								hx-target='#smx-chart'
 								hx-swap='outerHTML'
-								hx-push-url={href(i.id, mode)}
 								aria-current={i.id === interval ? 'true' : undefined}
 								data-chart-interval={i.id}>
 								{escapeText(i.label)}
@@ -87,7 +92,6 @@ export function ChartToolbar({ ticker, interval, mode }: {
 								hx-get={fragment(interval, m.id)}
 								hx-target='#smx-chart'
 								hx-swap='outerHTML'
-								hx-push-url={href(interval, m.id)}
 								aria-current={m.id === mode ? 'true' : undefined}
 								data-chart-mode={m.id}>
 								{escapeText(m.label)}
@@ -102,9 +106,10 @@ export function ChartToolbar({ ticker, interval, mode }: {
 
 /** A candlestick chart: green bodies close up, red close down, wicks for the
  *  range, a volume strip beneath, price ticks and a last-price line. */
-export function CandleChart({ candles, ticker }: {
+export function CandleChart({ candles, ticker, interval }: {
 	candles: Candle[]
 	ticker: string
+	interval?: ChartInterval
 }) {
 	if(!candles.length) {
 		return (
@@ -136,10 +141,8 @@ export function CandleChart({ candles, ticker }: {
 		(f) => formatUsdc(floor + span * f, 3),
 	)
 	const times = rows.map((r) => r.t)
-	const labels = rows.length > 1
-		? [times[0], times[Math.floor(times.length / 2)], times[times.length - 1]]
-			.map((t) => DATE.format(t))
-		: []
+	const labels = timeAxis(times, interval)
+	const bodyWidth = Math.min(slot * BODY_RATIO, MAX_BODY)
 
 	return (
 		<figure class='smx-candles'>
@@ -155,7 +158,7 @@ export function CandleChart({ candles, ticker }: {
 					{
 						rows.map((r, i) => {
 							const centre = slot * i + slot / 2
-							const width = slot * BODY_RATIO
+							const width = bodyWidth
 							const top = y(Math.max(r.o, r.c))
 							const bottom = y(Math.min(r.o, r.c))
 							const dir = r.c >= r.o ? 'up' : 'down'
@@ -205,7 +208,7 @@ export function CandleChart({ candles, ticker }: {
 					{
 						rows.map((r, i) => {
 							const height = r.v / maxVolume * 20
-							const width = slot * BODY_RATIO
+							const width = bodyWidth
 							return (
 								<rect
 									data-dir={r.c >= r.o ? 'up' : 'down'}
@@ -243,6 +246,7 @@ export function ChartRegion({ ticker, interval, mode, candles }: {
 						<PriceChart
 							title='Price'
 							name={`$${ticker} price`}
+							interval={interval}
 							points={candles.map((c) => ({ at: c.t, price: c.c }))} />
 					)
 					: (
@@ -251,7 +255,8 @@ export function ChartRegion({ ticker, interval, mode, candles }: {
 							kind='area'>
 							<CandleChart
 								candles={candles}
-								ticker={ticker} />
+								ticker={ticker}
+								interval={interval} />
 						</ChartFrame>
 					)
 			}

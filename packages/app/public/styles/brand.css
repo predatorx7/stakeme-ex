@@ -4,7 +4,6 @@
 	background: #f7f7fb;
 	block-size: 30px;
 	border-radius: 8px;
-	box-shadow: 0 0 10px -2px var(--smx-dw-marigold, #f59e0b);
 	box-sizing: content-box;
 	flex: none;
 	inline-size: 32px;

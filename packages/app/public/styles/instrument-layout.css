@@ -1,10 +1,14 @@
 /* Creator page: main column plus a sticky order column on desktop. */
 .smx-creator-side {
 	align-self: start;
-	inset-block-start: calc(var(--rc-app-bar-height, 4rem) + var(--rc-space-3));
-	max-block-size: calc(100dvh - var(--rc-app-bar-height, 4rem) - var(--rc-space-4));
-	overflow-y: auto;
-	position: sticky;
+}
+
+/* Sticky only when the viewport is tall enough to show the whole column. */
+@media (min-height: 70rem) {
+	.smx-creator-side {
+		inset-block-start: calc(var(--rc-app-bar-height, 4rem) + var(--rc-space-3));
+		position: sticky;
+	}
 }
 
 .smx-creator-side > * {
@@ -19,8 +23,6 @@
 
 @media (max-width: 56.25rem) {
 	.smx-creator-side {
-		max-block-size: none;
-		overflow: visible;
 		position: static;
 	}
 

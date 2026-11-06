@@ -36,11 +36,16 @@
 	background: color-mix(in srgb, currentcolor 12%, transparent);
 }
 
+/* Fixed plot height so the SVG plots fill the card. */
+.smx-chart .rc-chart-frame__body {
+	--rc-chart-height: 280px;
+}
+
 .smx-candles {
 	--smx-up: #1a9d5c;
 	--smx-down: #d6402f;
-	display: grid;
-	gap: 0.25rem;
+	block-size: 100%;
+	display: block;
 	margin: 0;
 }
 

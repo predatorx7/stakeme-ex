@@ -307,25 +307,17 @@ call's gas limit to `estimateGas` plus 20%.
 
 ## Verification
 
-The addresses below are the previous deployment, which predates the pool. The
-new factory and `CreatorPool` are **pending redeploy**: after you redeploy,
-rerun `verify:hedera` and replace the factory, the `LiquidISA` and
-`CreatorShareToken` implementations and add the pool. Until then, the old
-factory has no `poolOf`, `PoolCreated` or pool-aware ISAs.
-
-All four Hedera testnet contracts below are verified on Sourcify with an exact (runtime
-bytecode) match, which HashScan reads (verified 2026-11-06). Sourcify reports
-`match: exact_match` and `runtimeMatch: exact_match`; `creationMatch` is not
-reported:
+All five Hedera testnet contracts below are verified on Sourcify with an exact (runtime
+bytecode) match, which HashScan reads (verified 2026-11-07). Sourcify reports
+`match: exact_match`; `creationMatch` is not reported:
 
 | Contract | Address | Status |
 | --- | --- | --- |
-| MockUSDC (old build, no `faucet`; pending redeploy) | [`0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f`](https://hashscan.io/testnet/contract/0x1352D7F21514d6c68f8B901E7cC2AE3f1A78618f) | exact match |
-| LiquidISA (implementation, old, pending redeploy) | [`0xb2a511d967202950e3b259c7420de1a7729a2f15`](https://hashscan.io/testnet/contract/0xb2a511d967202950e3b259c7420de1a7729a2f15) | exact match |
-| CreatorShareToken (implementation, old, pending redeploy) | [`0x8e483e26b05ee86f414a4f502457ee8fa3f05071`](https://hashscan.io/testnet/contract/0x8e483e26b05ee86f414a4f502457ee8fa3f05071) | exact match |
-| LiquidISAFactory | [`0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e`](https://hashscan.io/testnet/contract/0xbbc4d97315cd6e3f809d39ec4d0b2638894bc07e) | exact match (old, pending redeploy) |
-| CreatorPool (implementation) | pending redeploy | not deployed |
-| LiquidISAFactory (with `poolImplementation`) | pending redeploy | not deployed |
+| MockUSDC (with `faucet`) | [`0x40027d9375311fa44b95ef881a92374b1dbf8ec4`](https://hashscan.io/testnet/contract/0x40027d9375311fa44b95ef881a92374b1dbf8ec4) | exact match |
+| LiquidISA (implementation) | [`0x3f61050ad9fb221992742f10b34237b06a97e361`](https://hashscan.io/testnet/contract/0x3f61050ad9fb221992742f10b34237b06a97e361) | exact match |
+| CreatorShareToken (implementation) | [`0x81521abe9ddc7dc792b4c6f4262a48bc744426ff`](https://hashscan.io/testnet/contract/0x81521abe9ddc7dc792b4c6f4262a48bc744426ff) | exact match |
+| CreatorPool (implementation) | [`0xe310d76b357be72439e78fff84a82fe486fba84b`](https://hashscan.io/testnet/contract/0xe310d76b357be72439e78fff84a82fe486fba84b) | exact match |
+| LiquidISAFactory (with `poolImplementation`) | [`0xc6b7af9392538bc596caed4a5758b9d92f650e59`](https://hashscan.io/testnet/contract/0xc6b7af9392538bc596caed4a5758b9d92f650e59) | exact match |
 
 Historical note: an earlier factory (`0x9698e237201c88be262523ef4917b144e857ca73`) and its implementations were superseded by the 2026-11-06T18:53Z redeploy and are no longer used.
 

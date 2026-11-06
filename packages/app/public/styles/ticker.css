@@ -18,7 +18,7 @@
 	flex: none;
 	min-width: 100%;
 	align-items: center;
-	justify-content: space-around;
+	gap: 0;
 	margin: 0;
 	padding: 0;
 	list-style: none;
@@ -41,7 +41,7 @@
 .smx-ticker a {
 	display: flex;
 	gap: 0.5em;
-	padding: 4px 14px;
+	padding: 4px 16px;
 	color: var(--rc-color-text-tertiary);
 	text-decoration: none;
 	border-radius: 4px;
@@ -80,9 +80,20 @@
 		overflow-x: auto;
 	}
 
+	.smx-ticker {
+		scrollbar-width: none;
+	}
+
+	.smx-ticker::-webkit-scrollbar {
+		display: none;
+	}
+
 	.smx-ticker__list {
 		animation: none;
-		justify-content: flex-start;
+	}
+
+	.smx-ticker__list [data-dup] {
+		display: none;
 	}
 
 	/* The marquee copy is only for the loop. */

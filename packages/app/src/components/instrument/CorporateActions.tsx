@@ -2,6 +2,7 @@ import { escapeText } from '../../utils/escape.ts'
 import { formatUsdc } from '../../utils/money.ts'
 import type { BadgeTone } from '../../utils/tones.ts'
 import { Badge } from '../Badge.tsx'
+import { SectionCard } from '../SectionCard.tsx'
 
 export type CorporateAction = {
 	at: string
@@ -44,53 +45,52 @@ export function CorporateActions({ actions, ticker, hasMore }: {
 		.slice(0, MAX_ITEMS)
 
 	return (
-		<section class='smx-actions'>
-			<h2>
-				Corporate actions
-			</h2>
-			{
-				items.length === 0
-					? (
-						<p class='smx-actions-empty'>
-							No corporate actions yet.
-						</p>
+		<SectionCard title='Corporate actions'>
+			<div class='smx-actions smx-body'>
+				{
+					items.length === 0
+						? (
+							<p class='smx-actions-empty'>
+								No corporate actions yet.
+							</p>
+						)
+						: (
+							<ol>
+								{
+									items.map(item => (
+										<li data-kind={item.kind}>
+											<time
+												datetime={item.at}
+												data-local-time='date'>
+												{escapeText(item.at.slice(0, 10))}
+											</time>
+											<Badge tone={KINDS[item.kind].tone}>
+												{escapeText(KINDS[item.kind].text)}
+											</Badge>
+											<span>
+												{escapeText(item.label)}
+											</span>
+											{
+												item.amount !== null && (
+													<strong>
+														{escapeText(formatUsdc(item.amount))}
+													</strong>
+												)
+											}
+										</li>
+									))
+								}
+							</ol>
+						)
+				}
+				{
+					(hasMore || actions.length > MAX_ITEMS) && (
+						<a href={`/activity?ticker=${encodeURIComponent(ticker)}`}>
+							View all
+						</a>
 					)
-					: (
-						<ol>
-							{
-								items.map(item => (
-									<li data-kind={item.kind}>
-										<time
-											datetime={item.at}
-											data-local-time='date'>
-											{escapeText(item.at.slice(0, 10))}
-										</time>
-										<Badge tone={KINDS[item.kind].tone}>
-											{escapeText(KINDS[item.kind].text)}
-										</Badge>
-										<span>
-											{escapeText(item.label)}
-										</span>
-										{
-											item.amount !== null && (
-												<strong>
-													{escapeText(formatUsdc(item.amount))}
-												</strong>
-											)
-										}
-									</li>
-								))
-							}
-						</ol>
-					)
-			}
-			{
-				(hasMore || actions.length > MAX_ITEMS) && (
-					<a href={`/activity?ticker=${encodeURIComponent(ticker)}`}>
-						View all
-					</a>
-				)
-			}
-		</section>
+				}
+			</div>
+		</SectionCard>
 	)
 }
