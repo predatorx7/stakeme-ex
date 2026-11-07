@@ -68,6 +68,9 @@ const NO_HBAR = 'Your wallet needs testnet HBAR for gas.'
 const NO_USDC = 'You need test USDC for this order.'
 const RETRY_TRIES = 6
 const RETRY_DELAY_MS = 2000
+/** Mirror-node nonce lag is a few seconds; cap the wait at about 30 s. */
+const NONCE_POLL_TRIES = 20
+const NONCE_POLL_MS = 1500
 
 const infos = new Map<string, Promise<ChainInfo>>()
 
@@ -588,6 +591,9 @@ async function send(
 		throw new Error(NO_HBAR)
 	}
 
+	// Hashio reads nonces from the mirror node, which lags consensus. Wait
+	// until it reports our last tx, or the wallet reuses a nonce (WRONG_NONCE).
+	const nonce = await pub.getTransactionCount({ address })
 	status(form, `Confirm the ${label} in your wallet...`)
 	const hash = await retry(() => client.writeContract({
 		...call,
@@ -605,7 +611,19 @@ async function send(
 		throw new Error(`The ${label} failed onchain.`)
 	}
 
+	await waitForNonce(ctx, nonce)
 	return hash
+}
+
+/** Polls until the relay's nonce for the wallet moves past `sent`. */
+async function waitForNonce({ pub, address }: Ctx, sent: number) {
+	for(let i = 0; i < NONCE_POLL_TRIES; i++) {
+		if(await pub.getTransactionCount({ address }) > sent) {
+			return
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, NONCE_POLL_MS))
+	}
 }
 
 /** Retries Hashio's stale-state errors (nonce, allowance not visible yet). */
