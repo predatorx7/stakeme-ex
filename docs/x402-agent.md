@@ -50,12 +50,27 @@ Every refusal is logged with its reason.
 
 ## Live run
 
+## Public site run, 2026-11-07
+
+The agent ran against `https://stakeme.magnificlabs.org`. Payer account `0.0.9185802`, payee (operator) `0.0.11340822`, 0.1 HBAR per report, budget 0.3 HBAR with a per-call cap.
+
+| Step | Result |
+| --- | --- |
+| First attempt, cap 0.05 HBAR | Refused: price 0.1 HBAR is over the 0.05 HBAR per-call cap (spend control working). |
+| `KART` report | [0.0.9185802@1794014248.030960679](https://hashscan.io/testnet/transaction/0.0.9185802@1794014248.030960679) |
+| `MUSH` report | [0.0.9185802@1794014247.165009996](https://hashscan.io/testnet/transaction/0.0.9185802@1794014247.165009996) |
+| `TIFFIN` report | [0.0.9185802@1794014252.176033328](https://hashscan.io/testnet/transaction/0.0.9185802@1794014252.176033328) |
+
+With the cap at 0.1 HBAR the agent paid for three reports and spent 0.3 of 0.3 HBAR. The memo rates `KART` Buy, `MUSH` and `TIFFIN` Avoid.
+
+### Earlier local run
+
 The public site did not serve the route during an earlier 30-minute window
 (00:18 to 00:48 IST on 2026-11-07). It now returns 402 unpaid at
 `https://stakeme.magnificlabs.org/creators/MUSH/audit-report`, but the recorded
 run below targets a local second instance (port 4031, its own PGlite data dir,
 `CHAIN_RPC_URL` unset, three seeded creators `MUSH`, `LOFI`, `CHEF`). The payments are real Hedera testnet
-transfers settled by the `x402.org` facilitator. A public-site rerun is pending.
+transfers settled by the `x402.org` facilitator. The public-site rerun is recorded above.
 
 Payer `0.0.11344435`, payee `0.0.11340822`, budget 0.3 HBAR, cap 0.1 HBAR:
 

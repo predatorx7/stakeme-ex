@@ -25,7 +25,7 @@ as one prize. SMX enters exactly three sponsors (Hedera, World, 0G), so it fits 
 | Sponsor | Best-fit track | Prize | Fit today | Biggest blocker |
 | --- | --- | --- | --- | --- |
 | Hedera | Tokenize Anything with Hedera Studios | $5,000 | Partly | Live ATS equity tokens minted on testnet (`$MUSH`); they mirror the cap table; contracts verified; video pending |
-| Hedera | AI Agents That Pay: x402 on Hedera | $6,500 | Partly | Paid endpoint and agent met with tx links; recorded run was on a local instance, public-site rerun pending; video pending |
+| Hedera | AI Agents That Pay: x402 on Hedera | $6,500 | Partly | Paid endpoint and agent met with tx links; public-site rerun done; video pending |
 | World | Best Use of IDKit | $2,500 (2 x $1,250) | Met | Debrief written (`docs/world-id-debrief.md`, about 8 minutes to first success); video pending |
 | World | World ID Agent Pass | $5,000 | Not met | SMX uses IDKit proof of human, not Agent Pass |
 | 0G | Build with 0G Private Computer | $5,000 | Partly | Router audit and request IDs met; hosted link answers 200 after the redeploy; demo video pending, iAI bonus not claimed |
@@ -42,7 +42,7 @@ and the 0G submission list.
 
 | Requirement | Quote or rule | Status | Evidence and action |
 | --- | --- | --- | --- |
-| Deadline | "Submit by Saturday, November 7, 2026, at 9:00 am IST. Late submissions won't be accepted." | At risk | Submission is due today, 09:00 IST. Remaining: demo video, public-site x402 rerun. |
+| Deadline | "Submit by Saturday, November 7, 2026, at 9:00 am IST. Late submissions won't be accepted." | At risk | Submission is due today, 09:00 IST. Remaining: demo video. |
 | Title, description, repo link | Hacker Dashboard form: title, description, "a link to your repository" | Partly | `README.md` has a description. Remote is `origin` `git@github.com:predatorx7/stakeme-ex.git`; confirm it is public before submitting (0G and Hedera require a public repo). |
 | Version-control history | "large single commits or missing histories may be disqualified" | Met | 60 commits (`git rev-list --count HEAD`): 30 dated 2026-11-06, 30 dated 2026-11-07. Several commits are large: the 64-file bootstrap (23,298 insertions), the 151-file backend commit (15,843 insertions), and three later commits of 5,600 to 19,100 insertions. The rest are small steps. |
 | Work started after the hackathon began (classic track) | "all work on your project must begin after the hackathon officially starts" | Met | Hacking started on 5 November 2026 (developer's statement). The first commit is 2026-11-06 16:38 IST, inside the event window. |
@@ -89,8 +89,8 @@ endpoint (the audit report) and runs a research agent that pays for it.
 | Requirement | Status | Evidence |
 | --- | --- | --- |
 | "Deploy at least one x402-protected endpoint that settles on Hedera testnet or mainnet, via a listed facilitator or your own." | Met | `GET /creators/{ticker}/audit-report` (0.1 HBAR, the one place the platform earns revenue today) answers 402 unpaid on the public site and settles via the `x402.org` facilitator. See `docs/x402-agent.md`. |
-| "Have an agent or client find the endpoint and complete at least one paid request with no human approving." | Met | `packages/app/scripts/x402-research-agent.ts` paid three audit reports (CHEF, LOFI, MUSH) with spend controls and no human approval; links in `docs/x402-agent.md`. The run used a local instance; a public-site rerun is pending. |
-| Public repo README "covers setup, architecture, and the payment flow, including a Hedera transaction ID" | Met | Settled Hedera testnet transaction IDs are in `docs/x402-agent.md` and `CONTEXT.md`. Public-site rerun pending. |
+| "Have an agent or client find the endpoint and complete at least one paid request with no human approving." | Met | `packages/app/scripts/x402-research-agent.ts` paid three audit reports (CHEF, LOFI, MUSH) with spend controls and no human approval; links in `docs/x402-agent.md`. A public-site rerun against `https://stakeme.magnificlabs.org` is done (KART, MUSH, TIFFIN). |
+| Public repo README "covers setup, architecture, and the payment flow, including a Hedera transaction ID" | Met | Settled Hedera testnet transaction IDs are in `docs/x402-agent.md` and `CONTEXT.md`. Public-site rerun done. |
 | Demo video of 5 minutes or less "showing a settled payment linked on HashScan" | Partly | Settled payments are linked on HashScan in `docs/x402-agent.md`; video pending. |
 
 Actions: rerun the research agent against the public site and record the
@@ -193,7 +193,7 @@ history. Remaining:
 
 1. Finish the production redeploy and confirm the site answers 200 again.
 2. Record the 2:30 to 3:00 demo video, including the World cancel path.
-3. Rerun the x402 research agent against the public site and record the
-   transactions.
+3. ~~Rerun the x402 research agent against the public site~~ Done, recorded in
+   `docs/x402-agent.md`.
 4. Add the "trust moment" section to `README.md`.
 5. Confirm the GitHub repository is public.
