@@ -52,7 +52,7 @@ and the 0G submission list.
 | Team names and contact | 0G: "Team member names and contact info (Telegram and X)" | Met | Solo builder Mushaheed Syed; X [@_predatorx7](https://x.com/_predatorx7), Telegram [@mushaheedx](https://t.me/mushaheedx), both listed in the README. |
 | Open-source license | Public repo with a license (0G and Hedera require a public repo) | Met | MIT `LICENSE` at the repo root, `"license": "MIT"` in every `package.json`, and a License line in the README. |
 | Partner prize selection | "Select up to 3 Partner Prizes" | Met | Choose Hedera, World, 0G. |
-| AI-use disclosure | "Document where and how AI tools were used"; "include all spec files, prompts, and planning artifacts in your submission repository" | Met | `docs/ai-usage.md` discloses AI use; verbatim prompts are in `docs/prompts/session-user-prompts.md`; spec and planning files are committed. A reuse disclosure is in `docs/reuse.md` (Met). |
+| AI-use disclosure | "Document where and how AI tools were used"; "include all spec files, prompts, and planning artifacts in your submission repository" | Met at submission | `docs/ai-usage.md` discloses AI use. The prompt logs were included at submission and removed after the hackathon (still in git history). A reuse disclosure is in `docs/reuse.md` (Met). |
 | Judging mode | Finalist (4 min demo, 3 min Q&A) or partner-only | Open | Decide. Finalist needs a rehearsed 4-minute live demo. |
 
 ## Hedera
