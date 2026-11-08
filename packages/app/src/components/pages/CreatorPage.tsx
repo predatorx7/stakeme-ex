@@ -113,16 +113,14 @@ export function CreatorPage({ page }: { page: CreatorPageData }) {
 						title={c.displayName}
 						avatar={c.id}
 						coinSource
+						titleAside={
+							<WatchlistButton
+								ticker={c.ticker}
+								watched={false} />
+						}
 						lede={c.headline}
 						meta={
 							<>
-								{
-									signedIn && (
-										<WatchlistButton
-											ticker={c.ticker}
-											watched={false} />
-									)
-								}
 								{
 									single && (
 										<Badge

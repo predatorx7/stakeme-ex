@@ -9,6 +9,7 @@ export function PageHeader({
 	avatar,
 	coinSource,
 	meta,
+	titleAside,
 	lede,
 	actions,
 }: {
@@ -20,6 +21,8 @@ export function PageHeader({
 	coinSource?: boolean
 	/** A kind tag and a line of facts under the title. */
 	meta?: Children
+	/** Rendered beside the title, outside the `<h1>`. */
+	titleAside?: Children
 	lede?: string
 	/** Buttons or links, right-aligned beside the title. */
 	actions?: Children
@@ -34,17 +37,20 @@ export function PageHeader({
 						</span>
 					)
 				}
-				<h1 class={avatar ? 'rc-page-header__title' : undefined}>
-					{
-						!!avatar && (
-							<Avatar
-								seed={avatar}
-								coinSource={coinSource}
-								size='lg' />
-						)
-					}
-					{escapeHtml(title)}
-				</h1>
+				<div class={titleAside ? 'smx-title-row' : undefined}>
+					<h1 class={avatar ? 'rc-page-header__title' : undefined}>
+						{
+							!!avatar && (
+								<Avatar
+									seed={avatar}
+									coinSource={coinSource}
+									size='lg' />
+							)
+						}
+						{escapeHtml(title)}
+					</h1>
+					{!!titleAside && markup(titleAside)}
+				</div>
 				{
 					meta && (
 						<div class='rc-page-header__meta'>
