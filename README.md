@@ -17,7 +17,7 @@ ID staging and 0G testnet, with a mock bank and MockUSDC.
 <table>
 <tr>
 	<td align="center"><img src="docs/screenshots/01-exchange.jpg" width="420" alt="Exchange home and trending"><br>Exchange home and trending</td>
-	<td align="center"><img src="docs/screenshots/02-creator.jpg" width="420" alt="Creator page with order ticket"><br>Creator page with order ticket</td>
+	<td align="center"><img src="docs/screenshots/02-creator.jpg" width="420" alt="KART creator page with chart, order ticket and watchlist star"><br>KART: chart, order ticket, watchlist star</td>
 </tr>
 <tr>
 	<td align="center"><img src="docs/screenshots/03-escrow-proofs.jpg" width="420" alt="Tranche escrow meter"><br>Tranche escrow meter</td>
