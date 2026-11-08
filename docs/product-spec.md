@@ -399,5 +399,5 @@ SSE event confirms. In simulated mode (no `CHAIN_RPC_URL`), jobs end as
 
 ## Demo script
 
-See [`pitch.md`](pitch.md). `npm run seed:demo` must reproduce the happy path
+Run `npm run seed:demo`; it must reproduce the happy path
 (Ravi) and the sad path (Rahul).

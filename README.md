@@ -183,10 +183,9 @@ sequenceDiagram
 
 - [Product spec](docs/product-spec.md): what SMX does, data model, routes
 - [User flows](docs/user-flows.md): diagrams of the creator and investor journeys, income proof, default and dividend payment
-- [Pitch and demo playbook](docs/pitch.md)
 - [Engineering guide](docs/engineering-guide.md), [backend](docs/backend.md), [contracts](docs/contracts.md)
 - [Integration guides](docs/integrations/README.md): Hedera, World ID, 0G, Reclaim
-- [Docs index](docs/README.md), [prize checklist](docs/prize-checklist.md)
+- [Docs index](docs/README.md)
 - [CONTEXT.md](CONTEXT.md): current status and what is left
 
 ## Reference

@@ -48,8 +48,7 @@ when the developer asks.
 - Live testnet runs on Hedera, World ID, and 0G. Results and known gaps are in
   `CONTEXT.md`.
 - Browser checks of the UI.
-- Labels on what is simulated. See [`pitch.md`](pitch.md) and
-  [`prize-checklist.md`](prize-checklist.md).
+- Labels on what is simulated. Known gaps are in `CONTEXT.md`.
 
 AI output can contain errors. Where a check did not run live, the docs say so.
 
@@ -61,4 +60,3 @@ AI output can contain errors. Where a check did not run live, the docs say so.
 | Product spec | [`product-spec.md`](product-spec.md) |
 | Hand-off log | [`../CONTEXT.md`](../CONTEXT.md) |
 | Agent rules | [`../AGENTS.md`](../AGENTS.md) and each `packages/*/AGENTS.md` |
-| Pitch playbook | [`pitch.md`](pitch.md) |

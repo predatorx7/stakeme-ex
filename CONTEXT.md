@@ -174,7 +174,7 @@ Deadline: submission by Saturday 2026-11-07 09:00 IST.
    holder `claim()` on the public site for MUSH, RAVI or RAHUL.
 7. **Submit** by 09:00 IST: repo link (confirm public), video, live URL,
    contract addresses, team contacts, AI disclosure (`docs/ai-usage.md`), and the
-   three partner prizes. Track status is in `docs/prize-checklist.md`.
+   three partner prizes.
 8. Optional: a phone-wallet signature test; the `no e2e test for
    AuditMilestone` gap; unused `DRAFT` creator status; a production World ID
    app.

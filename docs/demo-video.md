@@ -2,8 +2,8 @@
 
 This document is the plan for the three-minute ETHGlobal submission video of
 StakeMe Exchange (SMX): shot list, pre-recording checklist, fallback plan, and
-a 60-second judge walkthrough. It follows the stage
-timing in [pitch.md](pitch.md), adjusted to the sponsors that are built for the
+a 60-second judge walkthrough. It is adjusted
+to the sponsors that are built for the
 MVP: Hedera, World ID, 0G and Reclaim. Chainlink CRE and Arkiv are not in the
 build, so the video does not show or claim them. The 0G agent audits the proof
 directly, and 0G Storage holds the L-ISA terms.
