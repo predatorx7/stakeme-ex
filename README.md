@@ -12,6 +12,22 @@ the escrow freezes and investors get refunds.
 Live app: <https://stakeme.magnificlabs.org>. It runs on Hedera testnet, World
 ID staging and 0G testnet, with a mock bank and MockUSDC.
 
+## Screenshots
+
+<table>
+<tr>
+	<td align="center"><img src="docs/screenshots/01-exchange.jpg" width="420" alt="Exchange home and trending"><br>Exchange home and trending</td>
+	<td align="center"><img src="docs/screenshots/02-creator.jpg" width="420" alt="Creator page with order ticket"><br>Creator page with order ticket</td>
+</tr>
+<tr>
+	<td align="center"><img src="docs/screenshots/03-escrow-proofs.jpg" width="420" alt="Tranche escrow meter"><br>Tranche escrow meter</td>
+	<td align="center"><img src="docs/screenshots/04-creators.jpg" width="420" alt="All creators"><br>All creators</td>
+</tr>
+<tr>
+	<td align="center"><img src="docs/screenshots/05-activity.jpg" width="420" alt="Activity feed"><br>Activity feed</td>
+</tr>
+</table>
+
 ## How it works
 
 1. **Launch.** The creator verifies as one human with World ID, stakes at
